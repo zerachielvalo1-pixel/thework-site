@@ -125,6 +125,14 @@
         <h2>From the Archives</h2>
         <p class="section-lede">Every release of The Work, arranged from the present issue down to our founding year.</p>
       </div>
+      <div class="archive-filter-strip" role="tablist" aria-label="Archive categories">
+        <button class="archive-tab active" data-filter="all" role="tab" aria-selected="true">All</button>
+        <button class="archive-tab" data-filter="magazine" role="tab" aria-selected="false">Magazine</button>
+        <button class="archive-tab" data-filter="tabloid" role="tab" aria-selected="false">Tabloid</button>
+        <button class="archive-tab" data-filter="newsletter" role="tab" aria-selected="false">Newsletter</button>
+        <button class="archive-tab" data-filter="literary" role="tab" aria-selected="false">Literary Folio</button>
+        <button class="archive-tab" data-filter="minizine" role="tab" aria-selected="false">Mini Zines</button>
+      </div>
       <div class="releases-grid" id="releasesGrid"></div>
     </div>
   </section>
@@ -308,6 +316,16 @@
               <div class="field"><label for="releaseStatus">Status</label><select id="releaseStatus"><option value="draft">Draft</option><option value="published">Published</option></select></div>
             </div>
             <div class="field">
+                          <div class="field">
+              <label for="releaseCategory">Category <span class="hint">*</span></label>
+              <select id="releaseCategory" required>
+                <option value="magazine">Magazine (Metanoia)</option>
+                <option value="tabloid">Tabloid</option>
+                <option value="newsletter">Newsletter</option>
+                <option value="literary">Literary Folio (Obra)</option>
+                <option value="minizine">Mini Zines</option>
+              </select>
+            </div>
               <label>Flipbook platform</label>
               <div class="provider-toggle" id="releaseProviderToggle" role="group" aria-label="Flipbook platform">
                 <button type="button" class="provider-opt active" data-provider="heyzine" aria-pressed="true">Heyzine</button>
