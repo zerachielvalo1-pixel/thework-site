@@ -22,7 +22,14 @@ const timeAgo = ts => { if(!ts) return '—'; const diff=Date.now()-new Date(ts)
 
 const CAT_LABELS = { news:'News', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
 const SECTION_ORDER = ['news','features','opinion','literary','sports'];
-
+const RELEASE_CATEGORIES = [
+  { id:'magazine',   label:'Magazine',       example:'Metanoia' },
+  { id:'tabloid',    label:'Tabloid',        example:'' },
+  { id:'newsletter', label:'Newsletter',     example:'' },
+  { id:'literary',   label:'Literary Folio', example:'Obra' },
+  { id:'minizine',   label:'Mini Zines',     example:'' }
+];
+const RELEASE_CAT_LABELS = Object.fromEntries(RELEASE_CATEGORIES.map(c => [c.id, c.label]));
 const BOARD = [
   { group:'Editorial Board', subgroup:null, name:'Clarisse T. Fajardo',          role:'Editor-in-Chief',                    program:'BS Education, Major in English',              initials:'CF' },
   { group:'Editorial Board', subgroup:null, name:'Allan P. Tipon Jr.',           role:'Associate Editor-in-Chief',          program:'BS Mechanical Engineering',                   initials:'AT' },
@@ -99,6 +106,7 @@ let pendingReleaseCover = null;
 let editingVideoId = null;
 let pendingVideoThumb = null;
 let releaseProvider = 'heyzine';
+let archiveFilter = 'all';
 let editingMemoriamId = null;
 let pendingMemoriamPhoto = null;
 
@@ -643,14 +651,17 @@ function releaseCardHtml(issue) {
     ? `<img src="${esc(cover)}" alt="" loading="lazy">`
     : `<div class="release-cover-text">${esc((issue.title||'?').charAt(0))}</div>`;
   const prov = detectProvider(issue.heyzine_url);
-  const tag = prov ? `<div style="margin-top:8px"><span class="platform-tag">${esc(PROVIDERS[prov].label)}</span></div>` : '';
+  const catLabel = RELEASE_CAT_LABELS[issue.category] || 'Magazine';
   return `
-    <div class="release-card" data-release-id="${esc(issue.id)}" role="button" tabindex="0">
-      <div class="release-cover">${coverHtml}</div>
+    <div class="release-card" data-release-id="${esc(issue.id)}" data-release-cat="${esc(issue.category||'magazine')}" role="button" tabindex="0">
+      <div class="release-cover">
+        ${coverHtml}
+        <span class="release-cat-badge">${esc(catLabel)}</span>
+      </div>
       <div class="release-info">
         <h3>${esc(issue.title)}</h3>
         <div class="release-meta">${esc(issue.volume || '')}${issue.volume && issue.issue_date ? ' · ' : ''}${esc(fmtDate(issue.issue_date))}</div>
-        ${tag}
+        ${prov ? `<div style="margin-top:6px"><span class="platform-tag">${esc(PROVIDERS[prov].label)}</span></div>` : ''}
         <div class="release-open-hint">Open reader →</div>
       </div>
     </div>
@@ -668,10 +679,15 @@ async function renderReleasesPage() {
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--ink-3);font-family:var(--sans);font-size:.9rem">Loading archives…</div>';
   releases = await Data.listPublishedReleases();
   if (!releases.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No archives yet</h3><p style="font-family:var(--sans);font-size:.85rem">Issues will appear here as they are uploaded.</p></div>`;
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No archives yet</h3><p style="font-family:var(--sans);font-size:.85rem">Issues will appear here as they are uploaded.</p></div>';
     return;
   }
-  grid.innerHTML = releases.map(releaseCardHtml).join('');
+  const filtered = archiveFilter === 'all' ? releases : releases.filter(r => (r.category||'magazine') === archiveFilter);
+  if (!filtered.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No ${esc(RELEASE_CAT_LABELS[archiveFilter]||archiveFilter)} issues yet</h3></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(releaseCardHtml).join('');
   wireReleaseCards(grid);
 }
 
@@ -1224,7 +1240,7 @@ async function renderReleasesAdmin() {
         <div class="release-list-cover">${coverHtml}</div>
         <div class="release-list-info">
           <h4>${esc(r.title)}</h4>
-          <small>${esc(r.volume || '—')} · ${esc(fmtDate(r.issue_date))} · <span class="badge ${r.status==='published'?'published':'draft'}">${r.status}</span>${prov ? ' · ' + esc(PROVIDERS[prov].label) : ''}</small>
+                    <small>${esc(RELEASE_CAT_LABELS[r.category]||'Magazine')} · ${esc(r.volume || '—')} · ${esc(fmtDate(r.issue_date))} · <span class="badge ${r.status==='published'?'published':'draft'}">${r.status}</span>${prov ? ' · ' + esc(PROVIDERS[prov].label) : ''}</small>  
         </div>
         <div class="release-list-actions">
           <button class="icon-action" data-release-edit="${esc(r.id)}" title="Edit">✎</button>
@@ -1269,6 +1285,7 @@ function showReleaseForm(release) {
     $('#releaseVolume').value = release.volume || '';
     $('#releaseDate').value = release.issue_date || todayISO();
     $('#releaseStatus').value = release.status || 'draft';
+    $('#releaseCategory').value = release.category || 'magazine';
     $('#releaseFlipUrl').value = release.heyzine_url || '';
     setReleaseProvider(detectProvider(release.heyzine_url) || 'heyzine', { keepValue: true });
     $('#releaseFormTitle').textContent = 'Edit release';
@@ -1280,8 +1297,10 @@ function showReleaseForm(release) {
   } else {
     editingReleaseId = null;
     $('#releaseForm').reset();
+    $('#releaseCategory').value = 'magazine';
     $('#releaseDate').value = todayISO();
     $('#releaseStatus').value = 'draft';
+    $('#releaseCategory').value = 'magazine';
     $('#releaseFormTitle').textContent = 'New release';
     pendingReleaseCover = null;
     setReleaseProvider('heyzine', { keepValue: true });
@@ -1370,6 +1389,7 @@ $('#releaseForm').addEventListener('submit', async e => {
       volume: $('#releaseVolume').value.trim() || null,
       issue_date: $('#releaseDate').value || todayISO(),
       status: $('#releaseStatus').value,
+      category: $('#releaseCategory').value || 'magazine',
       heyzine_url: flipUrl,
       cover_url: cover_url,
       updated: new Date().toISOString()
@@ -2102,6 +2122,15 @@ $$('.section-tab').forEach(tab => {
     activeFilter = tab.dataset.filter;
     renderHome();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+$$('.archive-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.archive-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected','true');
+    archiveFilter = tab.dataset.filter;
+    renderReleasesPage();
   });
 });
 
