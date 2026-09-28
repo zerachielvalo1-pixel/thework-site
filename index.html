@@ -733,6 +733,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
         <button data-panel="new">New Article</button>
         <button data-panel="releases">Archives</button>
         <button data-panel="videos">Videos</button>
+        <button data-panel="memoriam">Look Back</button>
         <button data-panel="board">Board Photos</button>
         <button data-panel="settings">Settings</button>
       </div>
@@ -898,7 +899,53 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 
         <div id="videoAdminList"></div>
       </section>
+              <div id="videoAdminList"></div>
+      </section>
 
+      <section class="admin-section" id="panel-memoriam">
+        <div class="admin-head">
+          <div><h1>Look Back</h1><p>Past editorial boards — one entry per term, with a group photo.</p></div>
+          <button class="btn btn-primary" id="newMemoriamBtn">New entry</button>
+        </div>
+        <div class="panel" id="memoriamFormPanel" style="display:none;margin-bottom:22px">
+          <div class="panel-head"><h2 id="memoriamFormTitle">New entry</h2><p>Upload the board photo and enter the school year.</p></div>
+          <form id="memoriamForm" novalidate>
+            <input type="hidden" id="memoriamId">
+            <div class="row-2">
+              <div class="field"><label for="memoriamYear">School year <span class="hint">*</span></label><input type="text" id="memoriamYear" required maxlength="40" placeholder="2025–2026"></div>
+              <div class="field"><label for="memoriamTerm">Term label <span class="hint">optional</span></label><input type="text" id="memoriamTerm" maxlength="60" placeholder="78th Generation"></div>
+            </div>
+            <div class="field"><label for="memoriamCaption">Caption <span class="hint">optional</span></label><textarea id="memoriamCaption" maxlength="400" style="min-height:80px" placeholder="Short description or list of members"></textarea></div>
+            <div class="field"><label for="memoriamSort">Sort order <span class="hint">lower = higher up</span></label><input type="text" id="memoriamSort" value="0"></div>
+            <div class="field">
+              <label>Board photo <span class="hint">required</span></label>
+              <input type="file" id="memoriamPhotoFile" accept="image/*" style="display:none">
+              <div class="thumb-uploader" id="memoriamPhotoUploader">
+                <div id="memoriamPhotoEmpty" class="thumb-placeholder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-4.5-4.5L9 18"/></svg>
+                  <b>Click to upload the board photo</b>
+                  <small>JPG or PNG · landscape 4:3 works best</small>
+                </div>
+                <div id="memoriamPhotoPreview" class="thumb-preview" style="display:none"><img id="memoriamPhotoImg" alt=""></div>
+              </div>
+              <div class="thumb-actions" id="memoriamPhotoActions" style="display:none">
+                <small id="memoriamPhotoName">photo.jpg</small>
+                <div style="display:flex;gap:8px">
+                  <button type="button" class="btn btn-ghost btn-sm" id="memoriamPhotoChange">Change</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="memoriamPhotoRemove">Remove</button>
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="memoriamSaveBtn">Save entry</button>
+              <button type="button" class="btn btn-ghost" id="memoriamCancelBtn">Cancel</button>
+            </div>
+          </form>
+        </div>
+        <div id="memoriamAdminList"></div>
+      </section>
+
+      <section class="admin-section" id="panel-board">
       <section class="admin-section" id="panel-board">
         <div class="admin-head">
           <div><h1>Board photos</h1><p>Upload photos. You'll see a live circular preview while cropping.</p></div>
@@ -1225,7 +1272,8 @@ let pendingReleaseCover = null;
 let editingVideoId = null;
 let pendingVideoThumb = null;
 let releaseProvider = 'heyzine';
-
+let editingMemoriamId = null;
+let pendingMemoriamPhoto = null;
 const Data = {
   async listPublished() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.status === 'published');
@@ -1382,6 +1430,27 @@ const Data = {
     const { data, error } = await sb.from('memoriam').select('*').order('sort_order',{ascending:true});
     if (error) return [];
     return data || [];
+  },
+  async upsertMemoriam(item) {
+    if (!sb) {
+      const list = JSON.parse(localStorage.getItem('tw_memoriam') || '[]');
+      const idx = list.findIndex(x => x.id === item.id);
+      if (idx >= 0) list[idx] = item; else list.unshift(item);
+      localStorage.setItem('tw_memoriam', JSON.stringify(list));
+      return item;
+    }
+    const { data, error } = await sb.from('memoriam').upsert(item).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async removeMemoriam(id) {
+    if (!sb) {
+      const list = JSON.parse(localStorage.getItem('tw_memoriam') || '[]').filter(x => x.id !== id);
+      localStorage.setItem('tw_memoriam', JSON.stringify(list));
+      return;
+    }
+    const { error } = await sb.from('memoriam').delete().eq('id', id);
+    if (error) throw error;
   }
 };
 
@@ -2517,6 +2586,93 @@ document.addEventListener('click', async e => {
   }
 });
 
+ async function renderMemoriamAdmin() {
+  const el = $('#memoriamAdminList');
+  if (!el) return;
+  const list = await Data.listMemoriam();
+  if (!list.length) {
+    el.innerHTML = '<div style="text-align:center;padding:56px 24px;color:var(--ink-3);font-family:var(--sans);font-size:.88rem">No entries yet. Click <strong>New entry</strong> to add one.</div>';
+    return;
+  }
+  el.innerHTML = list.map(m => {
+    const photo = m.photo_url || '';
+    const photoHtml = photo ? `<img src="${esc(photo)}" alt="">` : '';
+    const captionPreview = m.caption ? (m.caption.length > 60 ? m.caption.slice(0,60) + '…' : m.caption) : '';
+    return `
+      <div class="release-list-item">
+        <div class="release-list-cover" style="width:72px;height:54px">${photoHtml}</div>
+        <div class="release-list-info">
+          <h4>${esc(m.school_year || '—')}</h4>
+          <small>${esc(m.term_label || '—')}${captionPreview ? ' · ' + esc(captionPreview) : ''}</small>
+        </div>
+        <div class="release-list-actions">
+          <button class="icon-action" data-memoriam-edit="${esc(m.id)}" title="Edit">✎</button>
+          <button class="icon-action danger" data-memoriam-del="${esc(m.id)}" title="Delete">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderMemoriamPhotoPreview() {
+  const uploader = $('#memoriamPhotoUploader');
+  const empty = $('#memoriamPhotoEmpty');
+  const preview = $('#memoriamPhotoPreview');
+  const img = $('#memoriamPhotoImg');
+  const actions = $('#memoriamPhotoActions');
+  const nameEl = $('#memoriamPhotoName');
+  if (!uploader) return;
+
+  if (pendingMemoriamPhoto) {
+    const src = pendingMemoriamPhoto.existing ? pendingMemoriamPhoto.url : pendingMemoriamPhoto.dataUrl;
+    img.src = src;
+    preview.style.display = 'grid';
+    empty.style.display = 'none';
+    uploader.classList.add('has-image');
+    actions.style.display = 'flex';
+    nameEl.textContent = pendingMemoriamPhoto.existing ? 'Current photo' : (pendingMemoriamPhoto.file?.name || 'photo.jpg');
+  } else {
+    img.src = '';
+    preview.style.display = 'none';
+    empty.style.display = 'flex';
+    uploader.classList.remove('has-image');
+    actions.style.display = 'none';
+  }
+}
+
+function showMemoriamForm(m) {
+  $('#memoriamFormPanel').style.display = 'block';
+  $('#newMemoriamBtn').style.display = 'none';
+  if (m) {
+    editingMemoriamId = m.id;
+    $('#memoriamId').value = m.id;
+    $('#memoriamYear').value = m.school_year || '';
+    $('#memoriamTerm').value = m.term_label || '';
+    $('#memoriamCaption').value = m.caption || '';
+    $('#memoriamSort').value = m.sort_order != null ? m.sort_order : 0;
+    $('#memoriamFormTitle').textContent = 'Edit entry';
+    pendingMemoriamPhoto = m.photo_url ? { existing: true, url: m.photo_url } : null;
+  } else {
+    editingMemoriamId = null;
+    $('#memoriamForm').reset();
+    $('#memoriamSort').value = '0';
+    $('#memoriamFormTitle').textContent = 'New entry';
+    pendingMemoriamPhoto = null;
+  }
+  renderMemoriamPhotoPreview();
+  setTimeout(() => $('#memoriamYear').focus(), 60);
+}
+
+function hideMemoriamForm() {
+  $('#memoriamFormPanel').style.display = 'none';
+  $('#newMemoriamBtn').style.display = 'inline-flex';
+  editingMemoriamId = null;
+  pendingMemoriamPhoto = null;
+  $('#memoriamForm').reset();
+  $('#memoriamPhotoFile').value = '';
+  renderMemoriamPhotoPreview();
+}
+ 
 async function renderVideosAdmin() {
   const el = $('#videoAdminList');
   if (!el) return;
@@ -2618,6 +2774,102 @@ function hideVideoForm() {
   $('#videoThumbFile').value = '';
   renderVideoThumbPreview();
 }
+document.addEventListener('click', e => {
+  if (e.target.closest('#newMemoriamBtn'))  { showMemoriamForm(null); return; }
+  if (e.target.closest('#memoriamCancelBtn')) { hideMemoriamForm(); return; }
+  if (e.target.closest('#memoriamPhotoChange')) { $('#memoriamPhotoFile')?.click(); return; }
+  if (e.target.closest('#memoriamPhotoRemove')) {
+    pendingMemoriamPhoto = null;
+    const f = $('#memoriamPhotoFile'); if (f) f.value = '';
+    renderMemoriamPhotoPreview();
+    return;
+  }
+  const uploader = e.target.closest('#memoriamPhotoUploader');
+  if (uploader) {
+    if (uploader.classList.contains('has-image') && pendingMemoriamPhoto) return;
+    $('#memoriamPhotoFile')?.click();
+    return;
+  }
+});
+
+document.addEventListener('change', async e => {
+  if (e.target && e.target.id === 'memoriamPhotoFile') {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast('Not an image', true); return; }
+    try {
+      const dataUrl = await resizeImage(file, 1200, 0.85);
+      pendingMemoriamPhoto = { file, dataUrl };
+      renderMemoriamPhotoPreview();
+    } catch (err) {
+      toast('Could not process image', true);
+    }
+    e.target.value = '';
+  }
+});
+
+$('#memoriamForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!session) { toast('Please sign in first.', true); return; }
+  const year = $('#memoriamYear').value.trim();
+  if (!year) { toast('School year is required', true); return; }
+  if (!pendingMemoriamPhoto) { toast('Please upload a board photo', true); return; }
+
+  const btn = $('#memoriamSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    let photo_url = null;
+    if (pendingMemoriamPhoto.existing) {
+      photo_url = pendingMemoriamPhoto.url;
+    } else if (pendingMemoriamPhoto.file) {
+      btn.textContent = 'Uploading photo…';
+      photo_url = await Data.uploadThumb(pendingMemoriamPhoto.file);
+    }
+
+    const payload = {
+      id: editingMemoriamId || uid(),
+      school_year: year,
+      term_label: $('#memoriamTerm').value.trim() || null,
+      caption: $('#memoriamCaption').value.trim() || null,
+      photo_url: photo_url,
+      sort_order: parseInt($('#memoriamSort').value, 10) || 0,
+      updated: new Date().toISOString()
+    };
+
+    await Data.upsertMemoriam(payload);
+    toast(editingMemoriamId ? 'Entry updated' : 'Entry created');
+    hideMemoriamForm();
+    await renderMemoriamAdmin();
+    await renderMemoriamPage();
+  } catch (err) {
+    console.error(err);
+    toast('Save failed: ' + (err.message || err), true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save entry';
+  }
+});
+
+document.addEventListener('click', async e => {
+  const ed = e.target.closest('[data-memoriam-edit]');
+  if (ed) {
+    const list = await Data.listMemoriam();
+    const m = list.find(x => x.id === ed.dataset.memoriamEdit);
+    if (m) showMemoriamForm(m);
+    return;
+  }
+  const dl = e.target.closest('[data-memoriam-del]');
+  if (dl) {
+    openConfirm('Delete entry?', 'This past board will be removed from Look Back.', async () => {
+      try {
+        await Data.removeMemoriam(dl.dataset.memoriamDel);
+        await renderMemoriamAdmin();
+        await renderMemoriamPage();
+        toast('Entry deleted');
+      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+    });
+  }
+});
 
 document.addEventListener('click', e => {
   if (e.target.closest('#newVideoBtn'))  { showVideoForm(null); return; }
@@ -2939,6 +3191,7 @@ function setPanel(name, skipReset) {
   if (name === 'new' && !skipReset) resetForm();
   if (name === 'releases') hideReleaseForm();
   if (name === 'videos') hideVideoForm();
+  if (name === 'memoriam') hideMemoriamForm();
   $$('.admin-section').forEach(s => s.classList.remove('active'));
   const el = $('#panel-' + name);
   if (el) el.classList.add('active');
@@ -2948,6 +3201,7 @@ function setPanel(name, skipReset) {
   if (name === 'board') renderBoardAdmin();
   if (name === 'releases') renderReleasesAdmin();
   if (name === 'videos') renderVideosAdmin();
+  if (name === 'memoriam') renderMemoriamAdmin();
 }
 
 document.addEventListener('click', e => {
@@ -3057,7 +3311,7 @@ async function route() {
     setView('admin');
     const parts = path.split('/');
     const sub = parts[2] || 'dashboard';
-    setPanel(['dashboard','articles','releases','videos','board','new','settings'].includes(sub) ? sub : 'dashboard');
+   setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
     updateAuthUI();
     return;
