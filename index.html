@@ -19,8 +19,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Merriweather+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="b540f8eb-4857-4ae8-bc38-db07ab0c7ef3"></script>
 <style>
 :root{
@@ -1145,11 +1143,7 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'a'+Date.now().toSt
 const todayISO = () => new Date().toISOString().slice(0,10);
 const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
 const fmtDateLong = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); };
-const fmtDateTimeLive = d => {
-  return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})
-    + ' · '
-    + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
-};
+const fmtDateTimeLive = d => d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
 const timeAgo = ts => { if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); if(diff<60000) return 'just now'; const m=Math.floor(diff/60000); if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; };
 
 const CAT_LABELS = { news:'News', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
@@ -1837,6 +1831,7 @@ async function renderMemoriamPage() {
 function openReader(releaseId) {
   const issue = releases.find(i => i.id === releaseId);
   if (!issue) return;
+  if (window.umami) window.umami.track('Release Opened', { title: issue.title || '' });
   const embed = flipbookEmbedUrl(issue.heyzine_url);
   if (!embed) { toast('No flipbook for this release yet', true); return; }
   lastFocused = document.activeElement;
@@ -1895,16 +1890,17 @@ function youtubeThumb(v) {
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '';
 }
 
+function isFacebookUrl(u) {
+  return /facebook\.com|fb\.watch/i.test(String(u || ''));
+}
+
 function toEmbedUrl(url, platform) {
   const u = String(url || '').trim();
   if (!u) return '';
-  platform = platform || (/youtu/.test(u) ? 'youtube' : (/facebook|fb\.watch/.test(u) ? 'facebook' : 'vimeo'));
+  platform = platform || (/youtu/i.test(u) ? 'youtube' : (/facebook|fb\.watch/i.test(u) ? 'facebook' : 'vimeo'));
   if (platform === 'youtube') {
     const id = extractYouTubeId(u);
     return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1` : u;
-  }
-  if (platform === 'facebook') {
-    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u)}&show_text=0&autoplay=1`;
   }
   if (platform === 'vimeo') {
     const m = u.match(/vimeo\.com\/(\d+)/);
@@ -1912,13 +1908,11 @@ function toEmbedUrl(url, platform) {
   }
   return u;
 }
-function isFacebookUrl(u) {
-  return /facebook\.com|fb\.watch/i.test(String(u || ''));
-}
 
 function openVideo(id, list) {
   const v = list.find(x => x.id === id);
   if (!v) return;
+  if (window.umami) window.umami.track('Video Opened', { title: v.title || '', platform: v.platform || '' });
   lastFocused = document.activeElement;
   $('#readerTitle').textContent = v.title || 'Video';
   $('#readerSub').textContent = v.published ? fmtDate(v.published) : '';
@@ -1926,7 +1920,7 @@ function openVideo(id, list) {
   const stage = $('#readerStage');
   const ext = $('#readerExtLink');
 
-  // ── Facebook: no iframe, just a nice preview card that links out ──
+  // Facebook: link out instead of embedding (Facebook blocks most third-party embeds)
   if (isFacebookUrl(v.video_url)) {
     const thumb = v.thumbnail_url || '';
     stage.innerHTML = `
@@ -1949,7 +1943,7 @@ function openVideo(id, list) {
     return;
   }
 
-  // ── YouTube / Vimeo: embed as normal ──
+  // YouTube / Vimeo: embed as normal
   const embed = toEmbedUrl(v.video_url, v.platform);
   if (!embed) { toast('Cannot embed this video', true); return; }
   if (v.video_url) { ext.href = v.video_url; ext.classList.add('show'); }
@@ -2115,6 +2109,7 @@ $('#boardProfileOverlay').addEventListener('click', e => { if (e.target === $('#
 function openArticle(id) {
   const a = articles.find(x => x.id === id);
   if (!a) return;
+  if (window.umami) window.umami.track('Article Read', { title: a.title || '', cat: a.cat || '' });
   lastFocused = document.activeElement;
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
@@ -3080,7 +3075,7 @@ async function init() {
   renderBoard();
 
   $('#year').textContent = new Date().getFullYear();
-    (function startLiveClock(){
+  (function startLiveClock(){
     const el = $('#pubbarDate');
     if (!el) return;
     const tick = () => { el.textContent = fmtDateTimeLive(new Date()); };
