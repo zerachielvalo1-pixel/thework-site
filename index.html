@@ -2113,15 +2113,21 @@ function openArticle(id) {
   lastFocused = document.activeElement;
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
-  const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'Staff');
-  $('#modalMeta').innerHTML = `<span>${esc(byline)}</span><span>${esc(fmtDate(a.date))}</span>` + (a.read?`<span>${esc(a.read)} read</span>`:'');
 
-  const credits = [];
-  if (a.photojournalist) credits.push(['Photos', a.photojournalist]);
-  if (a.layout_by) credits.push(['Layout', a.layout_by]);
-  const creditsHtml = credits.length
-    ? '<div class="article-credits">' + credits.map(([l, v]) => `<div class="credit-row"><span class="credit-label">${esc(l)}</span><span>${esc(v)}</span></div>`).join('') + '</div>'
-    : '';
+  // ── Unified byline: writer + photojournalist + layout artist on one line ──
+  const authorLine = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'Staff');
+  const credits = [`By ${authorLine}`];
+  if (a.photojournalist) credits.push(`Photos by ${a.photojournalist}`);
+  if (a.layout_by) credits.push(`Layout by ${a.layout_by}`);
+
+  const metaBits = [];
+  if (a.date) metaBits.push(fmtDate(a.date));
+  if (a.read) metaBits.push(a.read + ' read');
+
+  $('#modalMeta').innerHTML = `
+    <div style="width:100%;font-weight:600;color:var(--ink-2);line-height:1.5">${esc(credits.join(' · '))}</div>
+    ${metaBits.length ? `<div style="width:100%;font-size:.72rem;color:var(--ink-4);margin-top:2px">${esc(metaBits.join(' · '))}</div>` : ''}
+  `;
 
   const letter = esc((CAT_LABELS[a.cat]||'?').charAt(0));
   $('#modalHero').innerHTML = a.thumbnail
@@ -2130,7 +2136,7 @@ function openArticle(id) {
   const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
   let content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
   if (a.excerpt) content += `<blockquote>${esc(a.excerpt)}</blockquote>`;
-  $('#modalContent').innerHTML = creditsHtml + (content || `<p>${esc(a.excerpt||'')}</p>`);
+  $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
   $('#modalOverlay').classList.add('open');
   modalOpen = true;
   document.body.style.overflow = 'hidden';
