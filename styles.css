@@ -497,3 +497,17 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 .memoriam-modal-year{font-family:var(--serif);font-size:1.55rem;font-weight:900;letter-spacing:-.02em;color:var(--ink);margin-bottom:6px}
 .memoriam-modal-term{font-family:var(--sans);font-size:.72rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
 .memoriam-modal-caption{font-family:var(--sans);font-size:.92rem;color:var(--ink-2);line-height:1.8;white-space:pre-wrap}
+/* Subtle entrance animations */
+.tw-fade{
+  opacity:0;
+  transform:translateY(14px);
+  transition:opacity .55s cubic-bezier(.22,.61,.36,1), transform .55s cubic-bezier(.22,.61,.36,1);
+  will-change:opacity, transform;
+}
+.tw-fade.in{
+  opacity:1;
+  transform:none;
+}
+@media (prefers-reduced-motion: reduce){
+  .tw-fade{opacity:1;transform:none;transition:none}
+}

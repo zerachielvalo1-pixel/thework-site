@@ -20,7 +20,41 @@ const fmtDateLong = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00
 const fmtDateTimeLive = d => d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
 const timeAgo = ts => { if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); if(diff<60000) return 'just now'; const m=Math.floor(diff/60000); if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; };
 const toLocalDateTimeInput = iso => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); };
-
+// ---------- subtle entrance animations ----------
+const TW_FADE_TARGETS = '.article,.lead-story,.sidebar-item,.board-card,.release-card,.video-card,.memoriam-item,.panel,.stat-card';
+let twFadeObs = null;
+function twInitFade() {
+  if (!('IntersectionObserver' in window)) return;
+  twFadeObs = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        twFadeObs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.06, rootMargin: '0px 0px -30px 0px' });
+}
+function twApplyFade() {
+  if (!twFadeObs) return;
+  const els = document.querySelectorAll(TW_FADE_TARGETS);
+  let i = 0;
+  els.forEach((el) => {
+    if (el.classList.contains('tw-fade')) return;
+    el.classList.add('tw-fade');
+    el.style.transitionDelay = Math.min((i % 8) * 45, 315) + 'ms';
+    twFadeObs.observe(el);
+    i++;
+  });
+}
+let twFadePending = false;
+function twScheduleFade() {
+  if (twFadePending) return;
+  twFadePending = true;
+  requestAnimationFrame(() => {
+    twFadePending = false;
+    twApplyFade();
+  });
+}
 const CAT_LABELS = { news:'News', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
 const SECTION_ORDER = ['news','features','opinion','literary','sports'];
 const RELEASE_CATEGORIES = [
@@ -2234,6 +2268,12 @@ async function init() {
   $('#fRead').value = '';
   $('#releaseDate').value = todayISO();
   setReleaseProvider('heyzine', { keepValue: true });
+
+  twInitFade();
+  if (document.body) {
+    new MutationObserver(twScheduleFade).observe(document.body, { childList: true, subtree: true });
+  }
+  twScheduleFade();
 
   session = await getSession();
   updateAuthUI();
