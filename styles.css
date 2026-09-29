@@ -626,9 +626,10 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   text-align:right;
   margin-top:20px;
   padding-right:4px;
-  padding-bottom:6px;
-  line-height:1.3;
+  padding-bottom:24px;
+  line-height:1.4;
   position:relative;
+  overflow:visible;
 }
 .manifesto-sign em{
   font-style:italic;
@@ -641,11 +642,12 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 }
 .manifesto-sign::after{
   content:"";
-  display:block;
+  position:absolute;
+  bottom:0;
+  right:0;
   width:110px;
   height:2px;
   background:var(--gradient);
-  margin:22px 0 0 auto;
   border-radius:2px;
 }
 
