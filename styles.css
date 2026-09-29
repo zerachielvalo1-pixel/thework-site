@@ -518,3 +518,12 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 @media (prefers-reduced-motion: reduce){
   .tw-fade{opacity:1;transform:none;transition:none}
 }
+/* Word count meter */
+.word-meter{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-family:var(--sans);font-size:.72rem;color:var(--ink-3);line-height:1.5}
+.word-meter span:first-child{font-weight:700}
+.word-meter.under span:first-child{color:#B45309}
+.word-meter.over  span:first-child{color:#B91C1C}
+.word-meter.ok    span:first-child{color:#1F7A4D}
+[data-theme="dark"] .word-meter.under span:first-child{color:#FBBF24}
+[data-theme="dark"] .word-meter.over  span:first-child{color:#FCA5A5}
+[data-theme="dark"] .word-meter.ok    span:first-child{color:#4ADE80}

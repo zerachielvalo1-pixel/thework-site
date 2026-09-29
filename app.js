@@ -55,8 +55,8 @@ function twScheduleFade() {
     twApplyFade();
   });
 }
-const CAT_LABELS = { news:'News', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
-const SECTION_ORDER = ['news','features','opinion','literary','sports'];
+const CAT_LABELS = { news:'News', editorial:'Editorial', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
+const SECTION_ORDER = ['news','editorial','features','opinion','literary','sports'];
 const RELEASE_CATEGORIES = [
   { id:'magazine',   label:'Magazine',       example:'Metanoia' },
   { id:'tabloid',    label:'Tabloid',        example:'' },
@@ -1997,6 +1997,42 @@ $('#fThumb').addEventListener('change', e => {
   window.__pendingThumbFile = file;
 });
 
+
+// ---------- word count meter ----------
+const WORD_TARGETS = {
+  news:      { min: 300, max: 600,  label: 'News: 300–600 words' },
+  editorial: { min: 400, max: 800,  label: 'Editorial: 400–800 words' },
+  features:  { min: 700, max: 1500, label: 'Features: 700–1,500 words' },
+  opinion:   { min: 500, max: 900,  label: 'Opinion: 500–900 words' },
+  literary:  { min: 300, max: 2000, label: 'Literary: 300–2,000 words' },
+  sports:    { min: 350, max: 700,  label: 'Sports: 350–700 words' }
+};
+function updateBodyMeter() {
+  const bodyEl  = document.getElementById('fBody');
+  const catEl   = document.getElementById('fCat');
+  const wrap    = document.getElementById('fBodyMeter');
+  const countEl = document.getElementById('fBodyCount');
+  const targEl  = document.getElementById('fBodyTarget');
+  if (!bodyEl || !wrap || !countEl || !targEl) return;
+  const text  = bodyEl.value.trim();
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  countEl.textContent = words + (words === 1 ? ' word' : ' words');
+  const t = catEl ? WORD_TARGETS[catEl.value] : null;
+  wrap.classList.remove('under','over','ok');
+  if (!t) { targEl.textContent = ''; return; }
+  targEl.textContent = '· ' + t.label;
+  if (words === 0) return;
+  if (words < t.min)       wrap.classList.add('under');
+  else if (words > t.max)  wrap.classList.add('over');
+  else                     wrap.classList.add('ok');
+}
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'fBody') updateBodyMeter();
+});
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'fCat') updateBodyMeter();
+});
+
 function resetForm() {
   editingId = null;
   window.__pendingThumbFile = null;
@@ -2010,6 +2046,7 @@ function resetForm() {
   $('#editorTitle').textContent = 'New article';
   $('#deleteBtn').style.display = 'none';
   setThumbnail(null);
+  if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
 
 function loadIntoForm(id) {
@@ -2034,6 +2071,7 @@ function loadIntoForm(id) {
   setThumbnail(a.thumbnail || null, a.thumbnail ? 'current.jpg' : '');
   $('#editorTitle').textContent = 'Edit article';
   $('#deleteBtn').style.display = 'inline-flex';
+  if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
 
 $('#articleForm').addEventListener('submit', async e => {

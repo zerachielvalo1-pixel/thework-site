@@ -534,7 +534,14 @@
               <div style="margin:6px 0 0;font-family:var(--sans);font-size:.72rem;color:var(--ink-3);line-height:1.55">If set to a future time, the article stays hidden from the public site until then. Status must be <b>Published</b>.</div>
             </div>
             <div class="field"><label for="fExcerpt">Excerpt</label><textarea id="fExcerpt" maxlength="280" style="min-height:70px"></textarea></div>
-            <div class="field"><label for="fBody">Body <span class="hint">blank line between paragraphs</span></label><textarea id="fBody" style="min-height:260px"></textarea></div>
+            <div class="field">
+              <label for="fBody">Body <span class="hint">blank line between paragraphs</span></label>
+              <textarea id="fBody" style="min-height:260px"></textarea>
+              <div class="word-meter" id="fBodyMeter">
+                <span id="fBodyCount">0 words</span>
+                <span id="fBodyTarget"></span>
+              </div>
+            </div>
             <div class="field">
               <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;background:var(--paper-3);border-radius:var(--radius);border:1.5px solid var(--line);cursor:pointer;margin:0">
                 <input type="checkbox" id="fFeatured" style="width:auto;flex:none;margin-top:3px;accent-color:var(--accent);cursor:pointer">
