@@ -692,7 +692,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   background-clip:text;
   -webkit-text-fill-color:transparent;
   color:transparent;
-  margin-left:.02em;
+  margin-left:.04em;
   vertical-align:baseline;
 }
 
