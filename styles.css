@@ -619,15 +619,24 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 
 .manifesto-sign{
   font-family:var(--serif);
+  font-weight:900;
+  font-size:clamp(1.6rem,3.5vw,2.4rem);
+  letter-spacing:-.02em;
+  color:var(--ink);
+  text-align:right;
+  margin-top:20px;
+  padding-right:4px;
+  line-height:1.15;
+  position:relative;
+}
+.manifesto-sign em{
   font-style:italic;
   font-weight:400;
-  font-size:1.3rem;
-  letter-spacing:.08em;
-  color:var(--accent);
-  text-align:right;
-  margin-top:14px;
-  padding-right:4px;
-  position:relative;
+  background:var(--gradient);
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+  color:transparent;
 }
 .manifesto-sign::after{
   content:"";
@@ -642,7 +651,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 @media(max-width:520px){
   .manifesto-lede{font-size:1rem}
   .manifesto-lede::first-letter{font-size:2.6em;padding:4px 8px 0 0}
-  .manifesto-sign{font-size:1.1rem;text-align:center}
+  .manifesto-sign{font-size:clamp(1.35rem,6vw,1.8rem);text-align:center}
   .manifesto-sign::after{margin:12px auto 0}
 }
 
