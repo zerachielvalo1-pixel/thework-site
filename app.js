@@ -1091,25 +1091,27 @@ function openArticle(id) {
   $('#modalTitle').textContent = a.title;
 
   const authorLine = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'Staff');
-  const credits = [`By ${authorLine}`];
-  if (a.photojournalist) credits.push(`Photos by ${a.photojournalist}`);
-  if (a.graphics_by) credits.push(`Graphics by ${a.graphics_by}`);
-  if (a.layout_by && a.layout_by_2) credits.push(`Layout by ${a.layout_by} & ${a.layout_by_2}`);
-  else if (a.layout_by) credits.push(`Layout by ${a.layout_by}`);
-  else if (a.layout_by_2) credits.push(`Layout by ${a.layout_by_2}`);
+  const creditLines = [];
+  creditLines.push({ label: 'Writer', value: authorLine });
+  if (a.photojournalist) creditLines.push({ label: 'Photos', value: a.photojournalist });
+  if (a.graphics_by) creditLines.push({ label: 'Graphics', value: a.graphics_by });
+  const layoutNames = [a.layout_by, a.layout_by_2].filter(Boolean).join(' & ');
+  if (layoutNames) creditLines.push({ label: 'Layout', value: layoutNames });
 
   const metaBits = [];
   if (a.date) metaBits.push(fmtDate(a.date));
   if (a.read) metaBits.push(a.read + ' read');
 
   $('#modalMeta').innerHTML = `
-    <div style="width:100%;font-weight:600;color:var(--ink-2);line-height:1.5">${esc(credits.join(' · '))}</div>
-    ${metaBits.length ? `<div style="width:100%;font-size:.72rem;color:var(--ink-4);margin-top:2px">${esc(metaBits.join(' · '))}</div>` : ''}
+    <div class="modal-credits">
+      ${creditLines.map(c => `<div class="modal-credit-row"><span class="modal-credit-label">${esc(c.label)}</span><span class="modal-credit-value">${esc(c.value)}</span></div>`).join('')}
+    </div>
+    ${metaBits.length ? `<div style="width:100%;font-size:.72rem;color:var(--ink-4);margin-top:10px">${esc(metaBits.join(' · '))}</div>` : ''}
   `;
 
   const letter = esc((CAT_LABELS[a.cat]||'?').charAt(0));
   $('#modalHero').innerHTML = a.thumbnail
-    ? `<img src="${esc(a.thumbnail)}" alt="">`
+    ? `<div class="modal-hero-bg" style="background-image:url('${esc(a.thumbnail)}')"></div><img src="${esc(a.thumbnail)}" alt="">`
     : `<span class="modal-hero-text">${letter}</span>`;
   const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
   let content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
