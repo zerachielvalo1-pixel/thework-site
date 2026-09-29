@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Merriweather+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=3">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -264,11 +264,6 @@
         <button data-panel="board">Board Photos</button>
         <button data-panel="settings">Settings</button>
       </div>
-        <div class="admin-side-sep"></div>
-      <h4>Workflow</h4>
-      <div class="admin-nav">
-        <a href="/tasks.html" target="_blank" class="admin-nav-link">Tasks ↗</a>
-      </div>
       <div class="admin-side-sep"></div>
       <h4>Site</h4>
       <div class="admin-nav"><button data-panel="back">Back to site</button></div>
@@ -321,16 +316,16 @@
               <div class="field"><label for="releaseStatus">Status</label><select id="releaseStatus"><option value="draft">Draft</option><option value="published">Published</option></select></div>
             </div>
             <div class="field">
-                          <div class="field">
-              <label for="releaseCategory">Category <span class="hint">*</span></label>
-              <select id="releaseCategory" required>
-                <option value="magazine">Magazine (Metanoia)</option>
-                <option value="tabloid">Tabloid</option>
-                <option value="newsletter">Newsletter</option>
-                <option value="literary">Literary Folio (Obra)</option>
-                <option value="minizine">Mini Zines</option>
-              </select>
-            </div>
+              <div class="field">
+                <label for="releaseCategory">Category <span class="hint">*</span></label>
+                <select id="releaseCategory" required>
+                  <option value="magazine">Magazine (Metanoia)</option>
+                  <option value="tabloid">Tabloid</option>
+                  <option value="newsletter">Newsletter</option>
+                  <option value="literary">Literary Folio (Obra)</option>
+                  <option value="minizine">Mini Zines</option>
+                </select>
+              </div>
               <label>Flipbook platform</label>
               <div class="provider-toggle" id="releaseProviderToggle" role="group" aria-label="Flipbook platform">
                 <button type="button" class="provider-opt active" data-provider="heyzine" aria-pressed="true">Heyzine</button>
@@ -531,7 +526,12 @@
             </div>
             <div class="row-2">
               <div class="field"><label for="fDate">Date</label><input type="date" id="fDate"></div>
-              <div class="field"><label for="fRead">Read time</label><input type="text" id="fRead" maxlength="20"></div>
+              <div class="field"><label for="fRead">Read time <span class="hint">auto</span></label><input type="text" id="fRead" maxlength="20" readonly style="opacity:.7;cursor:not-allowed"></div>
+            </div>
+            <div class="field">
+              <label for="fPublishAt">Publish at <span class="hint">optional — leave blank to publish immediately</span></label>
+              <input type="datetime-local" id="fPublishAt">
+              <div style="margin:6px 0 0;font-family:var(--sans);font-size:.72rem;color:var(--ink-3);line-height:1.55">If set to a future time, the article stays hidden from the public site until then. Status must be <b>Published</b>.</div>
             </div>
             <div class="field"><label for="fExcerpt">Excerpt</label><textarea id="fExcerpt" maxlength="280" style="min-height:70px"></textarea></div>
             <div class="field"><label for="fBody">Body <span class="hint">blank line between paragraphs</span></label><textarea id="fBody" style="min-height:260px"></textarea></div>
