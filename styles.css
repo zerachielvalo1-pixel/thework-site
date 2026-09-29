@@ -744,3 +744,18 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .manifesto-sign::after{margin:12px auto 0}
   .office-num{font-size:2rem;top:14px;right:16px}
 }
+
+/* About hero logo */
+.about-logo{
+  width:clamp(90px, 14vw, 140px);
+  height:auto;
+  margin:0 auto 26px;
+  display:block;
+  filter:drop-shadow(0 12px 32px color-mix(in srgb,var(--brand-primary) 30%, transparent));
+}
+[data-theme="dark"] .about-logo{
+  filter:invert(1) drop-shadow(0 12px 32px color-mix(in srgb,var(--brand-primary) 40%, transparent));
+}
+@media(max-width:640px){
+  .about-logo{width:clamp(72px, 20vw, 100px);margin-bottom:20px}
+}
