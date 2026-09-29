@@ -64,13 +64,13 @@
       <a href="#/about" data-route="about">About</a>
     </nav>
     <div class="nav-actions">
+      <button class="user-chip" id="userChip" style="display:none" title="Open dashboard"><span class="avatar" id="userAvatar">A</span><span class="uname" id="userName">Admin</span></button>
+      <button class="btn btn-ghost btn-sm" id="loginBtn">Log in</button>
+      <button class="btn btn-primary btn-sm" id="logoutBtn" style="display:none">Log out</button>
       <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode">
         <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
         <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
-      <button class="user-chip" id="userChip" style="display:none" title="Open dashboard"><span class="avatar" id="userAvatar">A</span><span class="uname" id="userName">Admin</span></button>
-      <button class="btn btn-ghost btn-sm" id="loginBtn">Log in</button>
-      <button class="btn btn-primary btn-sm" id="logoutBtn" style="display:none">Log out</button>
       <button class="burger" id="burger" aria-label="Toggle menu" aria-expanded="false" aria-controls="navSections"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -78,15 +78,15 @@
 
 <main id="view-home" class="view active">
   <div class="section-strip">
-    <div class="section-strip-inner">
-      <div class="section-filter-buttons" role="group" aria-label="Filter stories by category">
-        <button class="section-tab active" data-filter="all" aria-pressed="true">All Stories</button>
-        <button class="section-tab" data-filter="news" aria-pressed="false">News</button>
-        <button class="section-tab" data-filter="editorial" aria-pressed="false">Editorial</button>
-        <button class="section-tab" data-filter="opinion" aria-pressed="false">Opinion</button>
-        <button class="section-tab" data-filter="features" aria-pressed="false">Features</button>
-        <button class="section-tab" data-filter="literary" aria-pressed="false">Literary</button>
-        <button class="section-tab" data-filter="sports" aria-pressed="false">Sports</button>
+    <div class="section-strip-row">
+      <div class="section-strip-inner" role="tablist">
+        <button class="section-tab active" data-filter="all" role="tab" aria-selected="true">All Stories</button>
+        <button class="section-tab" data-filter="news" role="tab" aria-selected="false">News</button>
+        <button class="section-tab" data-filter="editorial" role="tab" aria-selected="false">Editorial</button>
+        <button class="section-tab" data-filter="opinion" role="tab" aria-selected="false">Opinion</button>
+        <button class="section-tab" data-filter="features" role="tab" aria-selected="false">Features</button>
+        <button class="section-tab" data-filter="literary" role="tab" aria-selected="false">Literary</button>
+        <button class="section-tab" data-filter="sports" role="tab" aria-selected="false">Sports</button>
       </div>
       <div class="search-wrap">
         <input type="text" id="searchBar" class="search-input" placeholder="Search stories…" aria-label="Search stories">
