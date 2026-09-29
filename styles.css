@@ -527,3 +527,11 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 [data-theme="dark"] .word-meter.under span:first-child{color:#FBBF24}
 [data-theme="dark"] .word-meter.over  span:first-child{color:#FCA5A5}
 [data-theme="dark"] .word-meter.ok    span:first-child{color:#4ADE80}
+/* Brand logo */
+.brand-logo{width:32px;height:32px;object-fit:contain;flex:none;margin-right:10px;display:block}
+.foot-brand .brand-logo{width:28px;height:28px;margin-right:9px}
+[data-theme="dark"] .brand-logo{filter:invert(1)}
+@media(max-width:520px){
+  .brand-logo{width:26px;height:26px;margin-right:8px}
+  .foot-brand .brand-logo{width:24px;height:24px}
+}
