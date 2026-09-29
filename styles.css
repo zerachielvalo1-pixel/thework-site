@@ -645,3 +645,32 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .manifesto-sign{font-size:1.1rem;text-align:center}
   .manifesto-sign::after{margin:12px auto 0}
 }
+
+.about-figure{margin:0;line-height:1}
+.about-figure-num{
+  display:block;
+  font-family:var(--serif);
+  font-size:clamp(4.5rem,11vw,8rem);
+  font-weight:900;
+  letter-spacing:-.05em;
+  line-height:.9;
+  background:var(--gradient);
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+  color:transparent;
+  margin-bottom:8px;
+}
+.about-figure-label{
+  display:block;
+  font-family:var(--sans);
+  font-size:clamp(.75rem,1.4vw,.95rem);
+  font-weight:700;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+@media(max-width:520px){
+  .about-figure-num{margin-bottom:6px}
+  .about-figure-label{letter-spacing:.18em}
+}
