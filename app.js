@@ -494,7 +494,7 @@ async function renderHome() {
   let list = activeFilter === 'all' ? published : published.filter(a => a.cat === activeFilter);
   if (searchTerm) {
     list = list.filter(a => {
-      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.body||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.layout_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
+      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.body||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
       return hay.includes(searchTerm);
     });
   }
