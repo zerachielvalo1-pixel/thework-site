@@ -122,6 +122,7 @@ const BOARD = [
 
 let articles = [];
 let releases = [];
+const appCache = { publishedArticles: null, allArticles: null };
 let session = null;
 let activeFilter = 'all';
 let searchTerm = '';
@@ -147,16 +148,28 @@ let pendingMemoriamPhoto = null;
 
 const Data = {
   async listPublished() {
-    if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.status === 'published');
+    if (appCache.publishedArticles) return appCache.publishedArticles.slice();
+    if (!sb) {
+      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.status === 'published');
+      appCache.publishedArticles = result;
+      return result.slice();
+    }
     const { data, error } = await sb.from('articles').select('*').eq('status','published').order('date',{ascending:false, nullsFirst:false});
     if (error) { console.error(error); return []; }
-    return data || [];
+    appCache.publishedArticles = data || [];
+    return appCache.publishedArticles.slice();
   },
   async listAll() {
-    if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]');
+    if (appCache.allArticles) return appCache.allArticles.slice();
+    if (!sb) {
+      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+      appCache.allArticles = result;
+      return result.slice();
+    }
     const { data, error } = await sb.from('articles').select('*').order('updated',{ascending:false});
     if (error) return [];
-    return data || [];
+    appCache.allArticles = data || [];
+    return appCache.allArticles.slice();
   },
   async upsert(article) {
     if (!sb) {
@@ -164,20 +177,28 @@ const Data = {
       const idx = list.findIndex(x => x.id === article.id);
       if (idx >= 0) list[idx] = article; else list.unshift(article);
       localStorage.setItem('tw_articles', JSON.stringify(list));
+      appCache.publishedArticles = null;
+      appCache.allArticles = null;
       return article;
     }
     const { data, error } = await sb.from('articles').upsert(article).select().single();
     if (error) throw error;
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
     return data;
   },
   async remove(id) {
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(x => x.id !== id);
       localStorage.setItem('tw_articles', JSON.stringify(list));
+      appCache.publishedArticles = null;
+      appCache.allArticles = null;
       return;
     }
     const { error } = await sb.from('articles').delete().eq('id', id);
     if (error) throw error;
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
   },
   async uploadThumb(file) {
     if (!sb) return await resizeImage(file, 900, 0.82);
@@ -2430,7 +2451,13 @@ async function init() {
 
   await renderReleasesPreview();
 
-  window.addEventListener('hashchange', route);
+  let routeFrame = null;
+  window.addEventListener('hashchange', () => {
+    if (routeFrame) cancelAnimationFrame(routeFrame);
+    routeFrame = requestAnimationFrame(async () => {
+      await route();
+    });
+  });
   await route();
 }
 
