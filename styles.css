@@ -547,3 +547,43 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 [data-theme="dark"] .badge.cat-op-ed{background:rgba(139,92,246,.2);color:#C4B5FD}
 .badge.cat-editorial{background:#EDE9FE;color:#5B21B6}
 [data-theme="dark"] .badge.cat-editorial{background:rgba(139,92,246,.2);color:#C4B5FD}
+
+/* About page — manifesto layout */
+.about-hero{padding:clamp(60px,8vw,110px) 0 clamp(30px,4vw,50px);text-align:center}
+.about-hero-inner{max-width:640px;margin:0 auto}
+.about-hero .eyebrow{justify-content:center}
+.about-title{font-family:var(--serif);font-size:clamp(2.5rem,6vw,4.5rem);font-weight:900;letter-spacing:-.03em;margin:0 0 12px;line-height:1}
+.about-sub{font-family:var(--sans);font-size:.9rem;color:var(--ink-3);letter-spacing:.02em;margin:0}
+
+.manifesto{max-width:68ch;margin:0 auto}
+.manifesto p{font-size:1rem;color:var(--ink-2);line-height:1.85;margin-bottom:1.2em}
+.manifesto p:last-of-type{font-family:var(--serif);font-weight:700;color:var(--ink);font-size:1.1rem;margin-top:1.4em}
+
+.manifesto-sign{
+  font-family:var(--serif);
+  font-style:italic;
+  font-weight:400;
+  font-size:1.35rem;
+  letter-spacing:.08em;
+  color:var(--accent);
+  text-align:right;
+  margin-top:32px;
+  padding-right:6px;
+  position:relative;
+}
+.manifesto-sign::after{
+  content:"";
+  display:block;
+  width:120px;
+  height:2px;
+  background:var(--gradient);
+  margin:12px 0 0 auto;
+  border-radius:2px;
+}
+
+@media(max-width:560px){
+  .about-title{font-size:clamp(2rem,10vw,3rem)}
+  .manifesto p{font-size:.95rem}
+  .manifesto-sign{font-size:1.15rem;text-align:center}
+  .manifesto-sign::after{margin:12px auto 0}
+}
