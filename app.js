@@ -2213,6 +2213,256 @@ async function init() {
   window.addEventListener('hashchange', route);
   await route();
 }
+  // ============================================================
+// TW Tasks — workflow module (self-contained)
+// ============================================================
+(function () {
+  // ⚠️ Match your existing Supabase client variable.
+  // Try these in order; if none work, set `sb` to your variable directly.
+  const sb = window.sb || window.supabaseClient || window.supabase || window.supabaseJs || window._sb;
+
+  if (!sb) {
+    console.warn('[TW Tasks] Supabase client not found. Set the correct variable on the first line.');
+    return;
+  }
+
+  // ---------- state ----------
+  let state = {
+    member: null,
+    tasks: [],
+    filter: 'mine',   // 'mine' | 'board' | 'all'
+  };
+
+  // ---------- helpers ----------
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '—';
+  const isOverdue = (d, status) => d && status !== 'done' && new Date(d) < new Date(new Date().toDateString());
+
+  // ---------- boot ----------
+  async function loadMember() {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) { state.member = null; return null; }
+    const { data } = await sb.from('members').select('*').eq('id', user.id).eq('active', true).maybeSingle();
+    state.member = data || null;
+    return state.member;
+  }
+
+  async function loadTasks() {
+    const { data, error } = await sb.from('tasks')
+      .select('*, assignee:members!tasks_assigned_to_fkey(full_name, position)')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+    if (error) { console.error(error); return; }
+    state.tasks = data || [];
+  }
+
+  // ---------- renderers ----------
+  function renderLogin(container) {
+    container.innerHTML = `
+      <div class="tw-tasks-wrap">
+        <div class="tw-auth-card">
+          <h2>Staff Sign In</h2>
+          <p>The Work — Editorial workflow</p>
+          <input id="twEmail" type="email" placeholder="Email" autocomplete="username">
+          <input id="twPass" type="password" placeholder="Password" autocomplete="current-password">
+          <button id="twSignIn">Sign In</button>
+          <div class="tw-auth-err" id="twErr"></div>
+        </div>
+      </div>`;
+    const btn = container.querySelector('#twSignIn');
+    const err = container.querySelector('#twErr');
+    btn.onclick = async () => {
+      btn.disabled = true; err.textContent = '';
+      const email = container.querySelector('#twEmail').value.trim();
+      const password = container.querySelector('#twPass').value;
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      btn.disabled = false;
+      if (error) { err.textContent = error.message; return; }
+      render(container);
+    };
+  }
+
+  function renderDenied(container) {
+    container.innerHTML = `
+      <div class="tw-tasks-wrap">
+        <div class="tw-access-denied">
+          <h2>Access Denied</h2>
+          <p>Your account is not on the Editorial Board roster, or your access has been deactivated.</p>
+          <p>Contact the Editor-in-Chief or the webmaster to be added.</p>
+          <button class="tw-btn-ghost" id="twSignOut" style="margin-top:16px">Sign Out</button>
+        </div>
+      </div>`;
+    container.querySelector('#twSignOut').onclick = async () => {
+      await sb.auth.signOut();
+      render(container);
+    };
+  }
+
+  function taskCard(t) {
+    const overdue = isOverdue(t.due_date, t.status);
+    return `
+      <div class="tw-task" data-id="${t.id}">
+        <div class="tw-task-body">
+          <p class="tw-task-title">${esc(t.title)}</p>
+          ${t.description ? `<p class="tw-task-desc">${esc(t.description)}</p>` : ''}
+          <div class="tw-task-meta">
+            <span class="tw-pill prio-${t.priority}">${esc(t.priority)}</span>
+            <span class="tw-pill status-${t.status}">${esc(t.status.replace('_',' '))}</span>
+            <span class="tw-pill">${esc(t.task_type)}</span>
+            <span class="tw-task-due ${overdue ? 'overdue' : ''}">${overdue ? '⚠ ' : ''}${fmtDate(t.due_date)}</span>
+            ${t.assignee ? `<span class="tw-task-due">· ${esc(t.assignee.full_name)}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderMine(container) {
+    const mine = state.tasks.filter((t) => t.assigned_to === state.member.id);
+    container.innerHTML = `
+      <div class="tw-tasks-wrap">
+        <div class="tw-tasks-head">
+          <h1>My Tasks</h1>
+          <div class="tw-tasks-tabs">
+            <button class="tw-tasks-tab active" data-tab="mine">Mine</button>
+            <button class="tw-tasks-tab" data-tab="board">Board</button>
+            <button class="tw-tasks-tab" data-tab="all">All</button>
+            <button class="tw-btn-primary" id="twNew">+ New Task</button>
+          </div>
+        </div>
+        <div class="tw-task-list">
+          ${mine.length ? mine.map(taskCard).join('') : '<p style="color:var(--ink-3);text-align:center;padding:40px">No tasks assigned to you. 🎉</p>'}
+        </div>
+      </div>`;
+    wireTabs(container);
+  }
+
+  function renderBoard(container) {
+    const cols = ['todo', 'in_progress', 'review', 'done', 'blocked'];
+    const labels = { todo: 'To Do', in_progress: 'In Progress', review: 'Review', done: 'Done', blocked: 'Blocked' };
+    container.innerHTML = `
+      <div class="tw-tasks-wrap">
+        <div class="tw-tasks-head">
+          <h1>Task Board</h1>
+          <div class="tw-tasks-tabs">
+            <button class="tw-tasks-tab" data-tab="mine">Mine</button>
+            <button class="tw-tasks-tab active" data-tab="board">Board</button>
+            <button class="tw-tasks-tab" data-tab="all">All</button>
+            <button class="tw-btn-primary" id="twNew">+ New Task</button>
+          </div>
+        </div>
+        <div class="tw-board">
+          ${cols.map((c) => `
+            <div class="tw-col">
+              <h3>${labels[c]}<span>${state.tasks.filter((t) => t.status === c).length}</span></h3>
+              ${state.tasks.filter((t) => t.status === c).map(taskCard).join('')}
+            </div>`).join('')}
+        </div>
+      </div>`;
+    wireTabs(container);
+  }
+
+  function renderAll(container) {
+    container.innerHTML = `
+      <div class="tw-tasks-wrap">
+        <div class="tw-tasks-head">
+          <h1>All Tasks</h1>
+          <div class="tw-tasks-tabs">
+            <button class="tw-tasks-tab" data-tab="mine">Mine</button>
+            <button class="tw-tasks-tab" data-tab="board">Board</button>
+            <button class="tw-tasks-tab active" data-tab="all">All</button>
+            <button class="tw-btn-primary" id="twNew">+ New Task</button>
+          </div>
+        </div>
+        <div class="tw-task-list">
+          ${state.tasks.length ? state.tasks.map(taskCard).join('') : '<p style="color:var(--ink-3);text-align:center;padding:40px">No tasks yet.</p>'}
+        </div>
+      </div>`;
+    wireTabs(container);
+  }
+
+  function wireTabs(container) {
+    container.querySelectorAll('.tw-tasks-tab').forEach((b) => {
+      b.onclick = () => { state.filter = b.dataset.tab; paint(container); };
+    });
+    const nu = container.querySelector('#twNew');
+    if (nu) nu.onclick = () => openNewTaskModal(container);
+  }
+
+  // ---------- new task modal ----------
+  async function openNewTaskModal(container) {
+    const { data: members } = await sb.from('members').select('id, full_name, position').eq('active', true).order('full_name');
+    const opts = (members || []).map((m) => `<option value="${m.id}" ${m.id === state.member.id ? 'selected' : ''}>${esc(m.full_name)}${m.position ? ' — ' + esc(m.position) : ''}</option>`).join('');
+    const bg = document.createElement('div');
+    bg.className = 'tw-modal-bg';
+    bg.innerHTML = `
+      <div class="tw-modal">
+        <h2>New Task</h2>
+        <label>Title</label><input id="ntTitle" placeholder="e.g. Draft news article on intramurals">
+        <label>Description</label><textarea id="ntDesc" placeholder="Optional details..."></textarea>
+        <label>Assign to</label><select id="ntAssign">${opts}</select>
+        <label>Type</label>
+        <select id="ntType">
+          <option value="article">Article</option><option value="photo">Photo</option>
+          <option value="layout">Layout</option><option value="video">Video</option>
+          <option value="event">Event</option><option value="admin">Admin</option>
+          <option value="other" selected>Other</option>
+        </select>
+        <label>Priority</label>
+        <select id="ntPrio">
+          <option value="low">Low</option><option value="normal" selected>Normal</option>
+          <option value="high">High</option><option value="urgent">Urgent</option>
+        </select>
+        <label>Due date</label><input id="ntDue" type="date">
+        <div class="tw-modal-actions">
+          <button class="tw-btn-ghost" id="ntCancel">Cancel</button>
+          <button class="tw-btn-primary" id="ntSave">Create Task</button>
+        </div>
+      </div>`;
+    document.body.appendChild(bg);
+    bg.querySelector('#ntCancel').onclick = () => bg.remove();
+    bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+    bg.querySelector('#ntSave').onclick = async () => {
+      const title = bg.querySelector('#ntTitle').value.trim();
+      if (!title) { alert('Title is required'); return; }
+      const row = {
+        title,
+        description: bg.querySelector('#ntDesc').value.trim() || null,
+        assigned_to: bg.querySelector('#ntAssign').value,
+        task_type: bg.querySelector('#ntType').value,
+        priority: bg.querySelector('#ntPrio').value,
+        due_date: bg.querySelector('#ntDue').value || null,
+        created_by: state.member.id,
+      };
+      const { error } = await sb.from('tasks').insert(row);
+      if (error) { alert(error.message); return; }
+      bg.remove();
+      await loadTasks();
+      paint(container);
+    };
+  }
+
+  // ---------- paint ----------
+  function paint(container) {
+    if (!state.member) { renderLogin(container); return; }
+    if (state.filter === 'mine') renderMine(container);
+    else if (state.filter === 'board') renderBoard(container);
+    else renderAll(container);
+  }
+
+  // ---------- public entry ----------
+  async function render(container) {
+    if (!container) {
+      container = document.getElementById('app') || document.querySelector('main') || document.body;
+    }
+    container.innerHTML = '<div class="tw-tasks-wrap" style="text-align:center;padding:60px;color:var(--ink-3)">Loading…</div>';
+    await loadMember();
+    if (state.member) await loadTasks();
+    paint(container);
+  }
+
+  window.TWTasks = { render };
+  console.log('[TW Tasks] ready — call TWTasks.render(container)');
+})();
 
 init();
 })();
