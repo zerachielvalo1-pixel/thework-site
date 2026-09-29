@@ -535,3 +535,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .brand-logo{width:26px;height:26px;margin-right:8px}
   .foot-brand .brand-logo{width:24px;height:24px}
 }
+.badge.cat-editorial,
+.badge.cat-op-ed{background:#EDE9FE;color:#5B21B6}
+[data-theme="dark"] .badge.cat-editorial,
+[data-theme="dark"] .badge.cat-op-ed{background:rgba(139,92,246,.2);color:#C4B5FD}

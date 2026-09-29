@@ -55,8 +55,9 @@ function twScheduleFade() {
     twApplyFade();
   });
 }
-const CAT_LABELS = { news:'News', editorial:'Editorial', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
-const SECTION_ORDER = ['news','editorial','features','opinion','literary','sports'];
+const CAT_LABELS = { news:'News', editorial:'Editorial', 'op-ed':'Op-Ed', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports' };
+const SECTION_ORDER = ['news','op-ed','features','literary','sports'];
+const OP_ED_CATS = ['editorial','opinion'];
 const RELEASE_CATEGORIES = [
   { id:'magazine',   label:'Magazine',       example:'Metanoia' },
   { id:'tabloid',    label:'Tabloid',        example:'' },
@@ -104,12 +105,12 @@ const BOARD = [
   { group:'Layout Department', subgroup:'Layout Artists', name:'Nathaniel P. Tintero',  role:'Layout Artist', program:'Bachelor of Science in Accountancy',                                 initials:'NP' },
   { group:'Layout Department', subgroup:'Layout Artists', name:'Noah Justin B. Pascua', role:'Layout Artist', program:'Bachelor of Science in Civil Engineering Major in Structural Engineering', initials:'NJ' },
 
-  { group:'Photojournalism Department', subgroup:'Photojournalists',        name:'Clarisse R. Ekstrom',        role:'Photojournalist',         program:'Bachelor of Science in Civil Engineering',  initials:'CE' },
-  { group:'Photojournalism Department', subgroup:'Photojournalists',        name:'Alejandro C. Enjambre',      role:'Photojournalist',         program:'Bachelor of Public Administration',         initials:'AE' },
-  { group:'Photojournalism Department', subgroup:'Photojournalists',        name:'Trisha Lorraine B. Capala',  role:'Photojournalist',         program:'Bachelor of Arts in Psychology',            initials:'TC' },
-  { group:'Photojournalism Department', subgroup:'Photojournalists',        name:'Genesis Gale D. Noe',        role:'Photojournalist',         program:'Bachelor of Science in Nursing',            initials:'GG' },
-  { group:'Photojournalism Department', subgroup:'Photojournalists',        name:'Ariza Reyn P. Pascual',      role:'Photojournalist',         program:'Bachelor of Science in Nursing',            initials:'AP' },
-  { group:'Photojournalism Department', subgroup:'Trainee Photojournalist', name:'John Albert Kyle M. Pineda', role:'Trainee Photojournalist', program:'Bachelor of Arts in Psychology',            initials:'JP' },
+  { group:'Lens Department', subgroup:'Photojournalists',        name:'Clarisse R. Ekstrom',        role:'Photojournalist',         program:'Bachelor of Science in Civil Engineering',  initials:'CE' },
+  { group:'Lens Department', subgroup:'Photojournalists',        name:'Alejandro C. Enjambre',      role:'Photojournalist',         program:'Bachelor of Public Administration',         initials:'AE' },
+  { group:'Lens Department', subgroup:'Photojournalists',        name:'Trisha Lorraine B. Capala',  role:'Photojournalist',         program:'Bachelor of Arts in Psychology',            initials:'TC' },
+  { group:'Lens Department', subgroup:'Photojournalists',        name:'Genesis Gale D. Noe',        role:'Photojournalist',         program:'Bachelor of Science in Nursing',            initials:'GG' },
+  { group:'Lens Department', subgroup:'Photojournalists',        name:'Ariza Reyn P. Pascual',      role:'Photojournalist',         program:'Bachelor of Science in Nursing',            initials:'AP' },
+  { group:'Lens Department', subgroup:'Trainee Photojournalist', name:'John Albert Kyle M. Pineda', role:'Trainee Photojournalist', program:'Bachelor of Arts in Psychology',            initials:'JP' },
 
   { group:'Broadcast Department', subgroup:'Broadcaster',          name:'Andrea Jeanel M. Mandap',   role:'Broadcaster',         program:'Bachelor of Arts in Communication',       initials:'AJ' },
   { group:'Broadcast Department', subgroup:'Trainee Broadcasters', name:'Kestan Rafael L. Oniate',   role:'Trainee Broadcaster', program:'Bachelor of Arts in Communication',       initials:'KO' },
@@ -1091,7 +1092,10 @@ function openArticle(id) {
   const authorLine = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'Staff');
   const credits = [`By ${authorLine}`];
   if (a.photojournalist) credits.push(`Photos by ${a.photojournalist}`);
-  if (a.layout_by) credits.push(`Layout by ${a.layout_by}`);
+  if (a.graphics_by) credits.push(`Graphics by ${a.graphics_by}`);
+  if (a.layout_by && a.layout_by_2) credits.push(`Layout by ${a.layout_by} & ${a.layout_by_2}`);
+  else if (a.layout_by) credits.push(`Layout by ${a.layout_by}`);
+  else if (a.layout_by_2) credits.push(`Layout by ${a.layout_by_2}`);
 
   const metaBits = [];
   if (a.date) metaBits.push(fmtDate(a.date));
@@ -2002,8 +2006,8 @@ $('#fThumb').addEventListener('change', e => {
 const WORD_TARGETS = {
   news:      { min: 300, max: 600,  label: 'News: 300–600 words' },
   editorial: { min: 400, max: 800,  label: 'Editorial: 400–800 words' },
-  features:  { min: 700, max: 1500, label: 'Features: 700–1,500 words' },
   opinion:   { min: 500, max: 900,  label: 'Opinion: 500–900 words' },
+  features:  { min: 700, max: 1500, label: 'Features: 700–1,500 words' },
   literary:  { min: 300, max: 2000, label: 'Literary: 300–2,000 words' },
   sports:    { min: 350, max: 700,  label: 'Sports: 350–700 words' }
 };
@@ -2043,6 +2047,8 @@ function resetForm() {
   $('#fPublishAt').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
+    $('#fLayout2').value = '';
+  $('#fGraphics').value = '';
   $('#editorTitle').textContent = 'New article';
   $('#deleteBtn').style.display = 'none';
   setThumbnail(null);
@@ -2061,6 +2067,8 @@ function loadIntoForm(id) {
   $('#fAuthor2').value = a.author2 || '';
   $('#fPhoto').value = a.photojournalist || '';
   $('#fLayout').value = a.layout_by || '';
+  $('#fLayout2').value = a.layout_by_2 || '';
+  $('#fGraphics').value = a.graphics_by || '';
   $('#fDate').value = a.date || todayISO();
   $('#fRead').value = a.read || '';
   $('#fPublishAt').value = a.publish_at ? toLocalDateTimeInput(a.publish_at) : '';
@@ -2095,6 +2103,8 @@ $('#articleForm').addEventListener('submit', async e => {
       author2: $('#fAuthor2').value.trim() || null,
       photojournalist: $('#fPhoto').value.trim() || null,
       layout_by: $('#fLayout').value.trim() || null,
+      layout_by_2: $('#fLayout2').value.trim() || null,
+      graphics_by: $('#fGraphics').value.trim() || null,
       date: $('#fDate').value || todayISO(),
       read: $('#fRead').value.trim() || '1 min',
       publish_at: $('#fPublishAt').value ? new Date($('#fPublishAt').value).toISOString() : null,
