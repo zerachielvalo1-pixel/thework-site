@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://thework.tw78.workers.dev/sitemap.xml
