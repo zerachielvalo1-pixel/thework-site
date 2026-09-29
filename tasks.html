@@ -221,9 +221,9 @@
     return new Date(d) < new Date(new Date().toDateString());
   }
   function el(html) {
-    var t = document.createElement('template');
-    t.innerHTML = html.trim();
-    return t.content.firstChild;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    return wrap;
   }
 
   // ---------- auth / member ----------
