@@ -17,7 +17,7 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'a'+Date.now().toSt
 const todayISO = () => new Date().toISOString().slice(0,10);
 const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
 const fmtDateLong = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); };
-const fmtDateTimeLive = d => d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
+const fmtDateTimeLive = d => d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 const timeAgo = ts => { if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); if(diff<60000) return 'just now'; const m=Math.floor(diff/60000); if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; };
 const toLocalDateTimeInput = iso => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); };
 // ---------- subtle entrance animations ----------
@@ -133,7 +133,12 @@ let statusFilter = '';
 let catFilter = '';
 let confirmCb = null;
 let lastFocused = null;
+let articleReturnUrl = '';
+let articleModalSeo = false;
 let boardPhotos = {};
+let boardPhotosPromise = null;
+let releasesPreviewPromise = null;
+let sessionReady = Promise.resolve();
 let pendingBoardUpload = null;
 let boardProfileOpen = false;
 let modalOpen = false;
@@ -351,6 +356,31 @@ const Data = {
   }
 };
 
+function ensureBoardPhotos() {
+  if (!boardPhotosPromise) {
+    boardPhotosPromise = Data.loadBoardPhotos().then(map => {
+      boardPhotos = map || {};
+      if ($('#view-board').classList.contains('active')) renderBoard();
+      const boardPanel = $('#panel-board');
+      if (boardPanel && boardPanel.classList.contains('active')) renderBoardAdmin();
+    }).catch(err => {
+      boardPhotosPromise = null;
+      console.warn('[The Work] Could not load board photos', err);
+    });
+  }
+  return boardPhotosPromise;
+}
+
+function ensureReleasesPreview() {
+  if (!releasesPreviewPromise) {
+    releasesPreviewPromise = renderReleasesPreview().catch(err => {
+      releasesPreviewPromise = null;
+      console.warn('[The Work] Could not load releases preview', err);
+    });
+  }
+  return releasesPreviewPromise;
+}
+
 async function getSession() {
   if (!sb) { const s = localStorage.getItem('tw_session'); return s ? JSON.parse(s) : null; }
   const { data } = await sb.auth.getSession();
@@ -518,7 +548,72 @@ function setView(v) {
   $$('.view').forEach(el => el.classList.remove('active'));
   const el = $('#view-' + v);
   if (el) el.classList.add('active');
+  const skipLink = $('.skip-link');
+  if (skipLink) skipLink.href = '#view-' + v;
   $$('.nav-sections a').forEach(a => a.classList.toggle('active', a.dataset.route === v));
+}
+
+function slugifyStoryTitle(title) {
+  return String(title || 'story').normalize('NFKD').toLowerCase()
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 70) || 'story';
+}
+
+function storyUrl(article) {
+  return `/stories/${slugifyStoryTitle(article.title)}/${encodeURIComponent(article.id)}`;
+}
+
+function storyRouteId() {
+  const match = location.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch (e) { return null; }
+}
+
+function renderStoryPage(article) {
+  let main = $('#view-story');
+  if (!main) {
+    main = document.createElement('main');
+    main.id = 'view-story';
+    main.className = 'view';
+    $('#view-home').before(main);
+  }
+  const authors = [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff';
+  const paragraphs = (article.body || '').split(/\n\s*\n/).filter(p => p.trim());
+  main.dataset.serverStory = 'true';
+  main.innerHTML = `
+    <article class="story-page">
+      <div class="wrap story-page-inner">
+        <a class="story-back" href="/#/">← All stories</a>
+        <div class="story-category">${esc(CAT_LABELS[article.cat] || article.cat || 'Story')}</div>
+        <h1>${esc(article.title)}</h1>
+        ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
+        <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
+        ${article.thumbnail ? `<figure class="story-hero"><img src="${esc(article.thumbnail)}" alt="" fetchpriority="high" decoding="async"></figure>` : ''}
+        <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
+      </div>
+    </article>`;
+}
+
+function updateArticleMeta(article) {
+  const title = article ? `${article.title} — The Work` : 'The Work — Tarlac State University';
+  const description = article
+    ? (article.excerpt || (article.body || '').slice(0, 160))
+    : 'The official student publication of Tarlac State University. Founded 1948.';
+  const canonicalUrl = article ? new URL(storyUrl(article), location.origin).href : `${location.origin}/`;
+  document.title = title;
+  const meta = (selector, value, attr = 'content') => {
+    const el = document.querySelector(selector);
+    if (el) el.setAttribute(attr, value || '');
+  };
+  meta('meta[name="description"]', description);
+  meta('meta[property="og:type"]', article ? 'article' : 'website');
+  meta('meta[property="og:title"]', title);
+  meta('meta[property="og:description"]', description);
+  meta('meta[property="og:url"]', canonicalUrl);
+  meta('meta[property="og:image"]', article && article.thumbnail ? article.thumbnail : `${location.origin}/logo-tw.png`);
+  meta('link[rel="canonical"]', canonicalUrl, 'href');
 }
 
 function buildArticleCard(a) {
@@ -531,7 +626,7 @@ function buildArticleCard(a) {
   return `
     <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span></div>
     <div class="article-body">
-      <h3 class="article-title">${esc(a.title)}</h3>
+      <h3 class="article-title"><a data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a></h3>
       <p class="article-excerpt">${esc(a.excerpt||(a.body||'').split('\n\n')[0]||'')}</p>
       <div class="article-foot">
         <span class="article-author"><span class="article-author-dot">${esc((a.author||'?').charAt(0))}</span>${esc(byline)}</span>
@@ -572,29 +667,29 @@ async function renderHome() {
   const gridArticles = list.slice(5);
 
   const leadThumbHtml = lead.thumbnail
-    ? `<img src="${esc(lead.thumbnail)}" alt="" loading="lazy">`
+    ? `<img src="${esc(lead.thumbnail)}" alt="" loading="eager" fetchpriority="high" decoding="async">`
     : `<div class="lead-story-thumb-text">${esc((CAT_LABELS[lead.cat]||'?').charAt(0))}</div>`;
   const leadByline = lead.author2
     ? `${lead.author} & ${lead.author2}`
     : (lead.author || (lead.cat === 'editorial' ? 'The Work' : 'Staff'));
 
   const sidebarHtml = sidebar.map(a => `
-    <div class="sidebar-item" data-article-id="${esc(a.id)}" role="button" tabindex="0">
+    <div class="sidebar-item" data-article-id="${esc(a.id)}">
       <div class="sidebar-item-thumb">
         ${a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">` : esc((CAT_LABELS[a.cat]||'?').charAt(0))}
       </div>
       <div class="sidebar-item-content">
         <span class="sidebar-item-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>
-        <div class="sidebar-item-title">${esc(a.title)}</div>
+        <a class="sidebar-item-title" data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a>
         <div class="sidebar-item-meta">${esc(a.author||'Staff')} · ${esc(fmtDate(a.date))}</div>
       </div>
     </div>
   `).join('');
 
   fpGrid.innerHTML = `
-    <div class="lead-story" data-article-id="${esc(lead.id)}" role="button" tabindex="0">
+    <div class="lead-story" data-article-id="${esc(lead.id)}">
       <div class="lead-story-thumb">${leadThumbHtml}<span class="lead-story-cat">${esc(CAT_LABELS[lead.cat]||lead.cat)}</span></div>
-      <h2 class="lead-story-title">${esc(lead.title)}</h2>
+      <h2 class="lead-story-title"><a data-story-link href="${esc(storyUrl(lead))}">${esc(lead.title)}</a></h2>
       <p class="lead-story-excerpt">${esc(lead.excerpt || (lead.body||'').split('\n\n')[0] || '')}</p>
       <div class="lead-story-meta">
         <span class="lead-story-byline">By ${esc(leadByline)}</span>
@@ -609,7 +704,10 @@ async function renderHome() {
   `;
 
   fpGrid.querySelectorAll('[data-article-id]').forEach(el => {
-    el.addEventListener('click', () => openArticle(el.dataset.articleId));
+    el.addEventListener('click', e => {
+      if (e.target.closest('a[data-story-link]')) e.preventDefault();
+      openArticle(el.dataset.articleId);
+    });
   });
 
   const moreSection = $('#moreStories');
@@ -620,10 +718,11 @@ async function renderHome() {
     gridArticles.forEach(a => {
       const el = document.createElement('article');
       el.className = 'article';
-      el.setAttribute('tabindex','0');
-      el.setAttribute('role','button');
       el.innerHTML = buildArticleCard(a);
-      el.addEventListener('click', () => openArticle(a.id));
+      el.addEventListener('click', e => {
+        if (e.target.closest('a[data-story-link]')) e.preventDefault();
+        openArticle(a.id);
+      });
       grid.appendChild(el);
     });
   } else {
@@ -651,10 +750,11 @@ async function renderHome() {
       items.forEach(a => {
         const el = document.createElement('article');
         el.className = 'article';
-        el.setAttribute('tabindex','0');
-        el.setAttribute('role','button');
         el.innerHTML = buildArticleCard(a);
-        el.addEventListener('click', () => openArticle(a.id));
+        el.addEventListener('click', e => {
+          if (e.target.closest('a[data-story-link]')) e.preventDefault();
+          openArticle(a.id);
+        });
         pGrid.appendChild(el);
       });
       previewContainer.appendChild(section);
@@ -1146,6 +1246,12 @@ function openArticle(id) {
   if (!a) return;
   if (window.umami) window.umami.track('Article Read', { title: a.title || '', cat: a.cat || '' });
   lastFocused = document.activeElement;
+  articleModalSeo = a.status === 'published' && !location.hash.startsWith('#/admin');
+  if (articleModalSeo) {
+    articleReturnUrl = location.pathname + location.search + location.hash;
+    if (location.pathname !== storyUrl(a)) history.pushState({ twStoryId: a.id }, '', storyUrl(a));
+    updateArticleMeta(a);
+  }
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
 
@@ -1207,7 +1313,7 @@ function openArticle(id) {
       image: a.thumbnail || undefined,
       mainEntityOfPage: {
         '@type': 'WebPage',
-        '@id': 'https://thework.tw78.workers.dev/'
+        '@id': new URL(storyUrl(a), location.origin).href
       }
     };
     let ld = document.getElementById('tw-article-jsonld');
@@ -1225,16 +1331,36 @@ function openArticle(id) {
   document.body.style.overflow = 'hidden';
   $('#modalClose').focus();
 }
-function closeArticle() {
+function closeArticle(syncUrl = true) {
   $('#modalOverlay').classList.remove('open');
   modalOpen = false;
   document.body.style.overflow = '';
+  if (articleModalSeo) {
+    if (syncUrl && storyRouteId()) history.replaceState(null, '', articleReturnUrl || '/#/');
+    updateArticleMeta(null);
+  }
+  articleReturnUrl = '';
+  articleModalSeo = false;
   if (lastFocused) lastFocused.focus();
 }
 $('#modalClose').addEventListener('click', closeArticle);
 $('#modalOverlay').addEventListener('click', e => { if (e.target === $('#modalOverlay')) closeArticle(); });
 
 document.addEventListener('keydown', e => {
+  const dialog = $('.modal-overlay.open, .reader-overlay.open');
+  if (e.key === 'Tab' && dialog) {
+    const focusable = Array.from(dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'))
+      .filter(el => el.getClientRects().length > 0);
+    if (!focusable.length) { e.preventDefault(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+      e.preventDefault(); first.focus();
+    }
+    return;
+  }
   if (e.key !== 'Escape') return;
   if ($('#readerOverlay').classList.contains('open')) { closeReader(); return; }
   if ($('#cropOverlay').classList.contains('open')) { closeCropModal(); return; }
@@ -2368,9 +2494,9 @@ $('#catFilter').addEventListener('change', e => { catFilter = e.target.value; re
 
 $$('.section-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    $$('.section-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+    $$('.section-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-pressed','false'); });
     tab.classList.add('active');
-    tab.setAttribute('aria-selected','true');
+    tab.setAttribute('aria-pressed','true');
     activeFilter = tab.dataset.filter;
     renderHome();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2378,9 +2504,9 @@ $$('.section-tab').forEach(tab => {
 });
 $$('.archive-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    $$('.archive-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+    $$('.archive-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-pressed','false'); });
     tab.classList.add('active');
-    tab.setAttribute('aria-selected','true');
+    tab.setAttribute('aria-pressed','true');
     archiveFilter = tab.dataset.filter;
     renderReleasesPage();
   });
@@ -2403,10 +2529,41 @@ if (searchBar) {
 }
 
 async function route() {
+  const directStoryId = storyRouteId();
+  if (directStoryId && location.hash) {
+    history.replaceState(null, '', `/${location.hash}`);
+  } else if (directStoryId) {
+    if (modalOpen) closeArticle(false);
+    const storyView = $('#view-story');
+    if (!storyView || storyView.dataset.serverStory !== 'true') {
+      const published = await Data.listPublished();
+      articles = published;
+      const story = published.find(a => String(a.id) === directStoryId);
+      if (!story) {
+        setView('home');
+        await renderHome();
+        return;
+      }
+      renderStoryPage(story);
+    }
+    setView('story');
+    updateArticleMeta({
+      id: directStoryId,
+      title: document.querySelector('#view-story h1')?.textContent || 'The Work',
+      excerpt: document.querySelector('#view-story .story-deck')?.textContent || '',
+      thumbnail: document.querySelector('#view-story .story-hero img')?.src || ''
+    });
+    updateAuthUI();
+    return;
+  } else if (modalOpen) {
+    closeArticle(false);
+  }
+
   const hash = location.hash || '#/';
   const path = hash.replace('#', '') || '/';
 
   if (path.startsWith('/admin')) {
+    await sessionReady;
     if (!session) {
       history.replaceState(null, '', '#/');
       setView('home');
@@ -2420,25 +2577,30 @@ async function route() {
     const sub = parts[2] || 'dashboard';
     setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
+    if (sub === 'board') ensureBoardPhotos();
     updateAuthUI();
     return;
   }
 
   const routeName = path === '/' || path === '/home' ? 'home' : path.slice(1);
   setView(['home','releases','board','about','videos','memoriam'].includes(routeName) ? routeName : 'home');
-  if (routeName === 'home') await renderHome();
+  if (routeName === 'home') {
+    await renderHome();
+    ensureReleasesPreview();
+  }
   else if (routeName === 'releases') await renderReleasesPage();
   else if (routeName === 'videos') await renderVideosPage();
   else if (routeName === 'memoriam') await renderMemoriamPage();
-  else if (routeName === 'board') renderBoard();
+  else if (routeName === 'board') {
+    renderBoard();
+    ensureBoardPhotos();
+  }
   updateAuthUI();
 }
 
 async function init() {
   applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
   populateBoardNames();
-  boardPhotos = await Data.loadBoardPhotos();
-  renderBoard();
 
   $('#year').textContent = new Date().getFullYear();
   (function startLiveClock(){
@@ -2446,7 +2608,11 @@ async function init() {
     if (!el) return;
     const tick = () => { el.textContent = fmtDateTimeLive(new Date()); };
     tick();
-    setInterval(tick, 1000);
+    const now = new Date();
+    setTimeout(() => {
+      tick();
+      setInterval(tick, 60000);
+    }, (60 - now.getSeconds()) * 1000);
   })();
   $('#fDate').value = todayISO();
   $('#fRead').value = '';
@@ -2459,22 +2625,31 @@ async function init() {
   }
   twScheduleFade();
 
-  session = await getSession();
-  updateAuthUI();
+  sessionReady = getSession().then(s => {
+    session = s;
+    updateAuthUI();
+    return s;
+  }).catch(err => {
+    session = null;
+    updateAuthUI();
+    console.warn('[The Work] Could not restore session', err);
+    return null;
+  });
 
   if (sb) {
     sb.auth.onAuthStateChange((_evt, s) => { session = s; updateAuthUI(); });
   }
 
-  await renderReleasesPreview();
-
   let routeFrame = null;
-  window.addEventListener('hashchange', () => {
+  const scheduleRoute = () => {
     if (routeFrame) cancelAnimationFrame(routeFrame);
     routeFrame = requestAnimationFrame(async () => {
       await route();
     });
-  });
+  };
+  window.addEventListener('hashchange', scheduleRoute);
+  window.addEventListener('popstate', scheduleRoute);
+  if ((location.hash || '#/').startsWith('#/admin')) await sessionReady;
   await route();
 }
 

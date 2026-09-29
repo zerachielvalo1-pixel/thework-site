@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Work — Tarlac State University</title>
 <meta name="description" content="The official student publication of Tarlac State University. Founded 1948.">
+<link rel="canonical" href="https://thework.tw78.workers.dev/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Work">
+<meta property="og:title" content="The Work — Tarlac State University">
+<meta property="og:description" content="The official student publication of Tarlac State University. Founded 1948.">
+<meta property="og:url" content="https://thework.tw78.workers.dev/">
+<meta property="og:image" content="https://thework.tw78.workers.dev/logo-tw.png">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Organization","name":"The Work","description":"The official student publication of Tarlac State University.","url":"https://thework.tw78.workers.dev/","logo":"https://thework.tw78.workers.dev/logo-tw.png","sameAs":["https://www.facebook.com/theworktsu","https://www.instagram.com/theworktsu","https://www.tiktok.com/@theworktsu","https://x.com/theworktsu","https://www.youtube.com/@theworktsu"]}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%237C3AED'/><text y='72' x='50' text-anchor='middle' font-size='62' font-family='Georgia' fill='%23FAF8FF'>W</text></svg>">
 <script>
 (function(){
@@ -19,11 +30,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=3">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
 <body>
 
+<a class="skip-link" href="#view-home">Skip to content</a>
 <datalist id="boardNames"></datalist>
 <input type="file" id="boardPhotoInput" accept="image/*" style="display:none">
 
@@ -66,21 +78,23 @@
 
 <main id="view-home" class="view active">
   <div class="section-strip">
-    <div class="section-strip-inner" role="tablist">
-      <button class="section-tab active" data-filter="all" role="tab" aria-selected="true">All Stories</button>
-      <button class="section-tab" data-filter="news" role="tab" aria-selected="false">News</button>
-      <button class="section-tab" data-filter="editorial" role="tab" aria-selected="false">Editorial</button>
-      <button class="section-tab" data-filter="opinion" role="tab" aria-selected="false">Opinion</button>
-      <button class="section-tab" data-filter="features" role="tab" aria-selected="false">Features</button>
-      <button class="section-tab" data-filter="literary" role="tab" aria-selected="false">Literary</button>
-      <button class="section-tab" data-filter="sports" role="tab" aria-selected="false">Sports</button>
+    <div class="section-strip-inner">
+      <div class="section-filter-buttons" role="group" aria-label="Filter stories by category">
+        <button class="section-tab active" data-filter="all" aria-pressed="true">All Stories</button>
+        <button class="section-tab" data-filter="news" aria-pressed="false">News</button>
+        <button class="section-tab" data-filter="editorial" aria-pressed="false">Editorial</button>
+        <button class="section-tab" data-filter="opinion" aria-pressed="false">Opinion</button>
+        <button class="section-tab" data-filter="features" aria-pressed="false">Features</button>
+        <button class="section-tab" data-filter="literary" aria-pressed="false">Literary</button>
+        <button class="section-tab" data-filter="sports" aria-pressed="false">Sports</button>
+      </div>
       <div class="search-wrap">
         <input type="text" id="searchBar" class="search-input" placeholder="Search stories…" aria-label="Search stories">
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       </div>
     </div>
   </div>
-  <section class="frontpage"><div class="wrap"><div class="frontpage-grid" id="frontpageGrid"></div></div></section>
+  <section class="frontpage"><div class="wrap"><h1 class="sr-only">Latest news and stories from The Work</h1><div class="frontpage-grid" id="frontpageGrid"></div></div></section>
   <section class="more-stories" id="moreStories" style="display:none">
     <div class="wrap">
       <div class="more-stories-header"><h2>More Stories</h2></div>
@@ -126,13 +140,13 @@
         <h2>From the Archives</h2>
         <p class="section-lede">Every release of The Work, arranged from the present issue down to our founding year.</p>
       </div>
-      <div class="archive-filter-strip" role="tablist" aria-label="Archive categories">
-        <button class="archive-tab active" data-filter="all" role="tab" aria-selected="true">All</button>
-        <button class="archive-tab" data-filter="magazine" role="tab" aria-selected="false">Magazine</button>
-        <button class="archive-tab" data-filter="tabloid" role="tab" aria-selected="false">Tabloid</button>
-        <button class="archive-tab" data-filter="newsletter" role="tab" aria-selected="false">Newsletter</button>
-        <button class="archive-tab" data-filter="literary" role="tab" aria-selected="false">Literary Folio</button>
-        <button class="archive-tab" data-filter="minizine" role="tab" aria-selected="false">Mini Zines</button>
+      <div class="archive-filter-strip" role="group" aria-label="Filter archive categories">
+        <button class="archive-tab active" data-filter="all" aria-pressed="true">All</button>
+        <button class="archive-tab" data-filter="magazine" aria-pressed="false">Magazine</button>
+        <button class="archive-tab" data-filter="tabloid" aria-pressed="false">Tabloid</button>
+        <button class="archive-tab" data-filter="newsletter" aria-pressed="false">Newsletter</button>
+        <button class="archive-tab" data-filter="literary" aria-pressed="false">Literary Folio</button>
+        <button class="archive-tab" data-filter="minizine" aria-pressed="false">Mini Zines</button>
       </div>
       <div class="releases-grid" id="releasesGrid"></div>
     </div>
@@ -623,7 +637,7 @@
   </div>
 </footer>
 
-<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal">
     <button class="modal-close" id="modalClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="modal-hero" id="modalHero"><span class="modal-hero-text" id="modalHeroText">W</span></div>
@@ -631,7 +645,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="boardProfileOverlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" id="boardProfileOverlay" role="dialog" aria-modal="true" aria-labelledby="bpName">
   <div class="modal">
     <button class="modal-close" id="boardProfileClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="board-profile-head">
@@ -646,10 +660,10 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="cropOverlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" id="cropOverlay" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
   <div class="crop-modal">
     <div class="crop-head">
-      <h3>Adjust photo</h3>
+      <h3 id="cropTitle">Adjust photo</h3>
       <p>Drag to reposition · Zoom to fit</p>
     </div>
     <div class="crop-preview-wrap">
@@ -675,7 +689,7 @@
   </div>
 </div>
 
-<div class="reader-overlay" id="readerOverlay" role="dialog" aria-modal="true">
+<div class="reader-overlay" id="readerOverlay" role="dialog" aria-modal="true" aria-labelledby="readerTitle">
   <div class="reader-header">
     <div class="reader-title"><span id="readerTitle"></span><small id="readerSub"></small></div>
     <div class="reader-actions">
@@ -691,13 +705,13 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="loginOverlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" id="loginOverlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="modal modal-sm">
     <button class="modal-close" id="loginClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="modal-body">
       <div class="login-head">
         <div class="login-wordmark"><span class="brand-the">the</span><span class="brand-work">WORK</span></div>
-        <h2>Editor Sign In</h2>
+        <h2 id="loginTitle">Editor Sign In</h2>
         <p>Sign in to manage articles on The Work.</p>
       </div>
       <div class="form-error" id="loginError"></div>
@@ -709,7 +723,7 @@
     </div>
   </div>
 </div>
-<div class="modal-overlay" id="memoriamOverlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" id="memoriamOverlay" role="dialog" aria-modal="true" aria-labelledby="memoriamModalYear">
   <div class="modal">
     <button class="modal-close" id="memoriamClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="memoriam-modal-photo" id="memoriamModalPhoto"></div>
@@ -720,7 +734,7 @@
     </div>
   </div>
 </div>
-<div class="modal-overlay" id="confirmOverlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
   <div class="modal modal-sm">
     <div class="modal-body">
       <h2 id="confirmTitle" style="font-size:1.2rem;margin-bottom:8px;font-weight:700">Are you sure?</h2>
