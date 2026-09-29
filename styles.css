@@ -548,214 +548,38 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 .badge.cat-editorial{background:#EDE9FE;color:#5B21B6}
 [data-theme="dark"] .badge.cat-editorial{background:rgba(139,92,246,.2);color:#C4B5FD}
 
-/* ============================================================
-   ABOUT PAGE — manifesto redesign
-   ============================================================ */
-
-/* Hero */
-.about-hero{
-  position:relative;
-  padding:clamp(70px,10vw,130px) 0 clamp(60px,8vw,100px);
-  overflow:hidden;
-  border-bottom:1px solid var(--line);
+/* What we publish — release list */
+.pub-list{display:grid;gap:2px;border-top:1px solid var(--line-2)}
+.pub-item{
+  display:flex;
+  align-items:baseline;
+  gap:14px;
+  padding:11px 0;
+  border-bottom:1px solid var(--line-2);
 }
-.about-hero-bg{
-  position:absolute;
-  inset:0;
-  background:
-    radial-gradient(700px 400px at 50% 0%, color-mix(in srgb,var(--brand-primary) 22%, transparent), transparent 70%),
-    radial-gradient(500px 320px at 85% 100%, color-mix(in srgb,var(--brand-accent) 18%, transparent), transparent 70%),
-    radial-gradient(500px 320px at 15% 100%, color-mix(in srgb,var(--brand-primary) 14%, transparent), transparent 70%);
-  pointer-events:none;
-  z-index:0;
-}
-.about-hero-bg::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  background-image:radial-gradient(circle at 1px 1px, color-mix(in srgb,var(--ink) 8%, transparent) 1px, transparent 0);
-  background-size:22px 22px;
-  opacity:.5;
-  mask-image:radial-gradient(ellipse at center, black 30%, transparent 75%);
-  -webkit-mask-image:radial-gradient(ellipse at center, black 30%, transparent 75%);
-}
-.about-hero-inner{position:relative;z-index:1;text-align:center;max-width:720px;margin:0 auto}
-.about-hero-eyebrow{justify-content:center}
-.about-title{
-  font-family:var(--serif);
-  font-size:clamp(3rem,9vw,6rem);
-  font-weight:900;
-  letter-spacing:-.045em;
-  line-height:.95;
-  margin:18px 0 22px;
-  color:var(--ink);
-}
-.about-title span{
-  background:var(--gradient);
-  -webkit-background-clip:text;
-  background-clip:text;
-  -webkit-text-fill-color:transparent;
-  color:transparent;
-}
-.about-sub{
+.pub-num{
   font-family:var(--sans);
-  font-size:.95rem;
-  color:var(--ink-3);
-  letter-spacing:.02em;
-  margin:0 0 30px;
-  line-height:1.5;
-}
-.about-tag{
-  display:inline-block;
-  font-family:var(--serif);
-  font-style:italic;
-  font-size:1.05rem;
+  font-size:.62rem;
+  font-weight:750;
   letter-spacing:.14em;
   color:var(--accent);
-  padding:8px 20px;
-  border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);
-  margin:0;
+  min-width:22px;
+  flex:none;
 }
-
-/* Manifesto */
-.about-manifesto-section{padding:clamp(60px,8vw,100px) 0}
-.manifesto{max-width:680px;margin:0 auto}
-.manifesto p{font-size:1.02rem;color:var(--ink-2);line-height:1.9;margin-bottom:1.5em}
-
-.manifesto-lede{
-  font-family:var(--serif) !important;
-  font-size:1.22rem !important;
-  line-height:1.65 !important;
-  color:var(--ink) !important;
-}
-.manifesto-lede::first-letter{
+.pub-name{
   font-family:var(--serif);
-  font-size:3.8em;
-  font-weight:900;
-  float:left;
-  line-height:.82;
-  padding:8px 12px 0 0;
-  color:var(--accent);
-  background:var(--gradient);
-  -webkit-background-clip:text;
-  background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
-
-.manifesto-quote{
-  border:0;
-  padding:36px 0 34px 26px;
-  margin:44px 0;
-  border-left:3px solid;
-  border-image:var(--gradient) 1;
-  font-family:var(--serif);
-  font-style:italic;
-  font-size:1.22rem;
-  line-height:1.65;
+  font-size:1rem;
+  font-weight:700;
   color:var(--ink);
-  position:relative;
+  letter-spacing:-.01em;
 }
-.manifesto-quote::before{
-  content:"“";
-  position:absolute;
-  top:-16px;
-  left:18px;
-  font-family:var(--serif);
-  font-size:5rem;
-  line-height:1;
-  color:var(--accent);
-  opacity:.35;
-}
-
-.manifesto-close{
-  font-family:var(--serif) !important;
-  font-weight:700 !important;
-  font-size:1.15rem !important;
-  color:var(--ink) !important;
-  margin-bottom:0 !important;
-}
-
-.manifesto-sign{
-  font-family:var(--serif);
+.pub-name em{
   font-style:italic;
   font-weight:400;
-  font-size:1.5rem;
-  letter-spacing:.06em;
-  text-align:right;
-  margin-top:12px;
-  padding-right:6px;
-  background:var(--gradient);
-  -webkit-background-clip:text;
-  background-clip:text;
-  -webkit-text-fill-color:transparent;
-  color:transparent;
-  position:relative;
+  color:var(--ink-3);
+  margin-left:2px;
 }
-.manifesto-sign::after{
-  content:"";
-  display:block;
-  width:140px;
-  height:2px;
-  background:var(--gradient);
-  margin:14px 0 0 auto;
-  border-radius:2px;
-}
-
-/* Offices */
-.about-offices-section{padding:clamp(60px,8vw,100px) 0}
-.office-grid-rich{margin-top:36px}
-.office-card-rich{
-  position:relative;
-  overflow:hidden;
-  transition:.22s var(--ease);
-}
-.office-card-rich:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--accent)}
-.office-num{
-  position:absolute;
-  top:18px;
-  right:22px;
-  font-family:var(--serif);
-  font-weight:900;
-  font-size:2.6rem;
-  line-height:1;
-  color:color-mix(in srgb,var(--accent) 18%, transparent);
-  letter-spacing:-.04em;
-}
-.office-card-rich h4{margin-top:6px}
-.office-contact a{font-weight:600}
-
-/* Connect */
-.about-connect-section{padding:clamp(60px,8vw,100px) 0}
-.about-connect-inner{max-width:640px;margin:0 auto;text-align:center}
-.about-connect-inner .eyebrow{justify-content:center}
-.about-connect-inner h2{margin-bottom:10px}
-.about-connect-lede{font-family:var(--sans);font-size:.92rem;color:var(--ink-3);margin-bottom:28px;line-height:1.6}
-.about-socials{justify-content:center;margin-top:0}
-.about-handle{font-family:var(--sans);font-size:.8rem;color:var(--ink-4);margin:22px 0 0;letter-spacing:.05em}
-.about-handle strong{color:var(--ink-2);font-weight:600}
-
-/* Mobile */
-@media(max-width:640px){
-  .manifesto-lede::first-letter{font-size:2.8em;padding:4px 8px 0 0}
-  .manifesto-quote{font-size:1.05rem;padding:24px 0 22px 20px}
-  .manifesto-quote::before{font-size:3.6rem;top:-8px;left:14px}
-  .manifesto-sign{font-size:1.2rem;text-align:center}
-  .manifesto-sign::after{margin:12px auto 0}
-  .office-num{font-size:2rem;top:14px;right:16px}
-}
-
-/* About hero logo */
-.about-logo{
-  width:clamp(90px, 14vw, 140px);
-  height:auto;
-  margin:0 auto 26px;
-  display:block;
-  filter:drop-shadow(0 12px 32px color-mix(in srgb,var(--brand-primary) 30%, transparent));
-}
-[data-theme="dark"] .about-logo{
-  filter:invert(1) drop-shadow(0 12px 32px color-mix(in srgb,var(--brand-primary) 40%, transparent));
-}
-@media(max-width:640px){
-  .about-logo{width:clamp(72px, 20vw, 100px);margin-bottom:20px}
+@media(max-width:520px){
+  .pub-item{gap:10px}
+  .pub-name{font-size:.95rem}
 }
