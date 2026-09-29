@@ -153,59 +153,71 @@
 </main>
 
 <main id="view-about" class="view">
-  <section class="section about-hero">
-    <div class="wrap">
-      <div class="about-hero-inner">
-        <span class="eyebrow">Since 1948</span>
-        <h1 class="about-title">The Work</h1>
-        <p class="about-sub">The official student publication of Tarlac State University</p>
-      </div>
+
+  <!-- Hero -->
+  <section class="about-hero">
+    <div class="about-hero-bg" aria-hidden="true"></div>
+    <div class="wrap about-hero-inner">
+      <span class="eyebrow about-hero-eyebrow">Since 1948</span>
+      <h1 class="about-title">the<span>WORK</span></h1>
+      <p class="about-sub">The official student publication of Tarlac State University</p>
+      <p class="about-tag">write. move. initiate.</p>
     </div>
   </section>
 
-  <section class="section">
+  <!-- Manifesto -->
+  <section class="section about-manifesto-section">
     <div class="wrap">
       <div class="manifesto">
-        <p>The Work is the official student publication of Tarlac State University, proudly holding its torch high since 1948. Through the years, The Work has diligently pursued community stories—not only within our campuses, but across the entire province. We remain committed to championing students' voices and upholding the truth in an age when red-tagging, disinformation, and a culture of impunity threaten critical reporting.</p>
-        <p>For us, journalism is more than words on paper. It is an act of resistance and questioning—a commitment to finding weight in the mundane through a careful examination of the circumstances behind every story and every persona.</p>
-        <p>Until every voice is heard, every story unfolds, oppressors are conquered, and human rights are defended—The Work will continue to serve as a relentless watchdog and a prime mover of change for the masses.</p>
-        <p>To more years of serving the people!</p>
+        <p class="manifesto-lede">The Work is the official student publication of Tarlac State University, proudly holding its torch high since 1948. Through the years, The Work has diligently pursued community stories — not only within our campuses, but across the entire province.</p>
+
+        <p>We remain committed to championing students' voices and upholding the truth in an age when red-tagging, disinformation, and a culture of impunity threaten critical reporting.</p>
+
+        <p>For us, journalism is more than words on paper. It is an act of resistance and questioning — a commitment to finding weight in the mundane through a careful examination of the circumstances behind every story and every persona.</p>
+
+        <blockquote class="manifesto-quote">Until every voice is heard, every story unfolds, oppressors are conquered, and human rights are defended — The Work will continue to serve as a relentless watchdog and a prime mover of change for the masses.</blockquote>
+
+        <p class="manifesto-close">To more years of serving the people.</p>
         <div class="manifesto-sign">write. move. initiate.</div>
       </div>
     </div>
   </section>
 
-  <section class="section section-alt">
+  <!-- Offices -->
+  <section class="section section-alt about-offices-section">
     <div class="wrap">
       <div class="section-head center">
         <span class="eyebrow">Visit us</span>
-        <h2>Our offices</h2>
+        <h2>Two campuses, one publication</h2>
+        <p class="section-lede">The Work maintains offices at both TSU campuses. Drop by, write with us, or send a story tip.</p>
       </div>
-      <div class="office-grid" style="margin-top:0">
-        <div class="office-card">
+      <div class="office-grid office-grid-rich">
+        <div class="office-card office-card-rich">
+          <div class="office-num">01</div>
           <span class="office-tag">Main Office</span>
           <h4>The Work — Main Campus</h4>
           <p>1F School of Law Bldg.<br>Tarlac State University — Main Campus<br>Romulo Blvd., Tarlac, Philippines, 2300</p>
-          <p><a href="mailto:tsu.tw78@gmail.com">tsu.tw78@gmail.com</a></p>
+          <p class="office-contact"><a href="mailto:tsu.tw78@gmail.com">tsu.tw78@gmail.com</a></p>
         </div>
-        <div class="office-card">
+        <div class="office-card office-card-rich">
+          <div class="office-num">02</div>
           <span class="office-tag">Lucinda Office</span>
           <h4>The Work — Lucinda Campus</h4>
           <p>4F Student Center Bldg.<br>Tarlac State University — Lucinda Campus<br>Lucinda Campus Rd, Tarlac, Philippines, 2300</p>
-          <p><a href="tel:+63456068131">(045) 606-8131</a></p>
+          <p class="office-contact"><a href="tel:+63456068131">(045) 606-8131</a></p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
+  <!-- Connect -->
+  <section class="section about-connect-section">
     <div class="wrap">
-      <div class="section-head center">
+      <div class="about-connect-inner">
         <span class="eyebrow">Follow us</span>
         <h2>Connect with The Work</h2>
-      </div>
-      <div style="display:flex;justify-content:center;margin-top:12px">
-        <div class="social-row" style="margin-top:0;justify-content:center">
+        <p class="about-connect-lede">Stories, breaking news, and behind-the-scenes — everywhere you scroll.</p>
+        <div class="social-row about-socials">
           <a class="social-btn" href="https://www.facebook.com/theworktsu" aria-label="Facebook" rel="noopener" target="_blank">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg>
           </a>
@@ -222,10 +234,11 @@
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.3 3.6z"/></svg>
           </a>
         </div>
+        <p class="about-handle"><strong>@theworktsu</strong> on all platforms</p>
       </div>
-      <p style="font-family:var(--sans);font-size:.82rem;color:var(--ink-3);text-align:center;margin:18px 0 0;line-height:1.6">Follow The Work on Facebook, Instagram, TikTok, X, and YouTube — <strong style="color:var(--ink-2)">@theworktsu</strong> on all platforms.</p>
     </div>
   </section>
+
 </main>
 
 <main id="view-videos" class="view">
