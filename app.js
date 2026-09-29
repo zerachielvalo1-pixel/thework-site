@@ -181,9 +181,14 @@ const Data = {
   },
   async uploadThumb(file) {
     if (!sb) return await resizeImage(file, 900, 0.82);
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const blob = await resizeImageToBlob(file, 1400, 0.85);
+    const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
     const path = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
-    const { error } = await sb.storage.from('thumbnails').upload(path, file, { upsert: false, cacheControl: '31536000' });
+    const { error } = await sb.storage.from('thumbnails').upload(path, blob, {
+      contentType: blob.type,
+      upsert: false,
+      cacheControl: '31536000'
+    });
     if (error) throw error;
     const { data } = sb.storage.from('thumbnails').getPublicUrl(path);
     return data.publicUrl;
@@ -355,6 +360,35 @@ function toast(msg, isError) {
   clearTimeout(toast._t);
   toast._t = setTimeout(() => $('#toast').classList.remove('show'), 3200);
 }
+function resizeImageToBlob(file, maxW, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, (maxW || 1400) / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        c.toBlob(blob => {
+          if (!blob) { reject(new Error('Could not encode image')); return; }
+          if (blob.type === 'image/webp' || blob.type === 'image/jpeg') {
+            resolve(blob);
+          } else {
+            c.toBlob(b => resolve(b || blob), 'image/jpeg', quality || 0.85);
+          }
+        }, 'image/webp', quality || 0.85);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function resizeImage(file, maxW, quality) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
