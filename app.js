@@ -19,6 +19,7 @@ const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'
 const fmtDateLong = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); };
 const fmtDateTimeLive = d => d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
 const timeAgo = ts => { if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); if(diff<60000) return 'just now'; const m=Math.floor(diff/60000); if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; };
+const toLocalDateTimeInput = iso => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); };
 
 const CAT_LABELS = { news:'News', features:'Features', opinion:'Opinion', literary:'Literary', sports:'Sports' };
 const SECTION_ORDER = ['news','features','opinion','literary','sports'];
@@ -1938,7 +1939,8 @@ function resetForm() {
   $('#articleForm').reset();
   $('#fId').value = '';
   $('#fDate').value = todayISO();
-  $('#fRead').value = '4 min';
+  $('#fRead').value = '';
+  $('#fPublishAt').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
   $('#editorTitle').textContent = 'New article';
@@ -1960,6 +1962,7 @@ function loadIntoForm(id) {
   $('#fLayout').value = a.layout_by || '';
   $('#fDate').value = a.date || todayISO();
   $('#fRead').value = a.read || '';
+  $('#fPublishAt').value = a.publish_at ? toLocalDateTimeInput(a.publish_at) : '';
   $('#fExcerpt').value = a.excerpt || '';
   $('#fBody').value = a.body || '';
   $('#fStatus').value = a.status || 'published';
@@ -1991,7 +1994,8 @@ $('#articleForm').addEventListener('submit', async e => {
       photojournalist: $('#fPhoto').value.trim() || null,
       layout_by: $('#fLayout').value.trim() || null,
       date: $('#fDate').value || todayISO(),
-      read: $('#fRead').value.trim() || '4 min',
+      read: $('#fRead').value.trim() || '1 min',
+      publish_at: $('#fPublishAt').value ? new Date($('#fPublishAt').value).toISOString() : null,
       excerpt: $('#fExcerpt').value.trim(),
       body: $('#fBody').value.trim(),
       status: $('#fStatus').value,
@@ -2197,7 +2201,7 @@ async function init() {
     setInterval(tick, 1000);
   })();
   $('#fDate').value = todayISO();
-  $('#fRead').value = '4 min';
+  $('#fRead').value = '';
   $('#releaseDate').value = todayISO();
   setReleaseProvider('heyzine', { keepValue: true });
 
