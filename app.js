@@ -1022,7 +1022,8 @@ async function openBoardProfile(name) {
 
   const byAuthor = published.filter(a => a.author === name || a.author2 === name);
   const byPhoto = published.filter(a => a.photojournalist === name);
-  const byLayout = published.filter(a => a.layout_by === name);
+  const byLayout = published.filter(a => a.layout_by === name || a.layout_by_2 === name);
+  const byGraphics = published.filter(a => a.graphics_by === name);
 
   const photo = boardPhotos[name];
   $('#bpAvatar').innerHTML = photo ? `<img src="${esc(photo)}" alt="">` : esc(member.initials);
@@ -1037,6 +1038,7 @@ async function openBoardProfile(name) {
   const sections = [];
   if (byAuthor.length) sections.push({ label: 'As Author', items: byAuthor });
   if (byPhoto.length) sections.push({ label: 'As Photojournalist', items: byPhoto });
+  if (byGraphics.length) sections.push({ label: 'As Graphics Artist', items: byGraphics });
   if (byLayout.length) sections.push({ label: 'As Layout Artist', items: byLayout });
 
   if (!sections.length) {
