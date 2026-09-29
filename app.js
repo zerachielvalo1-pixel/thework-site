@@ -492,12 +492,6 @@ $('#navSections').addEventListener('click', e => {
     $('#burger').setAttribute('aria-expanded','false');
   }
 });
-window.addEventListener('resize', () => {
-  if (window.innerWidth > 1140) {
-    $('#navSections').classList.remove('open');
-    $('#burger').setAttribute('aria-expanded', 'false');
-  }
-});
 window.addEventListener('scroll', () => {
   $('#nav').classList.toggle('stuck', window.scrollY > 6);
   const h = document.documentElement.scrollHeight - window.innerHeight;
@@ -680,7 +674,7 @@ async function renderHome() {
     : (lead.author || (lead.cat === 'editorial' ? 'The Work' : 'Staff'));
 
   const sidebarHtml = sidebar.map(a => `
-    <div class="sidebar-item editorial-note" data-article-id="${esc(a.id)}">
+    <div class="sidebar-item" data-article-id="${esc(a.id)}">
       <div class="sidebar-item-thumb">
         ${a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">` : esc((CAT_LABELS[a.cat]||'?').charAt(0))}
       </div>
@@ -693,7 +687,7 @@ async function renderHome() {
   `).join('');
 
   fpGrid.innerHTML = `
-    <div class="lead-story editorial-hero" data-article-id="${esc(lead.id)}">
+    <div class="lead-story" data-article-id="${esc(lead.id)}">
       <div class="lead-story-thumb">${leadThumbHtml}<span class="lead-story-cat">${esc(CAT_LABELS[lead.cat]||lead.cat)}</span></div>
       <h2 class="lead-story-title"><a data-story-link href="${esc(storyUrl(lead))}">${esc(lead.title)}</a></h2>
       <p class="lead-story-excerpt">${esc(lead.excerpt || (lead.body||'').split('\n\n')[0] || '')}</p>
@@ -703,7 +697,7 @@ async function renderHome() {
         ${lead.read ? `<span>${esc(lead.read)} read</span>` : ''}
       </div>
     </div>
-    <aside class="sidebar-rail">
+    <aside>
       <div class="sidebar-section-title">Latest <span>· ${published.length} total</span></div>
       <div class="sidebar-list">${sidebarHtml || '<p style="color:var(--ink-3);font-family:var(--sans);font-size:.85rem">No other stories yet.</p>'}</div>
     </aside>
@@ -723,7 +717,7 @@ async function renderHome() {
     grid.innerHTML = '';
     gridArticles.forEach(a => {
       const el = document.createElement('article');
-      el.className = 'article editorial-card';
+      el.className = 'article';
       el.innerHTML = buildArticleCard(a);
       el.addEventListener('click', e => {
         if (e.target.closest('a[data-story-link]')) e.preventDefault();
@@ -755,7 +749,7 @@ async function renderHome() {
       const pGrid = section.querySelector('.preview-grid');
       items.forEach(a => {
         const el = document.createElement('article');
-        el.className = 'article editorial-card';
+        el.className = 'article';
         el.innerHTML = buildArticleCard(a);
         el.addEventListener('click', e => {
           if (e.target.closest('a[data-story-link]')) e.preventDefault();
