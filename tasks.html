@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Work · Tasks</title>
+<meta name="theme-color" content="#0f0a1a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f0a1a; --paper:#1a1425; --paper-2:#221a30; --paper-3:#2a2140;
+    --line:rgba(255,255,255,.09); --line-2:rgba(255,255,255,.18);
+    --ink:#f5f3ff; --ink-2:#cdc6dc; --ink-3:#8b83a3;
+    --brand:#7C3AED; --brand-2:#A855F7; --brand-3:#D946EF;
+    --gradient:linear-gradient(135deg,#7C3AED 0%,#A855F7 55%,#D946EF 100%);
+    --serif:'Merriweather',Georgia,serif;
+    --sans:'Merriweather Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --ease:cubic-bezier(.2,.7,.3,1);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh}
+  body{padding-bottom:60px}
+  a{color:var(--brand-2);text-decoration:none}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:100;
+    background:rgba(15,10,26,.85);backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
+    padding:14px 18px;display:flex;align-items:center;gap:14px;
+  }
+  .topbar .brand{font-family:var(--serif);font-weight:900;font-size:1.05rem;letter-spacing:-.01em;flex:1}
+  .topbar .brand em{font-style:normal;background:var(--gradient);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+  .topbar .who{font-size:.72rem;color:var(--ink-3);letter-spacing:.05em}
+  .topbar button{
+    background:transparent;color:var(--ink-3);border:1.5px solid var(--line-2);
+    padding:8px 12px;border-radius:9px;font-family:var(--sans);font-weight:700;font-size:.7rem;
+    letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:.15s var(--ease);
+  }
+  .topbar button:hover{color:var(--ink);border-color:var(--ink-3)}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 16px 40px}
+  .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .head h1{font-family:var(--serif);font-size:1.55rem;margin:0;font-weight:900;letter-spacing:-.01em}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{
+    font-family:var(--sans);font-size:.68rem;font-weight:750;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--ink-3);background:var(--paper-2);border:1.5px solid var(--line);
+    padding:8px 14px;border-radius:999px;cursor:pointer;transition:.15s var(--ease);white-space:nowrap;
+  }
+  .tab:hover{color:var(--ink);border-color:var(--line-2)}
+  .tab.active{background:var(--gradient);color:#fff;border-color:transparent;box-shadow:0 3px 14px rgba(124,58,237,.35)}
+
+  .btn-primary{
+    background:var(--gradient);color:#fff;border:0;padding:11px 18px;border-radius:10px;
+    font-family:var(--sans);font-weight:750;letter-spacing:.07em;font-size:.7rem;text-transform:uppercase;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    box-shadow:0 6px 18px rgba(124,58,237,.3);transition:.15s var(--ease);
+  }
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(124,58,237,.45)}
+  .btn-primary:disabled{opacity:.55;cursor:not-allowed;transform:none}
+  .btn-ghost{
+    background:transparent;color:var(--ink-2);border:1.5px solid var(--line-2);
+    padding:10px 14px;border-radius:10px;font-family:var(--sans);font-weight:700;font-size:.7rem;
+    text-transform:uppercase;letter-spacing:.08em;cursor:pointer;
+  }
+
+  /* ---------- auth ---------- */
+  .auth-card{
+    max-width:400px;margin:12vh auto 0;padding:32px 28px;background:var(--paper);
+    border:1px solid var(--line);border-radius:20px;text-align:center;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);
+  }
+  .auth-card h2{font-family:var(--serif);font-size:1.45rem;margin:0 0 6px;font-weight:900}
+  .auth-card p{color:var(--ink-3);font-size:.85rem;margin:0 0 22px;line-height:1.5}
+  .auth-card input{
+    width:100%;padding:13px 14px;border:1.5px solid var(--line);border-radius:11px;
+    font-family:var(--sans);font-size:.92rem;background:var(--paper-2);color:var(--ink);
+    margin-bottom:11px;transition:.15s var(--ease);
+  }
+  .auth-card input:focus{outline:0;border-color:var(--brand-2);background:var(--paper-3)}
+  .auth-card button{
+    width:100%;padding:13px;background:var(--gradient);color:#fff;border:0;border-radius:11px;
+    font-family:var(--sans);font-weight:750;letter-spacing:.07em;font-size:.78rem;text-transform:uppercase;
+    cursor:pointer;margin-top:4px;
+  }
+  .auth-card button:disabled{opacity:.5;cursor:not-allowed}
+  .auth-err{color:#f87171;font-size:.8rem;margin-top:12px;min-height:1.2em}
+
+  .denied{max-width:520px;margin:12vh auto 0;padding:32px;text-align:center;
+    border:1.5px dashed var(--line-2);border-radius:20px}
+  .denied h2{font-family:var(--serif);margin:0 0 10px;font-weight:900}
+  .denied p{color:var(--ink-3);font-size:.9rem;line-height:1.65;margin:0 0 10px}
+
+  /* ---------- task list ---------- */
+  .list{display:flex;flex-direction:column;gap:10px}
+  .task{
+    background:var(--paper);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;transition:.18s var(--ease);cursor:pointer;
+  }
+  .task:hover{border-color:var(--line-2);background:var(--paper-2);transform:translateY(-1px)}
+  .task-title{font-family:var(--sans);font-weight:750;font-size:.95rem;color:var(--ink);margin:0 0 5px}
+  .task-desc{font-size:.83rem;color:var(--ink-3);margin:0 0 9px;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .task-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .pill{
+    font-family:var(--sans);font-size:.56rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 9px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-3);background:var(--paper-3);
+  }
+  .pill.prio-urgent{background:#dc2626;color:#fff;border-color:transparent}
+  .pill.prio-high{background:#f59e0b;color:#111;border-color:transparent}
+  .pill.prio-normal{background:var(--brand);color:#fff;border-color:transparent}
+  .pill.prio-low{color:var(--ink-3)}
+  .pill.status-in_progress{background:#3b82f6;color:#fff;border-color:transparent}
+  .pill.status-review{background:#a855f7;color:#fff;border-color:transparent}
+  .pill.status-done{background:#16a34a;color:#fff;border-color:transparent}
+  .pill.status-blocked{background:#dc2626;color:#fff;border-color:transparent}
+  .due{font-size:.7rem;color:var(--ink-3);font-family:var(--sans);font-weight:700;letter-spacing:.03em}
+  .due.overdue{color:#f87171}
+  .empty{color:var(--ink-3);text-align:center;padding:60px 20px;font-size:.9rem}
+
+  /* ---------- board ---------- */
+  .board{display:grid;grid-template-columns:repeat(5,minmax(240px,1fr));gap:12px;overflow-x:auto;padding-bottom:14px}
+  .col{background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:12px;min-height:200px}
+  .col h3{font-family:var(--sans);font-size:.65rem;font-weight:750;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-3);margin:0 0 12px;display:flex;justify-content:space-between}
+  .col .task{padding:11px 12px;border-radius:10px;margin-bottom:8px;background:var(--paper)}
+  .col .task-title{font-size:.85rem}
+
+  /* ---------- modal ---------- */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:9999;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+    animation:fade .2s var(--ease);
+  }
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  .modal{
+    background:var(--paper);border:1px solid var(--line);border-radius:18px;
+    max-width:520px;width:100%;max-height:90vh;overflow-y:auto;padding:26px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);animation:slideUp .25s var(--ease);
+  }
+  .modal h2{font-family:var(--serif);font-size:1.3rem;margin:0 0 18px;font-weight:900}
+  .modal label{display:block;font-family:var(--sans);font-size:.66rem;font-weight:750;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin:14px 0 6px}
+  .modal input,.modal textarea,.modal select{
+    width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:11px;
+    font-family:var(--sans);font-size:.9rem;background:var(--paper-2);color:var(--ink);
+    transition:.15s var(--ease);
+  }
+  .modal input:focus,.modal textarea:focus,.modal select:focus{
+    outline:0;border-color:var(--brand-2);background:var(--paper-3);
+  }
+  .modal textarea{min-height:88px;resize:vertical;font-family:var(--sans)}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
+
+  /* ---------- loading ---------- */
+  .loading{text-align:center;padding:80px 20px;color:var(--ink-3);font-size:.9rem}
+  .spinner{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--brand-2);
+    border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- mobile ---------- */
+  @media(max-width:720px){
+    .wrap{padding:16px 12px 40px}
+    .head h1{font-size:1.3rem}
+    .board{grid-template-columns:repeat(5,78vw)}
+    .topbar .who{display:none}
+    .auth-card{margin-top:6vh;padding:26px 20px}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="loading"><div class="spinner"></div>Loading…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- config ----------
+  var SUPABASE_URL = 'https://fgojhhgqpvnwtcqkornz.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_UiH_F3V2tFE1doecIb337w__hYVQIQf';
+
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      storageKey: 'tw_tasks_auth',      // separate session from main site
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false
+    }
+  });
+
+  // ---------- state ----------
+  var state = {
+    user: null,
+    member: null,
+    tasks: [],
+    filter: 'mine',
+    loading: true
+  };
+
+  // ---------- helpers ----------
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  }
+  function isOverdue(d, status) {
+    if (!d || status === 'done') return false;
+    return new Date(d) < new Date(new Date().toDateString());
+  }
+  function el(html) {
+    var t = document.createElement('template');
+    t.innerHTML = html.trim();
+    return t.content.firstChild;
+  }
+
+  // ---------- auth / member ----------
+  async function getSessionUser() {
+    var r = await sb.auth.getUser();
+    return r.data.user || null;
+  }
+  async function loadMember(uid) {
+    var r = await sb.from('members')
+      .select('*')
+      .eq('id', uid)
+      .eq('active', true)
+      .maybeSingle();
+    return r.data || null;
+  }
+
+  async function loadTasks() {
+    var r = await sb.from('tasks')
+      .select('*, assignee:members!tasks_assigned_to_fkey(full_name, position)')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+    if (r.error) {
+      console.error('[tasks] load', r.error);
+      return;
+    }
+    state.tasks = r.data || [];
+  }
+
+  async function boot() {
+    var user = await getSessionUser();
+    if (user) {
+      state.user = user;
+      state.member = await loadMember(user.id);
+      if (state.member) await loadTasks();
+    }
+    state.loading = false;
+    paint();
+  }
+
+  // ---------- views ----------
+  function vAuth() {
+    var root = el(
+      '<div class="wrap">' +
+        '<div class="auth-card">' +
+          '<h2>Staff Sign In</h2>' +
+          '<p>The Work · Editorial workflow</p>' +
+          '<input id="e" type="email" placeholder="Email" autocomplete="username">' +
+          '<input id="p" type="password" placeholder="Password" autocomplete="current-password">' +
+          '<button id="b">Sign In</button>' +
+          '<div class="auth-err" id="err"></div>' +
+        '</div>' +
+      '</div>'
+    );
+    var btn = root.querySelector('#b');
+    var err = root.querySelector('#err');
+    btn.onclick = async function () {
+      btn.disabled = true;
+      err.textContent = '';
+      var email = root.querySelector('#e').value.trim();
+      var password = root.querySelector('#p').value;
+      var r = await sb.auth.signInWithPassword({ email: email, password: password });
+      btn.disabled = false;
+      if (r.error) {
+        err.textContent = r.error.message;
+        return;
+      }
+      state.user = r.data.user;
+      state.member = await loadMember(state.user.id);
+      if (state.member) await loadTasks();
+      paint();
+    };
+    return root;
+  }
+
+  function vDenied() {
+    var root = el(
+      '<div class="wrap">' +
+        '<div class="denied">' +
+          '<h2>Access Denied</h2>' +
+          '<p>Your account is not on the Editorial Board roster, or your access has been deactivated.</p>' +
+          '<p>Contact the Editor-in-Chief or the webmaster to be added.</p>' +
+          '<button class="btn-ghost" id="out" style="margin-top:18px">Sign Out</button>' +
+        '</div>' +
+      '</div>'
+    );
+    root.querySelector('#out').onclick = async function () {
+      await sb.auth.signOut();
+      state.user = null; state.member = null; state.tasks = [];
+      paint();
+    };
+    return root;
+  }
+
+  function taskCard(t) {
+    var od = isOverdue(t.due_date, t.status);
+    return (
+      '<div class="task" data-id="' + esc(t.id) + '">' +
+        '<p class="task-title">' + esc(t.title) + '</p>' +
+        (t.description ? '<p class="task-desc">' + esc(t.description) + '</p>' : '') +
+        '<div class="task-meta">' +
+          '<span class="pill prio-' + esc(t.priority) + '">' + esc(t.priority) + '</span>' +
+          '<span class="pill status-' + esc(t.status) + '">' + esc(t.status.replace('_',' ')) + '</span>' +
+          '<span class="pill">' + esc(t.task_type) + '</span>' +
+          '<span class="due ' + (od ? 'overdue' : '') + '">' + (od ? '⚠ ' : '') + fmtDate(t.due_date) + '</span>' +
+          (t.assignee ? '<span class="due">· ' + esc(t.assignee.full_name) + '</span>' : '') +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function headHTML(active) {
+    var label = active === 'mine' ? 'My Tasks' : active === 'board' ? 'Task Board' : 'All Tasks';
+    return (
+      '<div class="head">' +
+        '<h1>' + label + '</h1>' +
+        '<div class="tabs">' +
+          '<button class="tab ' + (active==='mine'?'active':'') + '" data-tab="mine">Mine</button>' +
+          '<button class="tab ' + (active==='board'?'active':'') + '" data-tab="board">Board</button>' +
+          '<button class="tab ' + (active==='all'?'active':'') + '" data-tab="all">All</button>' +
+          '<button class="btn-primary" id="new">+ New Task</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function topbar() {
+    var m = state.member;
+    return (
+      '<div class="topbar">' +
+        '<div class="brand">the<em>WORK</em> · Tasks</div>' +
+        '<div class="who">' + esc(m.full_name) + (m.position ? ' · ' + esc(m.position) : '') + '</div>' +
+        '<button id="out">Sign Out</button>' +
+      '</div>'
+    );
+  }
+
+  function vMine() {
+    var mine = state.tasks.filter(function (t) { return t.assigned_to === state.member.id; });
+    var root = el(
+      topbar() +
+      '<div class="wrap">' +
+        headHTML('mine') +
+        '<div class="list">' +
+          (mine.length
+            ? mine.map(taskCard).join('')
+            : '<div class="empty">No tasks assigned to you. 🎉</div>') +
+        '</div>' +
+      '</div>'
+    );
+    wire(root);
+    return root;
+  }
+
+  function vBoard() {
+    var cols = ['todo','in_progress','review','done','blocked'];
+    var labels = { todo:'To Do', in_progress:'In Progress', review:'Review', done:'Done', blocked:'Blocked' };
+    var root = el(
+      topbar() +
+      '<div class="wrap">' +
+        headHTML('board') +
+        '<div class="board">' +
+          cols.map(function (c) {
+            var items = state.tasks.filter(function (t) { return t.status === c; });
+            return '<div class="col">' +
+              '<h3>' + labels[c] + '<span>' + items.length + '</span></h3>' +
+              items.map(taskCard).join('') +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>'
+    );
+    wire(root);
+    return root;
+  }
+
+  function vAll() {
+    var root = el(
+      topbar() +
+      '<div class="wrap">' +
+        headHTML('all') +
+        '<div class="list">' +
+          (state.tasks.length
+            ? state.tasks.map(taskCard).join('')
+            : '<div class="empty">No tasks yet.</div>') +
+        '</div>' +
+      '</div>'
+    );
+    wire(root);
+    return root;
+  }
+
+  function wire(root) {
+    root.querySelectorAll('.tab').forEach(function (b) {
+      b.onclick = function () {
+        state.filter = b.getAttribute('data-tab');
+        paint();
+      };
+    });
+    var nb = root.querySelector('#new');
+    if (nb) nb.onclick = openNewTask;
+    var ob = root.querySelector('#out');
+    if (ob) ob.onclick = async function () {
+      await sb.auth.signOut();
+      state.user = null; state.member = null; state.tasks = [];
+      paint();
+    };
+    root.querySelectorAll('.task').forEach(function (c) {
+      c.onclick = function () { openTaskDetail(c.getAttribute('data-id')); };
+    });
+  }
+
+  // ---------- modals ----------
+  async function openNewTask() {
+    var r = await sb.from('members')
+      .select('id, full_name, position')
+      .eq('active', true)
+      .order('full_name');
+    var members = r.data || [];
+    var opts = members.map(function (m) {
+      var sel = m.id === state.member.id ? ' selected' : '';
+      return '<option value="' + m.id + '"' + sel + '>' +
+        esc(m.full_name) + (m.position ? ' — ' + esc(m.position) : '') +
+      '</option>';
+    }).join('');
+
+    var bg = el(
+      '<div class="modal-bg"><div class="modal">' +
+        '<h2>New Task</h2>' +
+        '<label>Title</label><input id="ntTitle" placeholder="e.g. Draft news article on intramurals">' +
+        '<label>Description</label><textarea id="ntDesc" placeholder="Optional details..."></textarea>' +
+        '<label>Assign to</label><select id="ntAssign">' + opts + '</select>' +
+        '<label>Type</label><select id="ntType">' +
+          '<option value="article">Article</option>' +
+          '<option value="photo">Photo</option>' +
+          '<option value="layout">Layout</option>' +
+          '<option value="video">Video</option>' +
+          '<option value="event">Event</option>' +
+          '<option value="admin">Admin</option>' +
+          '<option value="other" selected>Other</option>' +
+        '</select>' +
+        '<label>Priority</label><select id="ntPrio">' +
+          '<option value="low">Low</option>' +
+          '<option value="normal" selected>Normal</option>' +
+          '<option value="high">High</option>' +
+          '<option value="urgent">Urgent</option>' +
+        '</select>' +
+        '<label>Due date</label><input id="ntDue" type="date">' +
+        '<div class="modal-actions">' +
+          '<button class="btn-ghost" id="ntCancel">Cancel</button>' +
+          '<button class="btn-primary" id="ntSave">Create Task</button>' +
+        '</div>' +
+      '</div></div>'
+    );
+    document.body.appendChild(bg);
+    bg.querySelector('#ntCancel').onclick = function () { bg.remove(); };
+    bg.onclick = function (e) { if (e.target === bg) bg.remove(); };
+
+    bg.querySelector('#ntSave').onclick = async function () {
+      var title = bg.querySelector('#ntTitle').value.trim();
+      if (!title) { alert('Title is required'); return; }
+      var row = {
+        title: title,
+        description: bg.querySelector('#ntDesc').value.trim() || null,
+        assigned_to: bg.querySelector('#ntAssign').value,
+        task_type: bg.querySelector('#ntType').value,
+        priority: bg.querySelector('#ntPrio').value,
+        due_date: bg.querySelector('#ntDue').value || null,
+        created_by: state.member.id
+      };
+      var r = await sb.from('tasks').insert(row);
+      if (r.error) { alert(r.error.message); return; }
+      bg.remove();
+      await loadTasks();
+      paint();
+    };
+  }
+
+  async function openTaskDetail(id) {
+    var t = state.tasks.filter(function (x) { return x.id === id; })[0];
+    if (!t) return;
+    var isAdmin = state.member.role === 'owner' || state.member.role === 'admin';
+    var isMine = t.assigned_to === state.member.id;
+    var canEdit = isAdmin || isMine;
+
+    var bg = el(
+      '<div class="modal-bg"><div class="modal">' +
+        '<h2>' + esc(t.title) + '</h2>' +
+        (t.description ? '<p style="color:var(--ink-3);line-height:1.6;margin:0 0 8px">' + esc(t.description) + '</p>' : '') +
+        '<div class="task-meta" style="margin:12px 0 18px">' +
+          '<span class="pill prio-' + esc(t.priority) + '">' + esc(t.priority) + '</span>' +
+          '<span class="pill status-' + esc(t.status) + '">' + esc(t.status.replace('_',' ')) + '</span>' +
+          '<span class="pill">' + esc(t.task_type) + '</span>' +
+          '<span class="due">Due ' + fmtDate(t.due_date) + '</span>' +
+        '</div>' +
+        (canEdit
+          ? '<label>Status</label><select id="edStatus">' +
+              ['todo','in_progress','review','done','blocked'].map(function (s) {
+                return '<option value="' + s + '"' + (s === t.status ? ' selected' : '') + '>' +
+                  s.replace('_',' ') + '</option>';
+              }).join('') +
+            '</select>' +
+            (isAdmin
+              ? '<label>Priority</label><select id="edPrio">' +
+                  ['low','normal','high','urgent'].map(function (p) {
+                    return '<option value="' + p + '"' + (p === t.priority ? ' selected' : '') + '>' + p + '</option>';
+                  }).join('') +
+                '</select>' +
+                '<label>Due date</label><input id="edDue" type="date" value="' + (t.due_date || '') + '">'
+              : '')
+          : '') +
+        '<div class="modal-actions">' +
+          (isAdmin ? '<button class="btn-ghost" id="del" style="color:#f87171;border-color:rgba(248,113,113,.4)">Delete</button>' : '') +
+          '<button class="btn-ghost" id="close">Close</button>' +
+          (canEdit ? '<button class="btn-primary" id="save">Save</button>' : '') +
+        '</div>' +
+      '</div></div>'
+    );
+    document.body.appendChild(bg);
+    bg.querySelector('#close').onclick = function () { bg.remove(); };
+    bg.onclick = function (e) { if (e.target === bg) bg.remove(); };
+
+    var save = bg.querySelector('#save');
+    if (save) save.onclick = async function () {
+      var patch = { status: bg.querySelector('#edStatus').value };
+      if (isAdmin) {
+        patch.priority = bg.querySelector('#edPrio').value;
+        patch.due_date = bg.querySelector('#edDue').value || null;
+      }
+      var r = await sb.from('tasks').update(patch).eq('id', t.id);
+      if (r.error) { alert(r.error.message); return; }
+      bg.remove();
+      await loadTasks();
+      paint();
+    };
+
+    var del = bg.querySelector('#del');
+    if (del) del.onclick = async function () {
+      if (!confirm('Delete this task?')) return;
+      var r = await sb.from('tasks').delete().eq('id', t.id);
+      if (r.error) { alert(r.error.message); return; }
+      bg.remove();
+      await loadTasks();
+      paint();
+    };
+  }
+
+  // ---------- paint ----------
+  function paint() {
+    var app = document.getElementById('app');
+    app.innerHTML = '';
+    if (state.loading) {
+      app.appendChild(el('<div class="loading"><div class="spinner"></div>Loading…</div>'));
+      return;
+    }
+    if (!state.user) { app.appendChild(vAuth()); return; }
+    if (!state.member) { app.appendChild(vDenied()); return; }
+    if (state.filter === 'mine') app.appendChild(vMine());
+    else if (state.filter === 'board') app.appendChild(vBoard());
+    else app.appendChild(vAll());
+  }
+
+  // ---------- start ----------
+  sb.auth.onAuthStateChange(function () { /* keep state in sync if needed */ });
+  boot();
+})();
+</script>
+</body>
+</html>
