@@ -55,9 +55,8 @@ function twScheduleFade() {
     twApplyFade();
   });
 }
-const CAT_LABELS = { news:'News', editorial:'Editorial', 'op-ed':'Op-Ed', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports' };
-const SECTION_ORDER = ['news','op-ed','features','literary','sports'];
-const OP_ED_CATS = ['editorial','opinion'];
+const CAT_LABELS = { news:'News', editorial:'Editorial', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports' };
+const SECTION_ORDER = ['news','editorial','opinion','features','literary','sports'];
 const RELEASE_CATEGORIES = [
   { id:'magazine',   label:'Magazine',       example:'Metanoia' },
   { id:'tabloid',    label:'Tabloid',        example:'' },

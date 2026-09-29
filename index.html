@@ -69,7 +69,8 @@
     <div class="section-strip-inner" role="tablist">
       <button class="section-tab active" data-filter="all" role="tab" aria-selected="true">All Stories</button>
       <button class="section-tab" data-filter="news" role="tab" aria-selected="false">News</button>
-      <button class="section-tab" data-filter="op-ed" role="tab" aria-selected="false">Op-Ed</button>
+      <button class="section-tab" data-filter="editorial" role="tab" aria-selected="false">Editorial</button>
+      <button class="section-tab" data-filter="opinion" role="tab" aria-selected="false">Opinion</button>
       <button class="section-tab" data-filter="features" role="tab" aria-selected="false">Features</button>
       <button class="section-tab" data-filter="literary" role="tab" aria-selected="false">Literary</button>
       <button class="section-tab" data-filter="sports" role="tab" aria-selected="false">Sports</button>
@@ -292,7 +293,7 @@
           <div class="table-toolbar">
             <input type="text" id="searchInput" placeholder="Search by title or author…">
             <select id="statusFilter"><option value="">All statuses</option><option value="published">Published</option><option value="draft">Drafts</option></select>
-            <select id="catFilter"><option value="">All sections</option><option value="news">News</option><option value="features">Features</option><option value="opinion">Opinion</option><option value="literary">Literary</option><option value="sports">Sports</option></select>
+            <select id="catFilter"><option value="">All sections</option><option value="news">News</option><option value="editorial">Editorial</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option></select>
           </div>
           <div id="tableContainer"></div>
         </div>
@@ -516,7 +517,7 @@
             </div>
             <div class="field"><label for="fTitle">Title <span class="hint">*</span></label><input type="text" id="fTitle" required maxlength="160"></div>
             <div class="row-2">
-              <div class="field"><label for="fCat">Section <span class="hint">*</span></label><select id="fCat" required><option value="">Choose…</option><option value="news">News</option><option value="features">Features</option><option value="opinion">Opinion</option><option value="literary">Literary</option><option value="sports">Sports</option></select></div>
+              <div class="field"><label for="fCat">Section <span class="hint">*</span></label><select id="fCat" required><option value="">Choose…</option><option value="news">News</option><option value="editorial">Editorial</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option></select></div>
               <div class="field"><label for="fAuthor">Author <span class="hint">*</span></label><input type="text" id="fAuthor" required maxlength="80" list="boardNames"></div>
             </div>
             <div class="field"><label for="fAuthor2">Second author <span class="hint">optional</span></label><input type="text" id="fAuthor2" maxlength="80" list="boardNames"></div>
