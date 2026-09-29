@@ -583,3 +583,65 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .pub-item{gap:10px}
   .pub-name{font-size:.95rem}
 }
+
+/* Manifesto — About page left column */
+.manifesto p{
+  font-size:.95rem;
+  color:var(--ink-2);
+  line-height:1.85;
+  margin-bottom:1.4em;
+}
+
+.manifesto-lede{
+  font-family:var(--serif);
+  font-size:1.12rem;
+  line-height:1.65;
+  color:var(--ink);
+}
+
+.manifesto-lede::first-letter{
+  font-family:var(--serif);
+  font-size:3.4em;
+  font-weight:900;
+  float:left;
+  line-height:.82;
+  padding:6px 10px 0 0;
+  color:var(--accent);
+}
+
+.manifesto-close{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:1.05rem;
+  color:var(--ink);
+  margin-bottom:0;
+}
+
+.manifesto-sign{
+  font-family:var(--serif);
+  font-style:italic;
+  font-weight:400;
+  font-size:1.3rem;
+  letter-spacing:.08em;
+  color:var(--accent);
+  text-align:right;
+  margin-top:14px;
+  padding-right:4px;
+  position:relative;
+}
+.manifesto-sign::after{
+  content:"";
+  display:block;
+  width:110px;
+  height:2px;
+  background:var(--gradient);
+  margin:12px 0 0 auto;
+  border-radius:2px;
+}
+
+@media(max-width:520px){
+  .manifesto-lede{font-size:1rem}
+  .manifesto-lede::first-letter{font-size:2.6em;padding:4px 8px 0 0}
+  .manifesto-sign{font-size:1.1rem;text-align:center}
+  .manifesto-sign::after{margin:12px auto 0}
+}
