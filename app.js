@@ -729,17 +729,44 @@ async function renderMemoriamPage() {
     return;
   }
   list.innerHTML = items.map(m => `
-    <div class="memoriam-item">
+    <div class="memoriam-item" data-memoriam-id="${esc(m.id)}" role="button" tabindex="0">
       <div class="memoriam-photo">
         ${m.photo_url ? `<img src="${esc(m.photo_url)}" alt="" loading="lazy">` : `<div class="memoriam-fallback">${esc((m.school_year||'?').slice(0,4))}</div>`}
       </div>
       <div class="memoriam-body">
         <div class="memoriam-year">${esc(m.school_year||'')}</div>
         ${m.term_label ? `<div class="memoriam-term">${esc(m.term_label)}</div>` : ''}
-        ${m.caption ? `<div class="memoriam-caption">${esc(m.caption)}</div>` : ''}
       </div>
     </div>
   `).join('');
+  list.querySelectorAll('[data-memoriam-id]').forEach(el => {
+    el.addEventListener('click', () => openMemoriam(el.dataset.memoriamId, items));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMemoriam(el.dataset.memoriamId, items); }
+    });
+  });
+}
+
+function openMemoriam(id, list) {
+  const m = list.find(x => x.id === id);
+  if (!m) return;
+  lastFocused = document.activeElement;
+  const photo = document.getElementById('memoriamModalPhoto');
+  photo.innerHTML = m.photo_url
+    ? `<img src="${esc(m.photo_url)}" alt="">`
+    : `<div class="memoriam-fallback">${esc((m.school_year||'?').slice(0,4))}</div>`;
+  document.getElementById('memoriamModalYear').textContent = m.school_year || '';
+  document.getElementById('memoriamModalTerm').textContent = m.term_label || '';
+  const cap = document.getElementById('memoriamModalCaption');
+  if (m.caption) { cap.textContent = m.caption; cap.style.display = 'block'; }
+  else { cap.textContent = ''; cap.style.display = 'none'; }
+  document.getElementById('memoriamOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMemoriam() {
+  document.getElementById('memoriamOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  if (lastFocused) lastFocused.focus();
 }
 
 function openReader(releaseId) {
@@ -1016,6 +1043,8 @@ function closeBoardProfile() {
 }
 $('#boardProfileClose').addEventListener('click', closeBoardProfile);
 $('#boardProfileOverlay').addEventListener('click', e => { if (e.target === $('#boardProfileOverlay')) closeBoardProfile(); });
+$('#memoriamClose').addEventListener('click', closeMemoriam);
+$('#memoriamOverlay').addEventListener('click', e => { if (e.target === $('#memoriamOverlay')) closeMemoriam(); });
 
 function openArticle(id) {
   const a = articles.find(x => x.id === id);
@@ -1065,6 +1094,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if ($('#readerOverlay').classList.contains('open')) { closeReader(); return; }
   if ($('#cropOverlay').classList.contains('open')) { closeCropModal(); return; }
+  if ($('#memoriamOverlay').classList.contains('open')) { closeMemoriam(); return; }
   if (boardProfileOpen) closeBoardProfile();
   else if (modalOpen) closeArticle();
   else if ($('#loginOverlay').classList.contains('open')) $('#loginOverlay').classList.remove('open');

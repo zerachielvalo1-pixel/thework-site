@@ -490,3 +490,10 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 .archive-tab:hover{color:var(--ink);border-color:var(--ink-4)}
 .archive-tab.active{background:var(--gradient);color:#fff;border-color:transparent;box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 28%,transparent)}
 @media(max-width:640px){.archive-tab{font-size:.65rem;padding:7px 12px}}
+/* Look Back — clickable modal */
+.memoriam-modal-photo{aspect-ratio:4/3;background:var(--gradient);overflow:hidden;position:relative}
+.memoriam-modal-photo img{width:100%;height:100%;object-fit:cover}
+.memoriam-modal-photo .memoriam-fallback{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--serif);font-size:4rem;font-weight:900;color:rgba(255,255,255,.4)}
+.memoriam-modal-year{font-family:var(--serif);font-size:1.55rem;font-weight:900;letter-spacing:-.02em;color:var(--ink);margin-bottom:6px}
+.memoriam-modal-term{font-family:var(--sans);font-size:.72rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.memoriam-modal-caption{font-family:var(--sans);font-size:.92rem;color:var(--ink-2);line-height:1.7;white-space:pre-wrap}
