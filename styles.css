@@ -65,7 +65,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .nav{position:sticky;top:0;z-index:100;height:var(--nav-h);background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:saturate(180%) blur(16px);-webkit-backdrop-filter:saturate(180%) blur(16px);border-bottom:1px solid var(--line);transition:.25s var(--ease)}
 .nav.stuck{box-shadow:0 2px 16px rgba(26,14,46,.06)}
 .nav-inner{display:flex;align-items:center;gap:14px;height:var(--nav-h);max-width:var(--maxw);margin:0 auto;padding:0 24px}
-.brand{display:flex;align-items:baseline;color:var(--ink);text-decoration:none;flex:none;font-family:var(--serif);font-weight:900;font-size:1.5rem;letter-spacing:-.04em;line-height:1}
+.brand{display:flex;align-items:center;color:var(--ink);text-decoration:none;flex:none;font-family:var(--serif);font-weight:900;font-size:1.5rem;letter-spacing:-.04em;line-height:1}
 .brand:hover{color:var(--ink);text-decoration:none}
 .brand-the{color:var(--ink);font-weight:400}
 .brand-work{background:var(--gradient);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;font-weight:900}
@@ -303,7 +303,7 @@ footer{background:var(--paper-2);border-top:1px solid var(--line);padding:52px 0
 .foot-grid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:32px}
 @media(max-width:860px){.foot-grid{grid-template-columns:1fr 1fr;gap:26px}}
 @media(max-width:540px){.foot-grid{grid-template-columns:1fr}}
-.foot-brand{display:flex;align-items:baseline;margin-bottom:14px;color:var(--ink);text-decoration:none;font-family:var(--serif);font-weight:900;font-size:1.35rem;letter-spacing:-.04em;line-height:1}
+.foot-brand{display:flex;align-items:center;margin-bottom:14px;color:var(--ink);text-decoration:none;font-family:var(--serif);font-weight:900;font-size:1.35rem;letter-spacing:-.04em;line-height:1}
 .foot-desc{font-family:var(--sans);color:var(--ink-3);font-size:.82rem;line-height:1.65;max-width:34ch}
 footer h4{font-family:var(--sans);font-size:.66rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-4);margin-bottom:14px}
 footer ul{list-style:none;padding:0;margin:0;display:grid;gap:9px}
@@ -528,7 +528,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 [data-theme="dark"] .word-meter.over  span:first-child{color:#FCA5A5}
 [data-theme="dark"] .word-meter.ok    span:first-child{color:#4ADE80}
 /* Brand logo */
-.brand-logo{width:32px;height:32px;object-fit:contain;flex:none;margin-right:10px;display:block}
+.brand-logo{width:30px;height:30px;object-fit:contain;flex:none;margin-right:10px;display:block;align-self:center}
 .foot-brand .brand-logo{width:28px;height:28px;margin-right:9px}
 [data-theme="dark"] .brand-logo{filter:invert(1)}
 @media(max-width:520px){
