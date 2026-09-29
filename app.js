@@ -2088,10 +2088,33 @@ function loadIntoForm(id) {
 $('#articleForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (!session) { toast('Please sign in first.', true); return; }
+
   const title = $('#fTitle').value.trim();
   const cat = $('#fCat').value;
   const author = $('#fAuthor').value.trim();
-  if (!title || !cat || !author) { toast('Fill in title, section, author', true); return; }
+  const body = $('#fBody').value.trim();
+  const excerpt = $('#fExcerpt').value.trim();
+  const status = $('#fStatus').value;
+  const missing = [];
+
+  if (!title) missing.push('title');
+  if (!cat) missing.push('section');
+  if (!author) missing.push('author');
+  if (!body) missing.push('body');
+  if (status === 'published' && !excerpt) missing.push('excerpt');
+
+  if (missing.length) {
+    toast('Missing required fields: ' + missing.join(', '), true);
+    return;
+  }
+
+  const wordCount = body ? body.split(/\s+/).filter(Boolean).length : 0;
+  const target = cat && WORD_TARGETS[cat];
+  if (status === 'published' && target && wordCount < target.min) {
+    toast(`Minimum ${target.min} words required for ${CAT_LABELS[cat] || cat} before publishing.`, true);
+    return;
+  }
+
   const btn = $('#saveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
