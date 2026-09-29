@@ -2217,16 +2217,14 @@ async function init() {
 // TW Tasks — workflow module (self-routing, self-contained)
 // ============================================================
 (function () {
-  // Uses `sb` from the outer app.js scope — no shadowing.
+  // Uses `sb` from the outer app.js scope.
 
-  // ---------- state ----------
   let state = { member: null, tasks: [], filter: 'mine' };
 
-  // ---------- helpers ----------
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '—';
-  const isOverdue = (d, status) => d && status !== 'done' && new Date(d) < new Date(new Date().toDateString());
-  function findContainer() {
+  const twEsc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const twFmtDate = (d) => d ? new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '—';
+  const twIsOverdue = (d, status) => d && status !== 'done' && new Date(d) < new Date(new Date().toDateString());
+  function twFindContainer() {
     return document.querySelector('main')
         || document.getElementById('app')
         || document.getElementById('content')
@@ -2234,15 +2232,14 @@ async function init() {
         || document.body;
   }
 
-  // ---------- data ----------
-  async function loadMember() {
+  async function twLoadMember() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) { state.member = null; return null; }
     const { data } = await sb.from('members').select('*').eq('id', user.id).eq('active', true).maybeSingle();
     state.member = data || null;
     return state.member;
   }
-  async function loadTasks() {
+  async function twLoadTasks() {
     const { data, error } = await sb.from('tasks')
       .select('*, assignee:members!tasks_assigned_to_fkey(full_name, position)')
       .order('due_date', { ascending: true, nullsFirst: false })
@@ -2251,8 +2248,7 @@ async function init() {
     state.tasks = data || [];
   }
 
-  // ---------- views ----------
-  function renderLogin(c) {
+  function twRenderLogin(c) {
     c.innerHTML = `
       <div class="tw-tasks-wrap">
         <div class="tw-auth-card">
@@ -2273,11 +2269,11 @@ async function init() {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       btn.disabled = false;
       if (error) { err.textContent = error.message; return; }
-      render(c);
+      twRender(c);
     };
   }
 
-  function renderDenied(c) {
+  function twRenderDenied(c) {
     c.innerHTML = `
       <div class="tw-tasks-wrap">
         <div class="tw-access-denied">
@@ -2289,29 +2285,29 @@ async function init() {
       </div>`;
     c.querySelector('#twSignOut').onclick = async () => {
       await sb.auth.signOut();
-      render(c);
+      twRender(c);
     };
   }
 
-  function taskCard(t) {
-    const overdue = isOverdue(t.due_date, t.status);
+  function twTaskCard(t) {
+    const overdue = twIsOverdue(t.due_date, t.status);
     return `
       <div class="tw-task" data-id="${t.id}">
         <div class="tw-task-body">
-          <p class="tw-task-title">${esc(t.title)}</p>
-          ${t.description ? `<p class="tw-task-desc">${esc(t.description)}</p>` : ''}
+          <p class="tw-task-title">${twEsc(t.title)}</p>
+          ${t.description ? `<p class="tw-task-desc">${twEsc(t.description)}</p>` : ''}
           <div class="tw-task-meta">
-            <span class="tw-pill prio-${t.priority}">${esc(t.priority)}</span>
-            <span class="tw-pill status-${t.status}">${esc(t.status.replace('_',' '))}</span>
-            <span class="tw-pill">${esc(t.task_type)}</span>
-            <span class="tw-task-due ${overdue ? 'overdue' : ''}">${overdue ? '⚠ ' : ''}${fmtDate(t.due_date)}</span>
-            ${t.assignee ? `<span class="tw-task-due">· ${esc(t.assignee.full_name)}</span>` : ''}
+            <span class="tw-pill prio-${t.priority}">${twEsc(t.priority)}</span>
+            <span class="tw-pill status-${t.status}">${twEsc(t.status.replace('_',' '))}</span>
+            <span class="tw-pill">${twEsc(t.task_type)}</span>
+            <span class="tw-task-due ${overdue ? 'overdue' : ''}">${overdue ? '⚠ ' : ''}${twFmtDate(t.due_date)}</span>
+            ${t.assignee ? `<span class="tw-task-due">· ${twEsc(t.assignee.full_name)}</span>` : ''}
           </div>
         </div>
       </div>`;
   }
 
-  function headHTML(active) {
+  function twHeadHTML(active) {
     return `
       <div class="tw-tasks-head">
         <h1>${active === 'mine' ? 'My Tasks' : active === 'board' ? 'Task Board' : 'All Tasks'}</h1>
@@ -2324,53 +2320,133 @@ async function init() {
       </div>`;
   }
 
-  function renderMine(c) {
+  function twRenderMine(c) {
     const mine = state.tasks.filter((t) => t.assigned_to === state.member.id);
     c.innerHTML = `
       <div class="tw-tasks-wrap">
-        ${headHTML('mine')}
+        ${twHeadHTML('mine')}
         <div class="tw-task-list">
-          ${mine.length ? mine.map(taskCard).join('') : '<p style="color:var(--ink-3);text-align:center;padding:40px">No tasks assigned to you. 🎉</p>'}
+          ${mine.length ? mine.map(twTaskCard).join('') : '<p style="color:var(--ink-3);text-align:center;padding:40px">No tasks assigned to you. 🎉</p>'}
         </div>
       </div>`;
-    wire(c);
+    twWire(c);
   }
 
-  function renderBoard(c) {
+  function twRenderBoard(c) {
     const cols = ['todo','in_progress','review','done','blocked'];
     const labels = { todo:'To Do', in_progress:'In Progress', review:'Review', done:'Done', blocked:'Blocked' };
     c.innerHTML = `
       <div class="tw-tasks-wrap">
-        ${headHTML('board')}
+        ${twHeadHTML('board')}
         <div class="tw-board">
           ${cols.map((col) => `
             <div class="tw-col">
               <h3>${labels[col]}<span>${state.tasks.filter((t) => t.status === col).length}</span></h3>
-              ${state.tasks.filter((t) => t.status === col).map(taskCard).join('')}
+              ${state.tasks.filter((t) => t.status === col).map(twTaskCard).join('')}
             </div>`).join('')}
         </div>
       </div>`;
-    wire(c);
+    twWire(c);
   }
 
-  function renderAll(c) {
+  function twRenderAll(c) {
     c.innerHTML = `
       <div class="tw-tasks-wrap">
-        ${headHTML('all')}
+        ${twHeadHTML('all')}
         <div class="tw-task-list">
-          ${state.tasks.length ? state.tasks.map(taskCard).join('') : '<p style="color:var(--ink-3);text-align:center;padding:40px">No tasks yet.</p>'}
+          ${state.tasks.length ? state.tasks.map(twTaskCard).join('') : '<p style="color:var(--ink-3);text-align:center;padding:40px">No tasks yet.</p>'}
         </div>
       </div>`;
-    wire(c);
+    twWire(c);
   }
 
-  function wire(c) {
+  function twWire(c) {
     c.querySelectorAll('.tw-tasks-tab').forEach((b) => {
-      b.onclick = () => { state.filter = b.dataset.tab; paint(c); };
+      b.onclick = () => { state.filter = b.dataset.tab; twPaint(c); };
     });
     const nu = c.querySelector('#twNew');
-    if (nu) nu.onclick = () => openNewTask(c);
+    if (nu) nu.onclick = () => twOpenNewTask(c);
   }
+
+  async function twOpenNewTask(c) {
+    const { data: members } = await sb.from('members').select('id, full_name, position').eq('active', true).order('full_name');
+    const opts = (members || []).map((m) => `<option value="${m.id}" ${m.id === state.member.id ? 'selected' : ''}>${twEsc(m.full_name)}${m.position ? ' — ' + twEsc(m.position) : ''}</option>`).join('');
+    const bg = document.createElement('div');
+    bg.className = 'tw-modal-bg';
+    bg.innerHTML = `
+      <div class="tw-modal">
+        <h2>New Task</h2>
+        <label>Title</label><input id="ntTitle" placeholder="e.g. Draft news article on intramurals">
+        <label>Description</label><textarea id="ntDesc" placeholder="Optional details..."></textarea>
+        <label>Assign to</label><select id="ntAssign">${opts}</select>
+        <label>Type</label>
+        <select id="ntType">
+          <option value="article">Article</option><option value="photo">Photo</option>
+          <option value="layout">Layout</option><option value="video">Video</option>
+          <option value="event">Event</option><option value="admin">Admin</option>
+          <option value="other" selected>Other</option>
+        </select>
+        <label>Priority</label>
+        <select id="ntPrio">
+          <option value="low">Low</option><option value="normal" selected>Normal</option>
+          <option value="high">High</option><option value="urgent">Urgent</option>
+        </select>
+        <label>Due date</label><input id="ntDue" type="date">
+        <div class="tw-modal-actions">
+          <button class="tw-btn-ghost" id="ntCancel">Cancel</button>
+          <button class="tw-btn-primary" id="ntSave">Create Task</button>
+        </div>
+      </div>`;
+    document.body.appendChild(bg);
+    bg.querySelector('#ntCancel').onclick = () => bg.remove();
+    bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+    bg.querySelector('#ntSave').onclick = async () => {
+      const title = bg.querySelector('#ntTitle').value.trim();
+      if (!title) { alert('Title is required'); return; }
+      const row = {
+        title,
+        description: bg.querySelector('#ntDesc').value.trim() || null,
+        assigned_to: bg.querySelector('#ntAssign').value,
+        task_type: bg.querySelector('#ntType').value,
+        priority: bg.querySelector('#ntPrio').value,
+        due_date: bg.querySelector('#ntDue').value || null,
+        created_by: state.member.id,
+      };
+      const { error } = await sb.from('tasks').insert(row);
+      if (error) { alert(error.message); return; }
+      bg.remove();
+      await twLoadTasks();
+      twPaint(c);
+    };
+  }
+
+  function twPaint(c) {
+    if (!state.member) { twRenderLogin(c); return; }
+    if (state.filter === 'mine') twRenderMine(c);
+    else if (state.filter === 'board') twRenderBoard(c);
+    else twRenderAll(c);
+  }
+
+  async function twRender(c) {
+    if (!c) c = twFindContainer();
+    c.innerHTML = '<div class="tw-tasks-wrap" style="text-align:center;padding:60px;color:var(--ink-3)">Loading…</div>';
+    await twLoadMember();
+    if (state.member) await twLoadTasks();
+    twPaint(c);
+  }
+
+  async function twTryRoute() {
+    if (window.location.hash === '#/tasks') {
+      setTimeout(() => twRender(twFindContainer()), 0);
+    }
+  }
+  window.addEventListener('hashchange', twTryRoute);
+  window.addEventListener('DOMContentLoaded', twTryRoute);
+  if (document.readyState !== 'loading') twTryRoute();
+
+  window.TWTasks = { render: twRender };
+  console.log('[TW Tasks] ready — route #/tasks');
+})();
 
   // ---------- new task modal ----------
   async function openNewTask(c) {
