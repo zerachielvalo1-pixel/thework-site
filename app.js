@@ -1151,6 +1151,44 @@ function openArticle(id) {
   let content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
   if (a.excerpt) content += `<blockquote>${esc(a.excerpt)}</blockquote>`;
   $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
+
+  try {
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: a.title,
+      description: a.excerpt || (a.body || '').slice(0, 160),
+      datePublished: a.date || undefined,
+      dateModified: a.updated || a.date || undefined,
+      articleSection: CAT_LABELS[a.cat] || a.cat,
+      author: {
+        '@type': 'Person',
+        name: a.author2 ? (a.author + ' & ' + a.author2) : a.author
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: 'The Work',
+        logo: {
+          '@type': 'ImageObject',
+          url: 'https://thework.tw78.workers.dev/logo-tw.png'
+        }
+      },
+      image: a.thumbnail || undefined,
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': 'https://thework.tw78.workers.dev/'
+      }
+    };
+    let ld = document.getElementById('tw-article-jsonld');
+    if (!ld) {
+      ld = document.createElement('script');
+      ld.id = 'tw-article-jsonld';
+      ld.type = 'application/ld+json';
+      document.head.appendChild(ld);
+    }
+    ld.textContent = JSON.stringify(schema);
+  } catch (e) { /* silent */ }
+
   $('#modalOverlay').classList.add('open');
   modalOpen = true;
   document.body.style.overflow = 'hidden';
