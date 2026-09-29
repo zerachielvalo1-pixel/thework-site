@@ -525,7 +525,9 @@ function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
     ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">`
     : `<div class="article-thumb-text">${esc((CAT_LABELS[a.cat]||'?').charAt(0))}</div>`;
-  const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'Staff');
+  const byline = a.author2
+    ? `${a.author} & ${a.author2}`
+    : (a.author || (a.cat === 'editorial' ? 'The Work' : 'Staff'));
   return `
     <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span></div>
     <div class="article-body">
@@ -572,7 +574,9 @@ async function renderHome() {
   const leadThumbHtml = lead.thumbnail
     ? `<img src="${esc(lead.thumbnail)}" alt="" loading="lazy">`
     : `<div class="lead-story-thumb-text">${esc((CAT_LABELS[lead.cat]||'?').charAt(0))}</div>`;
-  const leadByline = lead.author2 ? `${lead.author} & ${lead.author2}` : (lead.author || 'Staff');
+  const leadByline = lead.author2
+    ? `${lead.author} & ${lead.author2}`
+    : (lead.author || (lead.cat === 'editorial' ? 'The Work' : 'Staff'));
 
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}" role="button" tabindex="0">
@@ -1145,9 +1149,15 @@ function openArticle(id) {
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
 
-  const authorLine = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'Staff');
+  const authorLine = a.author2 ? `${a.author} & ${a.author2}` : a.author;
   const creditLines = [];
-  creditLines.push({ label: 'Writer', value: authorLine });
+  if (authorLine) {
+    creditLines.push({ label: 'Writer', value: authorLine });
+  } else if (a.cat === 'editorial') {
+    creditLines.push({ label: 'Writer', value: 'The Work' });
+  } else {
+    creditLines.push({ label: 'Writer', value: 'Staff' });
+  }
   if (a.photojournalist) creditLines.push({ label: 'Photos', value: a.photojournalist });
   if (a.graphics_by) creditLines.push({ label: 'Graphics', value: a.graphics_by });
   const layoutNames = [a.layout_by, a.layout_by_2].filter(Boolean).join(' & ');
@@ -2125,6 +2135,12 @@ function updateBodyMeter() {
   if (words < t.min)       wrap.classList.add('under');
   else if (words > t.max)  wrap.classList.add('over');
   else                     wrap.classList.add('ok');
+
+  // Update author hint based on section
+  const authorHint = document.getElementById('fAuthorHint');
+  if (authorHint) {
+    authorHint.textContent = catEl && catEl.value === 'editorial' ? 'optional for Editorial' : '*';
+  }
 }
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'fBody') updateBodyMeter();
@@ -2189,12 +2205,13 @@ $('#articleForm').addEventListener('submit', async e => {
   const excerpt = $('#fExcerpt').value.trim();
   const status = $('#fStatus').value;
   const missing = [];
+  const isEditorial = cat === 'editorial';
 
   if (!title) missing.push('title');
   if (!cat) missing.push('section');
-  if (!author) missing.push('author');
+  if (!author && !isEditorial) missing.push('author');
   if (!body) missing.push('body');
-  if (status === 'published' && !excerpt) missing.push('excerpt');
+  if (status === 'published' && !excerpt && !isEditorial) missing.push('excerpt');
 
   if (missing.length) {
     toast('Missing required fields: ' + missing.join(', '), true);
