@@ -86,7 +86,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .burger[aria-expanded="true"] span:nth-child(1){transform:translateY(5px) rotate(45deg)}
 .burger[aria-expanded="true"] span:nth-child(2){opacity:0}
 .burger[aria-expanded="true"] span:nth-child(3){transform:translateY(-5px) rotate(-45deg)}
-@media(max-width:1040px){
+@media(max-width:1140px){
   .nav-sections{position:fixed;top:var(--nav-h);left:0;right:0;flex-direction:column;align-items:stretch;gap:0;background:var(--paper-2);border-left:none;border-bottom:1px solid var(--line);padding:10px 16px 18px;display:none;box-shadow:var(--shadow-lg);max-height:calc(100vh - var(--nav-h));overflow-y:auto}
   .nav-sections.open{display:flex}
   .nav-sections a{padding:13px 10px;font-size:.9rem;border-bottom:1px solid var(--line-2)}
@@ -695,7 +695,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   background-clip:text;
   -webkit-text-fill-color:transparent;
   color:transparent;
-  margin-left:.04em;
+  margin-left:.12em;
   vertical-align:baseline;
 }
 
