@@ -631,7 +631,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 }
 .manifesto-sign em{
   font-style:italic;
-  font-weight:400;
+  font-weight:900;
   background:var(--gradient);
   -webkit-background-clip:text;
   background-clip:text;
@@ -708,8 +708,12 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 }
 .about-figure-label em{
   font-style:italic;
-  font-weight:400;
-  color:var(--accent);
+  font-weight:900;
+  background:var(--gradient);
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+  color:transparent;
 }
 
 @media(max-width:520px){
