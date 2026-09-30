@@ -2172,6 +2172,95 @@ document.addEventListener('click', async e => {
   }
 });
 
+// ---------- Brand color editor ----------
+const BRAND_COLORS = [
+  { key: 'brand-primary',      label: 'Primary',       default: '#7C3AED' },
+  { key: 'brand-primary-dark', label: 'Primary dark',  default: '#6D28D9' },
+  { key: 'brand-accent',       label: 'Accent',        default: '#D946EF' },
+  { key: 'brand-gradient-2',   label: 'Gradient mid',  default: '#A855F7' }
+];
+
+function getSavedBrandColors() {
+  try { return JSON.parse(localStorage.getItem('tw_brand_colors') || '{}'); } catch(e) { return {}; }
+}
+
+function applyBrandColors() {
+  const saved = getSavedBrandColors();
+  const root = document.documentElement;
+  BRAND_COLORS.forEach(c => {
+    const val = saved[c.key] || c.default;
+    root.style.setProperty('--' + c.key, val);
+  });
+  // Keep gradient stops aligned with primary + accent
+  root.style.setProperty('--brand-gradient-1', saved['brand-primary'] || BRAND_COLORS[0].default);
+  root.style.setProperty('--brand-gradient-3', saved['brand-accent'] || BRAND_COLORS[2].default);
+}
+
+function renderColorGrid() {
+  const grid = document.getElementById('colorGrid');
+  const strip = document.getElementById('colorPreviewStrip');
+  if (!grid) return;
+  const saved = getSavedBrandColors();
+
+  grid.innerHTML = BRAND_COLORS.map(c => {
+    const val = saved[c.key] || c.default;
+    return `
+      <div class="color-row">
+        <input type="color" data-color-key="${c.key}" value="${val}">
+        <div class="color-meta">
+          <label>${c.label}</label>
+          <code>${val}</code>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const updateStrip = () => {
+    if (!strip) return;
+    const root = document.documentElement;
+    const p = root.style.getPropertyValue('--brand-gradient-1') || BRAND_COLORS[0].default;
+    const m = root.style.getPropertyValue('--brand-gradient-2') || BRAND_COLORS[3].default;
+    const a = root.style.getPropertyValue('--brand-gradient-3') || BRAND_COLORS[2].default;
+    strip.style.background = `linear-gradient(135deg, ${p} 0%, ${m} 55%, ${a} 100%)`;
+  };
+  updateStrip();
+
+  grid.querySelectorAll('input[type=color]').forEach(input => {
+    input.addEventListener('input', e => {
+      const key = e.target.dataset.colorKey;
+      const val = e.target.value;
+      document.documentElement.style.setProperty('--' + key, val);
+      const code = e.target.parentElement.querySelector('code');
+      if (code) code.textContent = val;
+      if (key === 'brand-primary') document.documentElement.style.setProperty('--brand-gradient-1', val);
+      if (key === 'brand-accent') document.documentElement.style.setProperty('--brand-gradient-3', val);
+      updateStrip();
+    });
+  });
+}
+
+document.getElementById('saveColorsBtn')?.addEventListener('click', () => {
+  const grid = document.getElementById('colorGrid');
+  if (!grid) return;
+  const colors = {};
+  grid.querySelectorAll('input[type=color]').forEach(input => {
+    colors[input.dataset.colorKey] = input.value;
+  });
+  localStorage.setItem('tw_brand_colors', JSON.stringify(colors));
+  applyBrandColors();
+  toast('Brand colors saved');
+});
+
+document.getElementById('resetColorsBtn')?.addEventListener('click', () => {
+  localStorage.removeItem('tw_brand_colors');
+  const root = document.documentElement;
+  BRAND_COLORS.forEach(c => root.style.removeProperty('--' + c.key));
+  root.style.removeProperty('--brand-gradient-1');
+  root.style.removeProperty('--brand-gradient-3');
+  renderColorGrid();
+  toast('Colors reset to defaults');
+});
+
 async function renderAdmin() {
   const all = await Data.listAll();
   window.__allArticles = all;
@@ -2460,6 +2549,7 @@ function setPanel(name, skipReset) {
   $$('.admin-nav button').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
   const url = '#/admin' + (name !== 'dashboard' ? '/' + name : '');
   if (location.hash !== url) history.replaceState(null, '', url);
+  if (name === 'settings') renderColorGrid();
   if (name === 'board') renderBoardAdmin();
   if (name === 'releases') renderReleasesAdmin();
   if (name === 'videos') renderVideosAdmin();
@@ -2648,6 +2738,7 @@ async function route() {
 
 async function init() {
   applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
+  applyBrandColors();
   populateBoardNames();
 
   $('#year').textContent = new Date().getFullYear();
