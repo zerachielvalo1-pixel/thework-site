@@ -148,6 +148,7 @@ let editingVideoId = null;
 let pendingVideoThumb = null;
 let releaseProvider = 'heyzine';
 let archiveFilter = 'all';
+let homeSort = 'recent';
 let editingMemoriamId = null;
 let pendingMemoriamPhoto = null;
 
@@ -651,6 +652,19 @@ async function renderHome() {
     });
   }
 
+  // Apply homepage sort
+  if (homeSort === 'viewed') {
+    list = list.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
+  } else if (homeSort === 'featured') {
+    list = list.slice().sort((a, b) => {
+      const fa = a.featured ? 1 : 0;
+      const fb = b.featured ? 1 : 0;
+      if (fb !== fa) return fb - fa;
+      return new Date(b.date || 0) - new Date(a.date || 0);
+    });
+  }
+  // else 'recent' — data already sorted by date desc from Data.listPublished()
+
   if (!list.length) {
     if (searchTerm) {
       fpGrid.innerHTML = `<div class="search-empty" style="grid-column:1/-1"><strong>No results for "${esc(searchTerm)}"</strong>Try a different word.</div>`;
@@ -731,7 +745,7 @@ async function renderHome() {
 
   const previewContainer = $('#sectionPreviews');
   previewContainer.innerHTML = '';
-  if (activeFilter === 'all' && !searchTerm && published.length > 3) {
+  if (activeFilter === 'all' && !searchTerm && homeSort === 'recent' && published.length > 3) {
     SECTION_ORDER.forEach(cat => {
       const items = published.filter(a => a.cat === cat).slice(0, 4);
       if (!items.length) return;
@@ -1245,6 +1259,21 @@ function openArticle(id) {
   const a = articles.find(x => x.id === id);
   if (!a) return;
   if (window.umami) window.umami.track('Article Read', { title: a.title || '', cat: a.cat || '' });
+
+  // Fire-and-forget view counter, deduped per browser for 6 hours
+  if (sb && a.status === 'published') {
+    try {
+      const key = 'tw_viewed_' + a.id;
+      const last = parseInt(localStorage.getItem(key) || '0', 10);
+      const now = Date.now();
+      if (now - last > 6 * 60 * 60 * 1000) {
+        sb.rpc('increment_article_views', { article_id: a.id })
+          .then(() => { try { localStorage.setItem(key, String(now)); } catch(e) {} })
+          .catch(() => {});
+      }
+    } catch(e) {}
+  }
+
   lastFocused = document.activeElement;
   articleModalSeo = a.status === 'published' && !location.hash.startsWith('#/admin');
   if (articleModalSeo) {
@@ -2509,6 +2538,16 @@ $$('.archive-tab').forEach(tab => {
     tab.setAttribute('aria-pressed','true');
     archiveFilter = tab.dataset.filter;
     renderReleasesPage();
+  });
+});
+$$('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.sort-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+    tab.classList.add('active');
+    tab.setAttribute('aria-selected','true');
+    homeSort = tab.dataset.sort;
+    renderHome();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 });
 

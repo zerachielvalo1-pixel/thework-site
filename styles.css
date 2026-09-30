@@ -755,3 +755,18 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .about-figure-num{letter-spacing:-.04em}
   .about-figure-label{margin-top:10px}
 }
+
+/* Sort strip on homepage */
+.sort-strip{border-bottom:1px solid var(--line);background:var(--paper)}
+.sort-strip-inner{max-width:var(--maxw);margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sort-label{font-family:var(--sans);font-size:.6rem;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-4);margin-right:6px}
+.sort-tab{font-family:var(--sans);font-size:.68rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);background:var(--paper-2);border:1.5px solid var(--line);padding:6px 14px;border-radius:999px;cursor:pointer;transition:.15s var(--ease);white-space:nowrap}
+.sort-tab:hover{color:var(--ink);border-color:var(--ink-4)}
+.sort-tab.active{background:var(--gradient);color:#fff;border-color:transparent;box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 28%,transparent)}
+
+@media(max-width:640px){
+  .sort-strip-inner{padding:10px 12px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .sort-strip-inner::-webkit-scrollbar{display:none}
+  .sort-label{flex:0 0 auto;font-size:.55rem}
+  .sort-tab{flex:0 0 auto;font-size:.6rem;padding:6px 10px}
+}
