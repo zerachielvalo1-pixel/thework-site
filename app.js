@@ -801,7 +801,7 @@ async function renderHome() {
   let list = activeFilter === 'all' ? published : published.filter(a => a.cat === activeFilter);
   if (searchTerm) {
     list = list.filter(a => {
-      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.body||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
+      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.body||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.photojournalist_2||'')+' '+(a.photo_courtesy||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
       return hay.includes(searchTerm);
     });
   }
@@ -1088,7 +1088,7 @@ async function renderVideosPage() {
     return videoCatFilter === 'all' || sub === videoCatFilter;
   });
 
-  const SUBCAT_LABELS = { tvb:'TVB', mojo:'MoJo', reels:'Reels', animations:'Animations' };
+  const SUBCAT_LABELS = { tvb:'News Broadcast', mojo:'MoJo', reels:'Reels', animations:'Animations' };
   grid.innerHTML = filtered.map(v => {
     const thumb = v.thumbnail_url || youtubeThumb(v);
     const credits = [];
@@ -1261,22 +1261,22 @@ function openVideo(id, list) {
 
   if (isFacebookUrl(v.video_url)) {
     const thumb = v.thumbnail_url || '';
-    // build broadcaster avatars if available
     const makeList = (raw) => (Array.isArray(raw) ? raw : (''+ (raw||'')).split(',')).map(s=>s.trim()).filter(Boolean);
     const b = makeList(v.broadcasters);
     const avatarHtml = b.length ? `<div class="fb-fallback-grid">${b.map(n=> boardPhotos[n] ? `<div class="fb-fallback-item"><img src="${esc(boardPhotos[n])}" alt="${esc(n)}"><div class="fb-fallback-name">${esc(n)}</div></div>` : `<div class="fb-fallback-item"><div class="fb-fallback-name">${esc(n)}</div></div>`).join('')}</div>` : '';
     stage.innerHTML = `
-      <div style="position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:#0a0a0a">
-        <div style="max-width:720px;width:100%;text-align:center;color:#fff">
+      <div class="fb-fallback-wrap">
+        <div class="fb-fallback-inner">
           ${avatarHtml}
-          ${thumb ? `<img src="${esc(thumb)}" alt="" style="width:100%;border-radius:12px;margin-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,.5)">` : ''}
-          <h3 style="font-family:var(--serif);font-size:1.25rem;color:#fff;margin:0 0 6px;line-height:1.3">${esc(v.title||'')}</h3>
-          ${v.description ? `<p style="font-family:var(--sans);font-size:.95rem;color:rgba(255,255,255,.75);margin:0 0 20px;line-height:1.6">${esc(v.description)}</p>` : ''}
-          <a href="${esc(v.video_url)}" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top:10px">
+          ${thumb ? `<img class="fb-fallback-img" src="${esc(thumb)}" alt="">` : ''}
+          <div class="fb-fallback-label">Facebook video</div>
+          <h3 class="fb-fallback-title">${esc(v.title||'')}</h3>
+          ${v.description ? `<p class="fb-fallback-desc">${esc(v.description)}</p>` : ''}
+          <a href="${esc(v.video_url)}" target="_blank" rel="noopener" class="btn btn-primary fb-fallback-btn">
             Watch on Facebook
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M7 17 17 7M9 7h8v8"/></svg>
           </a>
-          <div style="font-family:var(--sans);font-size:.78rem;color:rgba(255,255,255,.45);margin-top:18px;line-height:1.55">Facebook doesn't allow embedding this video.<br>It will open in a new tab.</div>
+          <div class="fb-fallback-note">Facebook doesn't allow embedding this video. It will open in a new tab.</div>
         </div>
       </div>`;
     ext.classList.remove('show');
@@ -1391,9 +1391,21 @@ async function openBoardProfile(name) {
   articles = published;
 
   const byAuthor = published.filter(a => a.author === name || a.author2 === name);
-  const byPhoto = published.filter(a => a.photojournalist === name);
+  const byPhoto = published.filter(a => a.photojournalist === name || a.photojournalist_2 === name);
   const byLayout = published.filter(a => a.layout_by === name || a.layout_by_2 === name);
   const byGraphics = published.filter(a => a.graphics_by === name);
+
+  let allVideos = [];
+  try { allVideos = await Data.listVideos(); } catch (e) { allVideos = []; }
+  const nameLower = name.toLowerCase();
+  const videoBroadcast = allVideos.filter(v => {
+    const b = String(v.broadcasters || '').toLowerCase();
+    return b.split(',').map(s => s.trim()).includes(nameLower);
+  });
+  const videoTech = allVideos.filter(v => {
+    const t = String(v.technicians || '').toLowerCase();
+    return t.split(',').map(s => s.trim()).includes(nameLower);
+  });
 
   const photo = boardPhotos[name];
   $('#bpAvatar').innerHTML = photo ? `<img src="${esc(photo)}" alt="">` : esc(member.initials);
@@ -1617,7 +1629,15 @@ function openArticle(id) {
   if (authorLine) {
     creditLines.push({ label: 'Writer', value: authorLine, names: [a.author, a.author2].filter(Boolean) });
   }
-  if (a.photojournalist) creditLines.push({ label: 'Photos', value: a.photojournalist, names: [a.photojournalist] });
+  const photoArr = [a.photojournalist, a.photojournalist_2].filter(Boolean);
+  if (photoArr.length) {
+    creditLines.push({ label: 'Photos', value: photoArr.join(' & '), names: photoArr });
+  } else if (a.photo_courtesy) {
+    creditLines.push({ label: 'Photos', value: a.photo_courtesy, names: [] });
+  }
+  if (photoArr.length && a.photo_courtesy) {
+    creditLines.push({ label: 'Courtesy', value: a.photo_courtesy, names: [] });
+  }
   if (a.graphics_by) creditLines.push({ label: 'Graphics', value: a.graphics_by, names: [a.graphics_by] });
   const layoutArr = [a.layout_by, a.layout_by_2].filter(Boolean);
   if (layoutArr.length) creditLines.push({ label: 'Layout', value: layoutArr.join(' & '), names: layoutArr });
@@ -2109,7 +2129,7 @@ async function renderVideosAdmin() {
         <div class="release-list-cover">${thumbHtml}</div>
         <div class="release-list-info">
           <h4>${esc(v.title)}</h4>
-          <small>${(v.subcategory||'tvb').toUpperCase()} · ${esc(v.platform || '—')} · ${esc(v.published ? fmtDate(v.published) : '—')} · <span class="badge ${v.status==='published'?'published':'draft'}">${v.status}</span></small>
+          <small>${esc(({tvb:'News Broadcast',mojo:'MoJo',reels:'Reels',animations:'Animations'})[v.subcategory || 'tvb'] || 'News Broadcast')} · ${esc(v.platform || '—')} · ${esc(v.published ? fmtDate(v.published) : '—')} · <span class="badge ${v.status==='published'?'published':'draft'}">${v.status}</span></small>
         </div>
         <div class="release-list-actions">
           <button class="icon-action" data-video-edit="${esc(v.id)}" title="Edit">✎</button>
@@ -2867,7 +2887,92 @@ async function renderSavedPage() {
   });
   twWireSaveButtons(grid);
 }
+// ---------- Drag & drop / paste image ----------
+function twHandlePastedImage(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  // Determine target: which panel is active
+  const activePanel = document.querySelector('.admin-section.active');
+  if (!activePanel) return;
+  const panelId = activePanel.id;
 
+  if (panelId === 'panel-new') {
+    // Article thumbnail
+    const r = new FileReader();
+    r.onload = ev => { setThumbnail(ev.target.result, file.name); window.__pendingThumbFile = file; };
+    r.readAsDataURL(file);
+    toast('Thumbnail loaded');
+    return;
+  }
+  if (panelId === 'panel-releases') {
+    const r = new FileReader();
+    r.onload = ev => { pendingReleaseCover = { file, dataUrl: ev.target.result }; renderReleaseCoverPreview(); };
+    r.readAsDataURL(file);
+    toast('Cover loaded');
+    return;
+  }
+  if (panelId === 'panel-videos') {
+    const r = new FileReader();
+    r.onload = ev => { pendingVideoThumb = { file, dataUrl: ev.target.result }; renderVideoThumbPreview(); };
+    r.readAsDataURL(file);
+    toast('Thumbnail loaded');
+    return;
+  }
+  if (panelId === 'panel-memoriam') {
+    const r = new FileReader();
+    r.onload = ev => { pendingMemoriamPhoto = { file, dataUrl: ev.target.result }; renderMemoriamPhotoPreview(); };
+    r.readAsDataURL(file);
+    toast('Photo loaded');
+    return;
+  }
+}
+
+// Paste
+document.addEventListener('paste', e => {
+  if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
+    // Only intercept if a real image is on the clipboard
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) { e.preventDefault(); twHandlePastedImage(file); return; }
+      }
+    }
+  }
+});
+
+// Drag & drop
+let twDragCounter = 0;
+document.addEventListener('dragenter', e => {
+  if (!e.target.closest('.admin-section.active')) return;
+  twDragCounter++;
+  const panel = document.querySelector('.admin-section.active');
+  if (panel) panel.classList.add('drag-over');
+});
+document.addEventListener('dragover', e => {
+  if (e.target.closest('.admin-section.active')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+});
+document.addEventListener('dragleave', e => {
+  if (!e.target.closest('.admin-section.active')) return;
+  twDragCounter = Math.max(0, twDragCounter - 1);
+  if (twDragCounter === 0) {
+    const panel = document.querySelector('.admin-section.active');
+    if (panel) panel.classList.remove('drag-over');
+  }
+});
+document.addEventListener('drop', e => {
+  twDragCounter = 0;
+  const panel = document.querySelector('.admin-section.active');
+  if (panel) panel.classList.remove('drag-over');
+  if (!e.target.closest('.admin-section.active')) return;
+  const files = (e.dataTransfer && e.dataTransfer.files) || [];
+  for (const file of files) {
+    if (file.type && file.type.startsWith('image/')) {
+      e.preventDefault();
+      twHandlePastedImage(file);
+      return;
+    }
+  }
+});
 // ---------- Error & offline handling ----------
 function twShowError(container, msg, onRetry) {
   if (!container) return;
@@ -3012,6 +3117,8 @@ function resetForm() {
   $('#fPublishAt').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
+    $('#fPhoto2').value = '';
+  $('#fPhotoCourtesy').value = '';
   $('#fLayout2').value = '';
   $('#fGraphics').value = '';
   $('#editorTitle').textContent = 'New article';
@@ -3033,6 +3140,8 @@ function loadIntoForm(id) {
   $('#fAuthor').value = a.author || '';
   $('#fAuthor2').value = a.author2 || '';
   $('#fPhoto').value = a.photojournalist || '';
+  $('#fPhoto2').value = a.photojournalist_2 || '';
+  $('#fPhotoCourtesy').value = a.photo_courtesy || '';
   $('#fLayout').value = a.layout_by || '';
   $('#fLayout2').value = a.layout_by_2 || '';
   $('#fGraphics').value = a.graphics_by || '';
@@ -3095,6 +3204,8 @@ $('#articleForm').addEventListener('submit', async e => {
       title, cat, author,
       author2: $('#fAuthor2').value.trim() || null,
       photojournalist: $('#fPhoto').value.trim() || null,
+      photojournalist_2: $('#fPhoto2').value.trim() || null,
+      photo_courtesy: $('#fPhotoCourtesy').value.trim() || null,
       layout_by: $('#fLayout').value.trim() || null,
       layout_by_2: $('#fLayout2').value.trim() || null,
       graphics_by: $('#fGraphics').value.trim() || null,
