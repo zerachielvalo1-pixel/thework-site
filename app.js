@@ -765,16 +765,14 @@ function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
     ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">`
     : `<div class="article-thumb-text">${esc((CAT_LABELS[a.cat]||'?').charAt(0))}</div>`;
-  const byline = a.author2
-    ? `${a.author} & ${a.author2}`
-    : (a.author || (a.cat === 'editorial' ? 'The Work' : 'Staff'));
+  const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'The Work');
   return `
     <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span></div>
     <div class="article-body">
       <h3 class="article-title"><a data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a></h3>
       <p class="article-excerpt">${esc(a.excerpt||(a.body||'').split('\n\n')[0]||'')}</p>
       <div class="article-foot">
-        <span class="article-author"><span class="article-author-dot">${esc((a.author||'?').charAt(0))}</span>${esc(byline)}</span>
+        <span class="article-author">${esc(byline)}</span>
         <span>${esc(fmtDate(a.date))}${a.read?' · '+esc(a.read):''}${a.views ? ' · '+esc(fmtViews(a.views)) : ''}</span>
       </div>
     </div>
@@ -838,9 +836,7 @@ async function renderHome() {
   const leadThumbHtml = lead.thumbnail
     ? `<img src="${esc(lead.thumbnail)}" alt="" loading="eager" fetchpriority="high" decoding="async">`
     : `<div class="lead-story-thumb-text">${esc((CAT_LABELS[lead.cat]||'?').charAt(0))}</div>`;
-  const leadByline = lead.author2
-    ? `${lead.author} & ${lead.author2}`
-    : (lead.author || (lead.cat === 'editorial' ? 'The Work' : 'Staff'));
+  const leadByline = lead.author2 ? `${lead.author} & ${lead.author2}` : (lead.author || 'The Work');
 
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}">
@@ -1575,20 +1571,21 @@ function openArticle(id) {
   }
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
+  const excerptEl = document.getElementById('modalExcerpt');
+  if (excerptEl) {
+    if (a.excerpt) { excerptEl.textContent = a.excerpt; excerptEl.style.display = 'block'; }
+    else { excerptEl.textContent = ''; excerptEl.style.display = 'none'; }
+  }
 
   const authorLine = a.author2 ? `${a.author} & ${a.author2}` : a.author;
   const creditLines = [];
   if (authorLine) {
-    creditLines.push({ label: 'Writer', value: authorLine });
-  } else if (a.cat === 'editorial') {
-    creditLines.push({ label: 'Writer', value: 'The Work' });
-  } else {
-    creditLines.push({ label: 'Writer', value: 'Staff' });
+    creditLines.push({ label: 'Writer', value: authorLine, names: [a.author, a.author2].filter(Boolean) });
   }
-  if (a.photojournalist) creditLines.push({ label: 'Photos', value: a.photojournalist });
-  if (a.graphics_by) creditLines.push({ label: 'Graphics', value: a.graphics_by });
-  const layoutNames = [a.layout_by, a.layout_by_2].filter(Boolean).join(' & ');
-  if (layoutNames) creditLines.push({ label: 'Layout', value: layoutNames });
+  if (a.photojournalist) creditLines.push({ label: 'Photos', value: a.photojournalist, names: [a.photojournalist] });
+  if (a.graphics_by) creditLines.push({ label: 'Graphics', value: a.graphics_by, names: [a.graphics_by] });
+  const layoutArr = [a.layout_by, a.layout_by_2].filter(Boolean);
+  if (layoutArr.length) creditLines.push({ label: 'Layout', value: layoutArr.join(' & '), names: layoutArr });
 
   const metaBits = [];
   if (a.date) metaBits.push(fmtDate(a.date));
@@ -1596,7 +1593,14 @@ function openArticle(id) {
 
   $('#modalMeta').innerHTML = `
     <div class="modal-credits">
-      ${creditLines.map(c => `<div class="modal-credit-row"><span class="modal-credit-label">${esc(c.label)}</span><span class="modal-credit-value">${esc(c.value)}</span></div>`).join('')}
+      ${creditLines.map(c => {
+        const avatars = (c.names || []).map(n => {
+          const photo = boardPhotos[n];
+          if (!photo) return '';
+          return `<img class="modal-credit-avatar" src="${esc(photo)}" alt="" title="${esc(n)}" loading="lazy">`;
+        }).join('');
+        return `<div class="modal-credit-row"><span class="modal-credit-label">${esc(c.label)}</span><span class="modal-credit-value">${avatars}<span>${esc(c.value)}</span></span></div>`;
+      }).join('')}
     </div>
     ${metaBits.length ? `<div style="width:100%;font-size:.72rem;color:var(--ink-4);margin-top:10px">${esc(metaBits.join(' · '))}</div>` : ''}
   `;
@@ -1606,8 +1610,7 @@ function openArticle(id) {
     ? `<div class="modal-hero-bg" style="background-image:url('${esc(a.thumbnail)}')"></div><img src="${esc(a.thumbnail)}" alt="">`
     : `<span class="modal-hero-text">${letter}</span>`;
   const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
-  let content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
-  if (a.excerpt) content += `<blockquote>${esc(a.excerpt)}</blockquote>`;
+  const content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
   $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
   twRenderRelated(a);
   twRenderShare(a);
@@ -2944,7 +2947,8 @@ function updateBodyMeter() {
   // Update author hint based on section
   const authorHint = document.getElementById('fAuthorHint');
   if (authorHint) {
-    authorHint.textContent = catEl && catEl.value === 'editorial' ? 'optional for Editorial' : '*';
+    const opt = catEl && (catEl.value === 'editorial' || catEl.value === 'news');
+    authorHint.textContent = opt ? 'optional for ' + (CAT_LABELS[catEl.value] || catEl.value) : '*';
   }
 }
 document.addEventListener('input', e => {
@@ -3014,13 +3018,13 @@ $('#articleForm').addEventListener('submit', async e => {
   const excerpt = $('#fExcerpt').value.trim();
   const status = $('#fStatus').value;
   const missing = [];
-  const isEditorial = cat === 'editorial';
+  const noAuthorRequired = cat === 'editorial' || cat === 'news';
 
   if (!title) missing.push('title');
   if (!cat) missing.push('section');
-  if (!author && !isEditorial) missing.push('author');
+  if (!author && !noAuthorRequired) missing.push('author');
   if (!body) missing.push('body');
-  if (status === 'published' && !excerpt && !isEditorial) missing.push('excerpt');
+  if (status === 'published' && !excerpt && !noAuthorRequired) missing.push('excerpt');
 
   if (missing.length) {
     toast('Missing required fields: ' + missing.join(', '), true);

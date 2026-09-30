@@ -873,6 +873,27 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .related-meta{font-size:.62rem}
 }
 
+/* Modal excerpt — under title */
+.modal-excerpt{
+  font-family:var(--sans);
+  font-size:.95rem;
+  color:var(--ink-3);
+  line-height:1.7;
+  margin:0 0 20px;
+  padding-left:14px;
+  border-left:3px solid var(--accent);
+  font-style:italic;
+}
+[data-theme="dark"] .modal-excerpt{color:var(--ink-2)}
+
+/* Credits avatars */
+.modal-credit-value{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+.modal-credit-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;border:2px solid var(--paper-2);box-shadow:0 1px 4px rgba(0,0,0,.12);flex:none;display:inline-block}
+@media(max-width:640px){
+  .modal-credit-avatar{width:20px;height:20px}
+  .modal-excerpt{font-size:.9rem;padding-left:12px}
+}
+
 /* Badge colors for new sections */
 .badge.cat-devcom{background:#ECFDF5;color:#065F46}
 .badge.cat-standpoints{background:#FEF3C7;color:#92400E}
