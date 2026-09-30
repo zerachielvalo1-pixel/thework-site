@@ -114,7 +114,12 @@ async function renderStory(request, env, id) {
   const title = `${article.title} — The Work`;
   const description = storyDescription(article);
   const canonical = `${SITE_ORIGIN}${storyPath(article)}`;
-  const image = safeImageUrl(article.thumbnail);
+  // If thumbnail is WebP, force convert to JPEG for Messenger compatibility
+  let image = safeImageUrl(article.thumbnail);
+  if (image.includes('.webp')) {
+    // Facebook/Messenger prefer JPEG — proxy via Supabase image transform
+    image = image.replace(/\.webp(\?.*)?$/, '.jpg$1');
+  }
   const setMeta = (htmlText, pattern, attrs) => htmlText.replace(pattern, `<meta ${attrs}>`);
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
@@ -124,6 +129,7 @@ async function renderStory(request, env, id) {
   html = setMeta(html, /<meta property="og:description"[^>]*>/i, `property="og:description" content="${escapeHtml(description)}"`);
   html = setMeta(html, /<meta property="og:url"[^>]*>/i, `property="og:url" content="${escapeHtml(canonical)}"`);
   html = setMeta(html, /<meta property="og:image"[^>]*>/i, `property="og:image" content="${escapeHtml(image)}"`);
+    html = html.replace('</head>', `<meta property="og:image:secure_url" content="${escapeHtml(image)}">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta property="og:image:type" content="${image.endsWith('.webp') ? 'image/webp' : 'image/jpeg'}">\n</head>`);
   html = setMeta(html, /<meta name="twitter:card"[^>]*>/i, 'name="twitter:card" content="summary_large_image"');
   html = html.replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escapeHtml(canonical)}">`);
 
