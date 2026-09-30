@@ -1620,7 +1620,12 @@ function openArticle(id) {
   $('#modalTitle').textContent = a.title;
   const excerptEl = document.getElementById('modalExcerpt');
   if (excerptEl) {
-    if (a.excerpt) { excerptEl.textContent = a.excerpt; excerptEl.style.display = 'block'; }
+    const exc = String(a.excerpt || '').trim();
+    const bodyLower = String(a.body || '').replace(/\s+/g, ' ').toLowerCase();
+    const excLower = exc.replace(/\s+/g, ' ').toLowerCase();
+    // Hide excerpt if its opening ~80 chars already appear in the body's first 250 chars
+    const isDup = excLower && bodyLower && bodyLower.slice(0, 250).indexOf(excLower.slice(0, 80)) !== -1;
+    if (exc && !isDup) { excerptEl.textContent = exc; excerptEl.style.display = 'block'; }
     else { excerptEl.textContent = ''; excerptEl.style.display = 'none'; }
   }
 
@@ -1648,14 +1653,7 @@ function openArticle(id) {
 
   $('#modalMeta').innerHTML = `
     <div class="modal-credits">
-      ${creditLines.map(c => {
-        const avatars = (c.names || []).map(n => {
-          const photo = boardPhotos[n];
-          if (!photo) return '';
-          return `<img class="modal-credit-avatar" src="${esc(photo)}" alt="" title="${esc(n)}" loading="lazy">`;
-        }).join('');
-        return `<div class="modal-credit-row"><span class="modal-credit-label">${esc(c.label)}</span><span class="modal-credit-value">${avatars}<span>${esc(c.value)}</span></span></div>`;
-      }).join('')}
+      ${creditLines.map(c => `<div class="modal-credit-row"><span class="modal-credit-label">${esc(c.label)}</span><span class="modal-credit-value">${esc(c.value)}</span></div>`).join('')}
     </div>
     ${metaBits.length ? `<div style="width:100%;font-size:.72rem;color:var(--ink-4);margin-top:10px">${esc(metaBits.join(' · '))}</div>` : ''}
   `;
