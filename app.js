@@ -148,6 +148,7 @@ let editingVideoId = null;
 let pendingVideoThumb = null;
 let releaseProvider = 'heyzine';
 let archiveFilter = 'all';
+let videoCatFilter = 'all';
 let homeSort = 'recent';
 let editingMemoriamId = null;
 let pendingMemoriamPhoto = null;
@@ -1081,8 +1082,26 @@ async function renderVideosPage() {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No videos yet</h3><p style="font-family:var(--sans);font-size:.85rem">Broadcast segments and reels will appear here.</p></div>';
     return;
   }
-  grid.innerHTML = list.map(v => {
+  // filter by chosen sub-category (videoCatFilter), defaulting stored subcategory to 'tvb'
+  const filtered = list.filter(v => {
+    const sub = (v.subcategory || 'tvb');
+    return videoCatFilter === 'all' || sub === videoCatFilter;
+  });
+
+  grid.innerHTML = filtered.map(v => {
     const thumb = v.thumbnail_url || youtubeThumb(v);
+    // build credits (broadcasters / technicians)
+    let creditsHtml = '';
+    const makeList = (raw) => (Array.isArray(raw) ? raw : (''+ (raw||'')).split(',')).map(s=>s.trim()).filter(Boolean);
+    const b = makeList(v.broadcasters);
+    const t = makeList(v.technicians);
+    if (b.length) {
+      creditsHtml += `<div class="video-credits">${b.map(name => boardPhotos[name] ? `<img class="video-credit-avatar" src="${esc(boardPhotos[name])}" title="${esc(name)}">` : `<span class="credit-name">${esc(name)}</span>`).join(' ')}</div>`;
+    }
+    if (t.length) {
+      creditsHtml += `<div class="video-credits"><strong>Tech:</strong> ${t.map(n=>esc(n)).join(', ')}</div>`;
+    }
+
     return `
       <div class="video-card" data-video-id="${esc(v.id)}" role="button" tabindex="0">
         <div class="video-thumb">
@@ -1092,13 +1111,16 @@ async function renderVideosPage() {
         <div class="video-body">
           <h3>${esc(v.title)}</h3>
           ${v.description ? `<p>${esc(v.description)}</p>` : ''}
+          ${creditsHtml}
         </div>
       </div>`;
   }).join('');
+
   grid.querySelectorAll('[data-video-id]').forEach(el => {
-    el.addEventListener('click', () => openVideo(el.dataset.videoId, list));
+    el.addEventListener('click', () => openVideo(el.dataset.videoId, filtered));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVideo(el.dataset.videoId, filtered); } });
   });
-  window.__videosCache = list;
+  window.__videosCache = filtered;
   twWirePrefetch(grid);
 }
 
@@ -1244,18 +1266,22 @@ function openVideo(id, list) {
 
   if (isFacebookUrl(v.video_url)) {
     const thumb = v.thumbnail_url || '';
+    // build broadcaster avatars if available
+    const makeList = (raw) => (Array.isArray(raw) ? raw : (''+ (raw||'')).split(',')).map(s=>s.trim()).filter(Boolean);
+    const b = makeList(v.broadcasters);
+    const avatarHtml = b.length ? `<div class="fb-fallback-grid">${b.map(n=> boardPhotos[n] ? `<div class="fb-fallback-item"><img src="${esc(boardPhotos[n])}" alt="${esc(n)}"><div class="fb-fallback-name">${esc(n)}</div></div>` : `<div class="fb-fallback-item"><div class="fb-fallback-name">${esc(n)}</div></div>`).join('')}</div>` : '';
     stage.innerHTML = `
       <div style="position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:#0a0a0a">
-        <div style="max-width:420px;width:100%;text-align:center;color:#fff">
+        <div style="max-width:720px;width:100%;text-align:center;color:#fff">
+          ${avatarHtml}
           ${thumb ? `<img src="${esc(thumb)}" alt="" style="width:100%;border-radius:12px;margin-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,.5)">` : ''}
-          <div style="font-family:var(--sans);font-size:.72rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:10px">Facebook video</div>
-          <h3 style="font-family:var(--serif);font-size:1.15rem;color:#fff;margin:0 0 6px;line-height:1.3">${esc(v.title||'')}</h3>
-          ${v.description ? `<p style="font-family:var(--sans);font-size:.85rem;color:rgba(255,255,255,.65);margin:0 0 22px;line-height:1.6">${esc(v.description)}</p>` : ''}
+          <h3 style="font-family:var(--serif);font-size:1.25rem;color:#fff;margin:0 0 6px;line-height:1.3">${esc(v.title||'')}</h3>
+          ${v.description ? `<p style="font-family:var(--sans);font-size:.95rem;color:rgba(255,255,255,.75);margin:0 0 20px;line-height:1.6">${esc(v.description)}</p>` : ''}
           <a href="${esc(v.video_url)}" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top:10px">
             Watch on Facebook
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M7 17 17 7M9 7h8v8"/></svg>
           </a>
-          <div style="font-family:var(--sans);font-size:.72rem;color:rgba(255,255,255,.4);margin-top:18px;line-height:1.55">Facebook doesn't allow embedding this video.<br>It will open in a new tab.</div>
+          <div style="font-family:var(--sans);font-size:.78rem;color:rgba(255,255,255,.45);margin-top:18px;line-height:1.55">Facebook doesn't allow embedding this video.<br>It will open in a new tab.</div>
         </div>
       </div>`;
     ext.classList.remove('show');
@@ -2074,7 +2100,7 @@ async function renderVideosAdmin() {
         <div class="release-list-cover">${thumbHtml}</div>
         <div class="release-list-info">
           <h4>${esc(v.title)}</h4>
-          <small>${esc(v.platform || '—')} · ${esc(v.published ? fmtDate(v.published) : '—')} · <span class="badge ${v.status==='published'?'published':'draft'}">${v.status}</span></small>
+          <small>${(v.subcategory||'tvb').toUpperCase()} · ${esc(v.platform || '—')} · ${esc(v.published ? fmtDate(v.published) : '—')} · <span class="badge ${v.status==='published'?'published':'draft'}">${v.status}</span></small>
         </div>
         <div class="release-list-actions">
           <button class="icon-action" data-video-edit="${esc(v.id)}" title="Edit">✎</button>
@@ -2134,6 +2160,9 @@ function showVideoForm(v) {
     $('#videoDescription').value = v.description || '';
     $('#videoStatus').value = v.status || 'published';
     $('#videoSort').value = v.sort_order != null ? v.sort_order : 0;
+    $('#videoBroadcasters').value = v.broadcasters || '';
+    $('#videoTechnicians').value = v.technicians || '';
+    $('#videoSubcategory').value = v.subcategory || 'tvb';
     $('#videoFormTitle').textContent = 'Edit video';
     pendingVideoThumb = v.thumbnail_url ? { existing:true, url: v.thumbnail_url } : null;
   } else {
@@ -2143,6 +2172,7 @@ function showVideoForm(v) {
     $('#videoStatus').value = 'published';
     $('#videoSort').value = '0';
     $('#videoPlatform').value = 'youtube';
+    $('#videoSubcategory').value = 'tvb';
     $('#videoFormTitle').textContent = 'New video';
     pendingVideoThumb = null;
   }
@@ -2239,6 +2269,9 @@ $('#videoForm').addEventListener('submit', async e => {
       published: $('#videoPublished').value || todayISO(),
       status: $('#videoStatus').value,
       sort_order: parseInt($('#videoSort').value, 10) || 0,
+      broadcasters: $('#videoBroadcasters').value.trim() || null,
+      technicians: $('#videoTechnicians').value.trim() || null,
+      subcategory: $('#videoSubcategory').value || 'tvb',
       updated: new Date().toISOString()
     };
 
@@ -3296,6 +3329,12 @@ $$('.archive-tab').forEach(tab => {
     $$('.archive-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-pressed','false'); });
     tab.classList.add('active');
     tab.setAttribute('aria-pressed','true');
+    // If this tab has a video category, switch the videos list instead of releases
+    if (tab.dataset.videoCat) {
+      videoCatFilter = tab.dataset.videoCat;
+      renderVideosPage();
+      return;
+    }
     archiveFilter = tab.dataset.filter;
     renderReleasesPage();
   });

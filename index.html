@@ -264,6 +264,13 @@
         <h2>Video Library</h2>
         <p class="section-lede">Broadcast segments, documentaries, reels, and animations from The Work.</p>
       </div>
+      <div class="archive-filter-strip" id="videoCatStrip" role="tablist" aria-label="Video categories">
+        <button class="archive-tab active" data-video-cat="all" role="tab" aria-selected="true">All</button>
+        <button class="archive-tab" data-video-cat="tvb" role="tab" aria-selected="false">TVB</button>
+        <button class="archive-tab" data-video-cat="mojo" role="tab" aria-selected="false">MoJo</button>
+        <button class="archive-tab" data-video-cat="reels" role="tab" aria-selected="false">Reels</button>
+        <button class="archive-tab" data-video-cat="animations" role="tab" aria-selected="false">Animations</button>
+      </div>
       <div class="video-grid" id="videoGrid"></div>
     </div>
   </section>
@@ -494,10 +501,24 @@
               </div>
             </div>
             <div class="row-2">
+              <div class="field"><label for="videoBroadcasters">Broadcasters <span class="hint">optional · comma-separated</span></label><input type="text" id="videoBroadcasters" maxlength="200" list="boardNames"></div>
+              <div class="field"><label for="videoTechnicians">Technical <span class="hint">optional · comma-separated</span></label><input type="text" id="videoTechnicians" maxlength="200" list="boardNames"></div>
+            </div>
+            <div class="row-2">
+              <div class="field"><label for="videoSubcategory">Sub-category</label>
+                <select id="videoSubcategory">
+                  <option value="tvb">TVB</option>
+                  <option value="mojo">MoJo</option>
+                  <option value="reels">Reels</option>
+                  <option value="animations">Animations</option>
+                </select>
+              </div>
+              <div class="field"><label for="videoSort">Sort order <span class="hint">lower = higher up</span></label><input type="text" id="videoSort" value="0"></div>
+            </div>
+            <div class="row-2">
               <div class="field"><label for="videoStatus">Status</label>
                 <select id="videoStatus"><option value="published">Published</option><option value="draft">Draft</option></select>
               </div>
-              <div class="field"><label for="videoSort">Sort order <span class="hint">lower = higher up</span></label><input type="text" id="videoSort" value="0"></div>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" id="videoSaveBtn">Save video</button>
