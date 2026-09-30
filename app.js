@@ -617,6 +617,14 @@ function updateArticleMeta(article) {
   meta('link[rel="canonical"]', canonicalUrl, 'href');
 }
 
+function fmtViews(n) {
+  const v = Number(n) || 0;
+  if (v === 0) return '';
+  if (v < 1000) return v + ' ' + (v === 1 ? 'view' : 'views');
+  if (v < 1000000) return (v / 1000).toFixed(v < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k views';
+  return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M views';
+}
+
 function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
     ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">`
@@ -631,7 +639,7 @@ function buildArticleCard(a) {
       <p class="article-excerpt">${esc(a.excerpt||(a.body||'').split('\n\n')[0]||'')}</p>
       <div class="article-foot">
         <span class="article-author"><span class="article-author-dot">${esc((a.author||'?').charAt(0))}</span>${esc(byline)}</span>
-        <span>${esc(fmtDate(a.date))}${a.read?' · '+esc(a.read):''}</span>
+        <span>${esc(fmtDate(a.date))}${a.read?' · '+esc(a.read):''}${a.views ? ' · '+esc(fmtViews(a.views)) : ''}</span>
       </div>
     </div>
   `;
@@ -695,7 +703,7 @@ async function renderHome() {
       <div class="sidebar-item-content">
         <span class="sidebar-item-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>
         <a class="sidebar-item-title" data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a>
-        <div class="sidebar-item-meta">${esc(a.author||'Staff')} · ${esc(fmtDate(a.date))}</div>
+        <div class="sidebar-item-meta">${esc(a.author||'Staff')} · ${esc(fmtDate(a.date))}${a.views ? ' · ' + esc(fmtViews(a.views)) : ''}</div>
       </div>
     </div>
   `).join('');
@@ -709,6 +717,7 @@ async function renderHome() {
         <span class="lead-story-byline">By ${esc(leadByline)}</span>
         <span>${esc(fmtDateLong(lead.date))}</span>
         ${lead.read ? `<span>${esc(lead.read)} read</span>` : ''}
+        ${lead.views ? `<span>${esc(fmtViews(lead.views))}</span>` : ''}
       </div>
     </div>
     <aside>
