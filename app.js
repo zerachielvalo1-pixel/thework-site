@@ -1374,6 +1374,9 @@ function renderBoard() {
   if (!grid) return;
   grid.innerHTML = '';
 
+  const totalEl = document.getElementById('boardTotalCount');
+  if (totalEl) totalEl.textContent = String(BOARD.length);
+
   const seenDepts = new Set();
   BOARD.forEach(p => {
     const dept = p.group;
@@ -1385,7 +1388,7 @@ function renderBoard() {
     const deptHead = document.createElement('div');
     const isFirst = seenDepts.size === 1;
     deptHead.style.cssText = `grid-column:1/-1;margin:${isFirst?'0':'28px'} 0 6px;padding-top:${isFirst?'0':'22px'};${isFirst?'':'border-top:1px solid var(--line)'}`;
-    deptHead.innerHTML = `<h3 style="font-family:var(--serif);font-size:1.4rem;font-weight:900;margin:0;letter-spacing:-.02em;color:var(--ink)">${esc(dept)}</h3>`;
+    deptHead.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap"><h3 style="font-family:var(--serif);font-size:1.4rem;font-weight:900;margin:0;letter-spacing:-.02em;color:var(--ink)">${esc(dept)}</h3><span style="font-family:var(--sans);font-size:.7rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)">${deptMembers.length} ${deptMembers.length === 1 ? 'member' : 'members'}</span></div>`;
     grid.appendChild(deptHead);
 
     const seenSubs = new Set();
