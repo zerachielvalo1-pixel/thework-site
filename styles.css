@@ -545,6 +545,16 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 .video-body{padding:14px 16px}
 .video-body h3{font-size:.95rem;margin:0 0 6px;font-weight:700;line-height:1.3}
 .video-body p{font-family:var(--sans);font-size:.78rem;color:var(--ink-3);margin:0;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* Save-for-later button on cards */
+.article{position:relative}
+.tw-save-btn{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);backdrop-filter:blur(6px);color:#fff;cursor:pointer;display:grid;place-items:center;z-index:3;transition:.15s var(--ease);opacity:0}
+.article:hover .tw-save-btn,.tw-save-btn.saved{opacity:1}
+.tw-save-btn svg{width:16px;height:16px}
+.tw-save-btn:hover{background:rgba(0,0,0,.55);transform:scale(1.08)}
+.tw-save-btn.saved{background:var(--gradient);border-color:transparent;box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 45%,transparent)}
+.tw-saved-link{color:var(--accent) !important;font-weight:800 !important}
+@media(max-width:768px){.tw-save-btn{opacity:1}}
 /* Look Back — gallery layout */
 .memoriam-list{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
 @media(max-width:1040px){.memoriam-list{grid-template-columns:repeat(3,1fr);gap:16px}}

@@ -63,6 +63,7 @@
       <a href="#/board" data-route="board">Editorial Board</a>
       <a href="#/memoriam" data-route="memoriam">Look Back</a>
       <a href="#/about" data-route="about">About</a>
+      <a href="#/saved" data-route="saved" class="tw-saved-link" style="display:none">Saved <span id="twSavedCount" style="color:var(--accent);font-weight:800"></span></a>
     </nav>
     <div class="nav-actions">
       <button class="user-chip" id="userChip" style="display:none" title="Open dashboard"><span class="avatar" id="userAvatar">A</span><span class="uname" id="userName">Admin</span></button>
@@ -261,6 +262,19 @@
         <p class="section-lede">Broadcast segments, documentaries, reels, and animations from The Work.</p>
       </div>
       <div class="video-grid" id="videoGrid"></div>
+    </div>
+  </section>
+</main>
+
+<main id="view-saved" class="view">
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head center">
+        <span class="eyebrow">Your reading list</span>
+        <h2>Saved stories</h2>
+        <p class="section-lede">Articles you've bookmarked. Stored on this device only.</p>
+      </div>
+      <div class="article-grid" id="savedGrid"></div>
     </div>
   </section>
 </main>

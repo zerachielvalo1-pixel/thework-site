@@ -778,6 +778,7 @@ function buildArticleCard(a) {
         <span>${esc(fmtDate(a.date))}${a.read?' · '+esc(a.read):''}${a.views ? ' · '+esc(fmtViews(a.views)) : ''}</span>
       </div>
     </div>
+    ${twSavedButtonHtml(a.id)}
   `;
 }
 
@@ -875,9 +876,11 @@ async function renderHome() {
   fpGrid.querySelectorAll('[data-article-id]').forEach(el => {
     el.addEventListener('click', e => {
       if (e.target.closest('a[data-story-link]')) e.preventDefault();
+      if (e.target.closest('.tw-save-btn')) return;
       openArticle(el.dataset.articleId);
     });
   });
+  twWireSaveButtons(fpGrid);
 
   const moreSection = $('#moreStories');
   const grid = $('#articleGrid');
@@ -890,10 +893,12 @@ async function renderHome() {
       el.innerHTML = buildArticleCard(a);
       el.addEventListener('click', e => {
         if (e.target.closest('a[data-story-link]')) e.preventDefault();
+        if (e.target.closest('.tw-save-btn')) return;
         openArticle(a.id);
       });
       grid.appendChild(el);
     });
+    twWireSaveButtons(grid);
   } else {
     moreSection.style.display = 'none';
   }
@@ -922,10 +927,12 @@ async function renderHome() {
         el.innerHTML = buildArticleCard(a);
         el.addEventListener('click', e => {
           if (e.target.closest('a[data-story-link]')) e.preventDefault();
+          if (e.target.closest('.tw-save-btn')) return;
           openArticle(a.id);
         });
         pGrid.appendChild(el);
       });
+      twWireSaveButtons(section);
       previewContainer.appendChild(section);
     });
     previewContainer.querySelectorAll('.see-all').forEach(btn => {
@@ -2709,6 +2716,81 @@ $('#fThumb').addEventListener('change', e => {
 });
 
 
+// ---------- Save for later ----------
+function twGetSaved() {
+  try { return JSON.parse(localStorage.getItem('tw_saved') || '[]'); } catch(e) { return []; }
+}
+function twSetSaved(list) {
+  try { localStorage.setItem('tw_saved', JSON.stringify(list)); } catch(e) {}
+  twUpdateSavedUI();
+}
+function twIsSaved(id) { return twGetSaved().indexOf(id) !== -1; }
+function twToggleSaved(id) {
+  const list = twGetSaved();
+  const idx = list.indexOf(id);
+  if (idx === -1) { list.push(id); toast('Saved to your list'); }
+  else { list.splice(idx, 1); toast('Removed from saved'); }
+  twSetSaved(list);
+}
+function twUpdateSavedUI() {
+  const list = twGetSaved();
+  const link = document.querySelector('.tw-saved-link');
+  const count = document.getElementById('twSavedCount');
+  if (link) link.style.display = list.length ? '' : 'none';
+  if (count) count.textContent = list.length ? '(' + list.length + ')' : '';
+}
+function twSavedButtonHtml(id) {
+  const saved = twIsSaved(id);
+  return `<button type="button" class="tw-save-btn${saved ? ' saved' : ''}" data-save-id="${esc(id)}" aria-label="${saved ? 'Remove from saved' : 'Save for later'}"><svg viewBox="0 0 24 24" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>`;
+}
+function twWireSaveButtons(container) {
+  container.querySelectorAll('.tw-save-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const id = btn.getAttribute('data-save-id');
+      twToggleSaved(id);
+      const saved = twIsSaved(id);
+      btn.classList.toggle('saved', saved);
+      btn.querySelector('svg').setAttribute('fill', saved ? 'currentColor' : 'none');
+      btn.setAttribute('aria-label', saved ? 'Remove from saved' : 'Save for later');
+      if (location.hash === '#/saved') renderSavedPage();
+    });
+  });
+}
+async function renderSavedPage() {
+  const grid = document.getElementById('savedGrid');
+  if (!grid) return;
+  grid.innerHTML = twSkelGrid(3);
+  const ids = twGetSaved();
+  if (!ids.length) {
+    grid.innerHTML = '<div class="tw-error" style="grid-column:1/-1"><strong>Your reading list is empty</strong>Tap the bookmark icon on any article to save it for later.</div>';
+    return;
+  }
+  let all = [];
+  try { all = await Data.listPublished(); }
+  catch (err) { twShowError(grid, 'Could not load saved stories.', () => renderSavedPage()); return; }
+  const saved = all.filter(a => ids.indexOf(a.id) !== -1);
+  if (!saved.length) {
+    grid.innerHTML = '<div class="tw-error" style="grid-column:1/-1"><strong>Nothing saved here anymore</strong>Those articles may have been removed.</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  saved.forEach(a => {
+    const el = document.createElement('article');
+    el.className = 'article';
+    el.setAttribute('tabindex','0');
+    el.setAttribute('role','button');
+    el.innerHTML = buildArticleCard(a) + twSavedButtonHtml(a.id);
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.tw-save-btn')) return;
+      openArticle(a.id);
+    });
+    grid.appendChild(el);
+  });
+  twWireSaveButtons(grid);
+}
+
 // ---------- Error & offline handling ----------
 function twShowError(container, msg, onRetry) {
   if (!container) return;
@@ -3263,7 +3345,9 @@ async function route() {
   }
 
   const routeName = path === '/' || path === '/home' ? 'home' : path.slice(1);
-  setView(['home','releases','board','about','videos','memoriam'].includes(routeName) ? routeName : 'home');
+  setView(['home','releases','board','about','videos','memoriam','saved','404'].includes(routeName) ? routeName : '404');
+  if (routeName === 'saved') { await renderSavedPage(); updateAuthUI(); return; }
+  if (routeName === '404') { updateAuthUI(); return; }
   if (routeName === 'home') {
     await renderHome();
     ensureReleasesPreview();
@@ -3280,6 +3364,7 @@ async function route() {
 
 async function init() {
   applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
+  twUpdateSavedUI();
   twInitOfflineBanner();
   applyBrandColors();
   populateBoardNames();
