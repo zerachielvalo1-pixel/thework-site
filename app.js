@@ -151,6 +151,106 @@ let archiveFilter = 'all';
 let homeSort = 'recent';
 let editingMemoriamId = null;
 let pendingMemoriamPhoto = null;
+let draftTimer = null;
+let selectedIds = new Set();
+
+function twDraftKey(id = 'new') {
+  return `tw_article_draft_${String(id || 'new')}`;
+}
+
+function twCollectDraft() {
+  const form = $('#articleForm');
+  if (!form) return null;
+  return {
+    id: editingId || 'new',
+    title: $('#fTitle').value.trim(),
+    cat: $('#fCat').value,
+    author: $('#fAuthor').value.trim(),
+    author2: $('#fAuthor2').value.trim(),
+    photojournalist: $('#fPhoto').value.trim(),
+    layout_by: $('#fLayout').value.trim(),
+    layout_by_2: $('#fLayout2').value.trim(),
+    graphics_by: $('#fGraphics').value.trim(),
+    date: $('#fDate').value || todayISO(),
+    read: $('#fRead').value.trim() || '1 min',
+    publish_at: $('#fPublishAt').value || '',
+    excerpt: $('#fExcerpt').value.trim(),
+    body: $('#fBody').value.trim(),
+    status: $('#fStatus').value,
+    featured: $('#fFeatured').checked,
+    thumbnail: pendingThumbnail || null,
+    updated: new Date().toISOString()
+  };
+}
+
+function twSaveDraft() {
+  const draft = twCollectDraft();
+  if (!draft) return;
+  localStorage.setItem(twDraftKey(draft.id), JSON.stringify(draft));
+}
+
+function twLoadDraft(id = editingId || 'new') {
+  try {
+    const raw = localStorage.getItem(twDraftKey(id));
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.warn('[The Work] Draft parse failed', err);
+    return null;
+  }
+}
+
+function twClearDraft(id = editingId || 'new') {
+  localStorage.removeItem(twDraftKey(id));
+}
+
+function twApplyDraft(draft) {
+  if (!draft || !$('#articleForm')) return;
+  editingId = draft.id && draft.id !== 'new' ? draft.id : null;
+  $('#fId').value = editingId || '';
+  $('#fTitle').value = draft.title || '';
+  $('#fCat').value = draft.cat || '';
+  $('#fAuthor').value = draft.author || '';
+  $('#fAuthor2').value = draft.author2 || '';
+  $('#fPhoto').value = draft.photojournalist || '';
+  $('#fLayout').value = draft.layout_by || '';
+  $('#fLayout2').value = draft.layout_by_2 || '';
+  $('#fGraphics').value = draft.graphics_by || '';
+  $('#fDate').value = draft.date || todayISO();
+  $('#fRead').value = draft.read || '';
+  $('#fPublishAt').value = draft.publish_at || '';
+  $('#fExcerpt').value = draft.excerpt || '';
+  $('#fBody').value = draft.body || '';
+  $('#fStatus').value = draft.status || 'published';
+  $('#fFeatured').checked = !!draft.featured;
+  $('#editorTitle').textContent = editingId ? 'Edit article' : 'New article';
+  $('#deleteBtn').style.display = editingId ? 'inline-flex' : 'none';
+  setThumbnail(draft.thumbnail || null, draft.thumbnail ? 'saved-draft.jpg' : '');
+  if (typeof updateBodyMeter === 'function') updateBodyMeter();
+}
+
+function twOfferDraft(id = editingId || 'new') {
+  const draft = twLoadDraft(id);
+  if (!draft || !$('#articleForm')) return;
+  const hasCurrent = $('#fTitle').value.trim() || $('#fBody').value.trim() || $('#fExcerpt').value.trim() || $('#fAuthor').value.trim();
+  if (hasCurrent && !id) return;
+  if (hasCurrent && id !== 'new' && editingId && editingId === id) return;
+  twApplyDraft(draft);
+  toast('Unsaved draft restored');
+}
+
+function twStartDraftTimer() {
+  twStopDraftTimer();
+  draftTimer = setInterval(() => {
+    if (document.getElementById('articleForm')) twSaveDraft();
+  }, 1800);
+}
+
+function twStopDraftTimer() {
+  if (draftTimer) {
+    clearInterval(draftTimer);
+    draftTimer = null;
+  }
+}
 
 const Data = {
   async listPublished() {
@@ -2293,6 +2393,22 @@ async function renderAdmin() {
   renderTable();
 }
 
+function updateBulkBar() {
+  const bar = $('#bulkBar');
+  if (!bar) return;
+  const count = selectedIds.size;
+  const countText = $('#bulkCount');
+  const allRows = $$('.row-check');
+  const selectAll = $('#selectAllRows');
+  if (countText) countText.textContent = count ? `${count} selected` : 'No rows selected';
+  if (selectAll) selectAll.checked = allRows.length > 0 && count === allRows.length;
+  if (count) {
+    bar.hidden = false;
+  } else {
+    bar.hidden = true;
+  }
+}
+
 function renderTable() {
   const wrap = $('#tableContainer');
   const all = window.__allArticles || [];
@@ -2306,12 +2422,14 @@ function renderTable() {
 
   if (!list.length) {
     wrap.innerHTML = '<div style="text-align:center;padding:56px 24px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2)">No articles</h3></div>';
+    updateBulkBar();
     return;
   }
-  let html = '<table><thead><tr><th>Title</th><th>Section</th><th>Status</th><th>Updated</th><th style="text-align:right">Actions</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th style="width:34px;padding-right:0"><input type="checkbox" id="selectAllRows" aria-label="Select all visible rows" /></th><th>Title</th><th>Section</th><th>Status</th><th>Updated</th><th style="text-align:right">Actions</th></tr></thead><tbody>';
   list.forEach(a => {
     const thumbHtml = a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="">` : esc((CAT_LABELS[a.cat]||'?').charAt(0));
     html += `<tr>
+      <td style="width:34px;padding-right:0"><input class="row-check" type="checkbox" data-row-id="${esc(a.id)}" ${selectedIds.has(a.id) ? 'checked' : ''} /></td>
       <td class="title-cell"><div class="cell-title"><div class="mini-thumb">${thumbHtml}</div><div style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div><small>by ${esc(a.author||'—')} · ${esc(fmtDate(a.date))}</small></div></div></td>
       <td><span class="badge cat-${esc(a.cat)}">${esc(CAT_LABELS[a.cat]||a.cat)}</span></td>
       <td><span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span></td>
@@ -2324,6 +2442,63 @@ function renderTable() {
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
+  updateBulkBar();
+}
+
+async function bulkUpdate(status) {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  const count = ids.length;
+  if (!sb) {
+    const list = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+    list.forEach((item, index) => {
+      if (ids.includes(item.id)) {
+        list[index] = { ...item, status, updated: new Date().toISOString() };
+      }
+    });
+    localStorage.setItem('tw_articles', JSON.stringify(list));
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
+    selectedIds.clear();
+    await renderAdmin();
+    toast(`${count} article${count > 1 ? 's' : ''} marked ${status}`);
+    return;
+  }
+  try {
+    const { error } = await sb.from('articles').update({ status, updated: new Date().toISOString() }).in('id', ids);
+    if (error) throw error;
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
+    selectedIds.clear();
+    await renderAdmin();
+    toast(`${count} article${count > 1 ? 's' : ''} marked ${status}`);
+  } catch (err) {
+    toast('Bulk update failed: ' + (err.message || err), true);
+  }
+}
+
+async function bulkDelete() {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  const count = ids.length;
+  openConfirm('Delete selected articles?', `This will remove ${count} article${count > 1 ? 's' : ''}.`, async () => {
+    try {
+      if (!sb) {
+        const list = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(item => !ids.includes(item.id));
+        localStorage.setItem('tw_articles', JSON.stringify(list));
+      } else {
+        const { error } = await sb.from('articles').delete().in('id', ids);
+        if (error) throw error;
+      }
+      appCache.publishedArticles = null;
+      appCache.allArticles = null;
+      selectedIds.clear();
+      await renderAdmin();
+      toast(`${count} article${count > 1 ? 's' : ''} deleted`);
+    } catch (err) {
+      toast('Bulk delete failed: ' + (err.message || err), true);
+    }
+  });
 }
 
 function setThumbnail(dataUrl, name) {
@@ -2412,11 +2587,13 @@ function resetForm() {
   $('#fPublishAt').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
-    $('#fLayout2').value = '';
+  $('#fLayout2').value = '';
   $('#fGraphics').value = '';
   $('#editorTitle').textContent = 'New article';
   $('#deleteBtn').style.display = 'none';
   setThumbnail(null);
+  twClearDraft('new');
+  twStartDraftTimer();
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
 
@@ -2444,6 +2621,8 @@ function loadIntoForm(id) {
   setThumbnail(a.thumbnail || null, a.thumbnail ? 'current.jpg' : '');
   $('#editorTitle').textContent = 'Edit article';
   $('#deleteBtn').style.display = 'inline-flex';
+  twStartDraftTimer();
+  twOfferDraft(id);
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
 
@@ -2511,6 +2690,8 @@ $('#articleForm').addEventListener('submit', async e => {
       }
     }
     await Data.upsert(payload);
+    twClearDraft(payload.id);
+    twStopDraftTimer();
     toast(editingId ? 'Updated' : 'Created');
     resetForm();
     location.hash = '#/admin';
@@ -2543,6 +2724,8 @@ function setPanel(name, skipReset) {
   if (name === 'releases') hideReleaseForm();
   if (name === 'videos') hideVideoForm();
   if (name === 'memoriam') hideMemoriamForm();
+  if (name === 'new') twStartDraftTimer();
+  else twStopDraftTimer();
   $$('.admin-section').forEach(s => s.classList.remove('active'));
   const el = $('#panel-' + name);
   if (el) el.classList.add('active');
@@ -2619,6 +2802,49 @@ $('#recentList').addEventListener('click', e => {
 $('#searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
 $('#statusFilter').addEventListener('change', e => { statusFilter = e.target.value; renderTable(); });
 $('#catFilter').addEventListener('change', e => { catFilter = e.target.value; renderTable(); });
+
+document.addEventListener('input', e => {
+  if (!e.target || !e.target.closest || !e.target.closest('#articleForm')) return;
+  twSaveDraft();
+});
+
+document.addEventListener('change', e => {
+  if (!e.target || !e.target.closest || !e.target.closest('#articleForm')) return;
+  twSaveDraft();
+});
+
+document.addEventListener('change', e => {
+  const row = e.target.closest('.row-check');
+  if (!row) {
+    const all = e.target.closest('#selectAllRows');
+    if (!all) return;
+    const checked = all.checked;
+    const visible = $$('.row-check');
+    visible.forEach(input => {
+      const id = input.dataset.rowId;
+      if (!id) return;
+      if (checked) selectedIds.add(id); else selectedIds.delete(id);
+      input.checked = checked;
+    });
+    updateBulkBar();
+    return;
+  }
+  const id = row.dataset.rowId;
+  if (!id) return;
+  if (row.checked) selectedIds.add(id); else selectedIds.delete(id);
+  updateBulkBar();
+});
+
+document.addEventListener('click', e => {
+  const bulk = e.target.closest('[data-bulk]');
+  if (!bulk) return;
+  const action = bulk.dataset.bulk;
+  if (action === 'publish') bulkUpdate('published');
+  else if (action === 'draft') bulkUpdate('draft');
+  else if (action === 'delete') bulkDelete();
+});
+
+window.addEventListener('beforeunload', () => twSaveDraft());
 
 $$('.section-tab').forEach(tab => {
   tab.addEventListener('click', () => {
