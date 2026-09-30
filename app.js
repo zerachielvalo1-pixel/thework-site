@@ -881,6 +881,7 @@ async function renderHome() {
     });
   });
   twWireSaveButtons(fpGrid);
+  twWirePrefetch(fpGrid);
 
   const moreSection = $('#moreStories');
   const grid = $('#articleGrid');
@@ -899,6 +900,7 @@ async function renderHome() {
       grid.appendChild(el);
     });
     twWireSaveButtons(grid);
+    twWirePrefetch(grid);
   } else {
     moreSection.style.display = 'none';
   }
@@ -933,6 +935,7 @@ async function renderHome() {
         pGrid.appendChild(el);
       });
       twWireSaveButtons(section);
+      twWirePrefetch(section);
       previewContainer.appendChild(section);
     });
     previewContainer.querySelectorAll('.see-all').forEach(btn => {
@@ -1042,6 +1045,7 @@ function wireReleaseCards(container) {
   container.querySelectorAll('[data-release-id]').forEach(el => {
     el.addEventListener('click', () => openReader(el.dataset.releaseId));
   });
+  twWirePrefetch(container);
 }
 
 async function renderReleasesPage() {
@@ -1098,6 +1102,8 @@ async function renderVideosPage() {
   grid.querySelectorAll('[data-video-id]').forEach(el => {
     el.addEventListener('click', () => openVideo(el.dataset.videoId, list));
   });
+  window.__videosCache = list;
+  twWirePrefetch(grid);
 }
 
 async function renderMemoriamPage() {
@@ -2715,6 +2721,30 @@ $('#fThumb').addEventListener('change', e => {
   window.__pendingThumbFile = file;
 });
 
+
+// ---------- Prefetch thumbnails on hover ----------
+const twPrefetched = new Set();
+function twPrefetchImage(src) {
+  if (!src || twPrefetched.has(src)) return;
+  twPrefetched.add(src);
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = src;
+}
+function twWirePrefetch(container) {
+  container.querySelectorAll('.article,.sidebar-item,.release-card,.video-card,.bp-article,.lead-story').forEach(el => {
+    el.addEventListener('pointerenter', () => {
+      const img = el.querySelector('img[src]');
+      if (img) twPrefetchImage(img.getAttribute('src'));
+      const id = el.getAttribute('data-article-id') || el.getAttribute('data-video-id') || el.getAttribute('data-release-id');
+      if (!id) return;
+      const list = el.classList.contains('video-card') ? (window.__videosCache || []) : articles;
+      const item = Array.isArray(list) ? list.find(x => String(x.id) === String(id)) : null;
+      if (item && item.thumbnail) twPrefetchImage(item.thumbnail);
+      if (item && item.thumbnail_url) twPrefetchImage(item.thumbnail_url);
+    }, { passive: true });
+  });
+}
 
 // ---------- Save for later ----------
 function twGetSaved() {
