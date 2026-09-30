@@ -256,11 +256,11 @@ const Data = {
   async listPublished() {
     if (appCache.publishedArticles) return appCache.publishedArticles.slice();
     if (!sb) {
-      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.status === 'published');
+      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.status === 'published' && !a.deleted_at);
       appCache.publishedArticles = result;
       return result.slice();
     }
-    const { data, error } = await sb.from('articles').select('*').eq('status','published').order('date',{ascending:false, nullsFirst:false});
+    const { data, error } = await sb.from('articles').select('*').eq('status','published').is('deleted_at', null).order('date',{ascending:false, nullsFirst:false});
     if (error) { console.error(error); return []; }
     appCache.publishedArticles = data || [];
     return appCache.publishedArticles.slice();
@@ -268,11 +268,11 @@ const Data = {
   async listAll() {
     if (appCache.allArticles) return appCache.allArticles.slice();
     if (!sb) {
-      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => !a.deleted_at);
       appCache.allArticles = result;
       return result.slice();
     }
-    const { data, error } = await sb.from('articles').select('*').order('updated',{ascending:false});
+    const { data, error } = await sb.from('articles').select('*').is('deleted_at', null).order('updated',{ascending:false});
     if (error) return [];
     appCache.allArticles = data || [];
     return appCache.allArticles.slice();
@@ -295,6 +295,36 @@ const Data = {
   },
   async remove(id) {
     if (!sb) {
+      const list = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+      const idx = list.findIndex(x => x.id === id);
+      if (idx >= 0) list[idx].deleted_at = new Date().toISOString();
+      localStorage.setItem('tw_articles', JSON.stringify(list));
+      appCache.publishedArticles = null;
+      appCache.allArticles = null;
+      return;
+    }
+    const { error } = await sb.from('articles').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
+  },
+  async restore(id) {
+    if (!sb) {
+      const list = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+      const idx = list.findIndex(x => x.id === id);
+      if (idx >= 0) delete list[idx].deleted_at;
+      localStorage.setItem('tw_articles', JSON.stringify(list));
+      appCache.publishedArticles = null;
+      appCache.allArticles = null;
+      return;
+    }
+    const { error } = await sb.from('articles').update({ deleted_at: null }).eq('id', id);
+    if (error) throw error;
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
+  },
+  async hardRemove(id) {
+    if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(x => x.id !== id);
       localStorage.setItem('tw_articles', JSON.stringify(list));
       appCache.publishedArticles = null;
@@ -305,6 +335,12 @@ const Data = {
     if (error) throw error;
     appCache.publishedArticles = null;
     appCache.allArticles = null;
+  },
+  async listTrashed() {
+    if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.deleted_at);
+    const { data, error } = await sb.from('articles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+    if (error) return [];
+    return data || [];
   },
   async uploadThumb(file) {
     if (!sb) return await resizeImage(file, 900, 0.82);
@@ -1368,6 +1404,37 @@ function twGetShareUrl(a) {
   const slug = a.slug || slugifyStoryTitle(a.title);
   return 'https://thework.tw78.workers.dev/article/' + encodeURIComponent(slug);
 }
+function twRenderRelated(a) {
+  const el = document.getElementById('modalRelated');
+  if (!el) return;
+  const pool = Array.isArray(articles) && articles.length > 1 ? articles : [];
+  const related = pool
+    .filter(x => x && x.id !== a.id && x.cat === a.cat && x.status === 'published' && !x.deleted_at)
+    .sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0))
+    .slice(0, 3);
+  if (!related.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="related-label">More from ${esc(CAT_LABELS[a.cat] || a.cat || 'The Work')}</div>
+    <div class="related-list">
+      ${related.map(r => `
+        <div class="related-item" data-related-id="${esc(r.id)}" role="button" tabindex="0">
+          <div class="related-thumb">${r.thumbnail ? `<img src="${esc(r.thumbnail)}" alt="" loading="lazy">` : esc((CAT_LABELS[r.cat]||'?').charAt(0))}</div>
+          <div class="related-info">
+            <div class="related-title">${esc(r.title)}</div>
+            <div class="related-meta">${esc(r.author || 'Staff')} · ${esc(fmtDate(r.date))}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  el.querySelectorAll('[data-related-id]').forEach(item => {
+    item.addEventListener('click', () => openArticle(item.dataset.relatedId));
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openArticle(item.dataset.relatedId); }
+    });
+  });
+}
 function twRenderShare(a) {
   const el = document.getElementById('modalShare');
   if (!el) return;
@@ -1507,6 +1574,7 @@ function openArticle(id) {
   let content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
   if (a.excerpt) content += `<blockquote>${esc(a.excerpt)}</blockquote>`;
   $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
+  twRenderRelated(a);
   twRenderShare(a);
 
   try {
@@ -2563,20 +2631,21 @@ async function bulkDelete() {
   const ids = Array.from(selectedIds);
   if (!ids.length) return;
   const count = ids.length;
-  openConfirm('Delete selected articles?', `This will remove ${count} article${count > 1 ? 's' : ''}.`, async () => {
+  openConfirm('Move ' + count + ' to trash?', 'You can restore them within 30 days.', async () => {
     try {
       if (!sb) {
-        const list = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(item => !ids.includes(item.id));
+        const list = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+        list.forEach(item => { if (ids.includes(item.id)) item.deleted_at = new Date().toISOString(); });
         localStorage.setItem('tw_articles', JSON.stringify(list));
       } else {
-        const { error } = await sb.from('articles').delete().in('id', ids);
+        const { error } = await sb.from('articles').update({ deleted_at: new Date().toISOString() }).in('id', ids);
         if (error) throw error;
       }
       appCache.publishedArticles = null;
       appCache.allArticles = null;
       selectedIds.clear();
       await renderAdmin();
-      toast(`${count} article${count > 1 ? 's' : ''} deleted`);
+      toast(`${count} article${count > 1 ? 's' : ''} moved to trash`);
     } catch (err) {
       toast('Bulk delete failed: ' + (err.message || err), true);
     }
@@ -2789,16 +2858,69 @@ $('#articleForm').addEventListener('submit', async e => {
 $('#deleteBtn').addEventListener('click', () => {
   if (!editingId) return;
   const a = (window.__allArticles || []).find(x => x.id === editingId);
-  openConfirm('Delete article?', `"${a ? a.title : 'This'}" will be removed.`, async () => {
+  openConfirm('Move to trash?', `"${a ? a.title : 'This'}" will be moved to trash. You can restore it within 30 days.`, async () => {
     try {
       await Data.remove(editingId);
       resetForm();
       await renderAdmin();
       setPanel('articles');
-      toast('Deleted');
+      toast('Moved to trash');
     } catch (err) { toast('Failed: ' + (err.message || err), true); }
   });
 });
+
+async function renderTrashAdmin() {
+  const el = $('#trashList');
+  if (!el) return;
+  const list = await Data.listTrashed();
+  if (!list.length) {
+    el.innerHTML = '<div style="text-align:center;padding:56px 24px;color:var(--ink-3);font-family:var(--sans);font-size:.88rem">Trash is empty.</div>';
+    return;
+  }
+  const now = Date.now();
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  el.innerHTML = list.map(a => {
+    const deleted = a.deleted_at ? new Date(a.deleted_at).getTime() : now;
+    const daysLeft = Math.max(0, 30 - Math.floor((now - deleted) / (24 * 60 * 60 * 1000)));
+    const expired = (now - deleted) > THIRTY_DAYS;
+    const thumbHtml = a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="">` : esc((CAT_LABELS[a.cat]||'?').charAt(0));
+    return `
+      <div class="release-list-item">
+        <div class="release-list-cover" style="width:60px;height:60px;border-radius:8px">${thumbHtml}</div>
+        <div class="release-list-info">
+          <h4>${esc(a.title)}</h4>
+          <small>${esc(CAT_LABELS[a.cat]||a.cat)} · deleted ${timeAgo(a.deleted_at)} · <span style="color:${expired ? '#DC2626' : 'var(--ink-3)'}">${expired ? 'expired' : daysLeft + 'd left'}</span></small>
+        </div>
+        <div class="release-list-actions">
+          <button class="btn btn-ghost btn-sm" data-trash-restore="${esc(a.id)}">Restore</button>
+          <button class="icon-action danger" data-trash-purge="${esc(a.id)}" title="Delete permanently">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  el.querySelectorAll('[data-trash-restore]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Data.restore(btn.dataset.trashRestore);
+        toast('Article restored');
+        await renderTrashAdmin();
+        await renderAdmin();
+      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+    });
+  });
+  el.querySelectorAll('[data-trash-purge]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openConfirm('Delete permanently?', 'This cannot be undone. The article is gone forever.', async () => {
+        try {
+          await Data.hardRemove(btn.dataset.trashPurge);
+          toast('Permanently deleted');
+          await renderTrashAdmin();
+        } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      });
+    });
+  });
+}
 
 function setPanel(name, skipReset) {
   if (name === 'back') { location.hash = '#/'; return; }
@@ -2819,6 +2941,7 @@ function setPanel(name, skipReset) {
   if (name === 'releases') renderReleasesAdmin();
   if (name === 'videos') renderVideosAdmin();
   if (name === 'memoriam') renderMemoriamAdmin();
+  if (name === 'trash') renderTrashAdmin();
 }
 
 document.addEventListener('click', e => {
@@ -2866,11 +2989,11 @@ $('#tableContainer').addEventListener('click', async e => {
   const dl = e.target.closest('[data-del]');
   if (dl) {
     const a = (window.__allArticles || []).find(x => x.id === dl.dataset.del);
-    openConfirm('Delete article?', `"${a ? a.title : 'This'}" will be removed.`, async () => {
+    openConfirm('Move to trash?', `"${a ? a.title : 'This'}" will be moved to trash. You can restore it within 30 days.`, async () => {
       try {
         await Data.remove(dl.dataset.del);
         await renderAdmin();
-        toast('Deleted');
+        toast('Moved to trash');
       } catch (err) { toast('Failed: ' + (err.message || err), true); }
     });
   }
@@ -3021,7 +3144,7 @@ async function route() {
     setView('admin');
     const parts = path.split('/');
     const sub = parts[2] || 'dashboard';
-    setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings'].includes(sub) ? sub : 'dashboard');
+    setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings','trash'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
     if (sub === 'board') ensureBoardPhotos();
     updateAuthUI();

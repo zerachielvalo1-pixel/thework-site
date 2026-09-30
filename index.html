@@ -291,6 +291,7 @@
         <button data-panel="memoriam">Look Back</button>
         <button data-panel="board">Board Photos</button>
         <button data-panel="settings">Settings</button>
+        <button data-panel="trash">Trash</button>
       </div>
       <div class="admin-side-sep"></div>
       <h4>Site</h4>
@@ -603,6 +604,13 @@
         </div>
       </section>
 
+      <section class="admin-section" id="panel-trash">
+        <div class="admin-head">
+          <div><h1>Trash</h1><p>Deleted articles. Restore them, or delete permanently.</p></div>
+        </div>
+        <div id="trashList"></div>
+      </section>
+
       <section class="admin-section" id="panel-settings">
         <div class="admin-head"><div><h1>Settings</h1><p>Customize your site's look and manage your account.</p></div></div>
         <div class="panel" style="margin-bottom:22px">
@@ -660,7 +668,7 @@
   <div class="modal">
     <button class="modal-close" id="modalClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="modal-hero" id="modalHero"><span class="modal-hero-text" id="modalHeroText">W</span></div>
-    <div class="modal-body"><div class="modal-cat" id="modalCat"></div><h2 id="modalTitle"></h2><div class="modal-meta" id="modalMeta"></div><div id="modalContent"></div><div id="modalShare" class="modal-share"></div></div>
+    <div class="modal-body"><div class="modal-cat" id="modalCat"></div><h2 id="modalTitle"></h2><div class="modal-meta" id="modalMeta"></div><div id="modalContent"></div><div id="modalRelated" class="modal-related"></div><div id="modalShare" class="modal-share"></div></div>
   </div>
 </div>
 
