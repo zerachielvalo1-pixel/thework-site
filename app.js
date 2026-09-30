@@ -3065,7 +3065,7 @@ const WORD_TARGETS = {
   news:          { min: 150, max: 600,  label: 'News: 150–600 words' },
   editorial:     { min: 300, max: 800,  label: 'Editorial: 300–800 words' },
   opinion:       { min: 300, max: 900,  label: 'Opinion: 300–900 words' },
-  features:      { min: 400, max: 1500, label: 'Features: 400–1,500 words' },
+  features:      { min: 150, max: 1500, label: 'Features: 150–1,500 words' },
   literary:      { min: 10,  max: 2000, label: 'Literary: 10+ words' },
   sports:        { min: 200, max: 700,  label: 'Sports: 200–700 words' },
   devcom:        { min: 250, max: 1000, label: 'DevCom: 250–1,000 words' },
