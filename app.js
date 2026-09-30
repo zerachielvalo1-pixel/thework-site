@@ -1500,8 +1500,7 @@ $('#memoriamClose').addEventListener('click', closeMemoriam);
 $('#memoriamOverlay').addEventListener('click', e => { if (e.target === $('#memoriamOverlay')) closeMemoriam(); });
 
 function twGetShareUrl(a) {
-  const slug = a.slug || slugifyStoryTitle(a.title);
-  return 'https://thework.tw78.workers.dev/article/' + encodeURIComponent(slug);
+  return 'https://thework.tw78.workers.dev' + storyUrl(a);
 }
 function twRenderRelated(a) {
   const el = document.getElementById('modalRelated');
