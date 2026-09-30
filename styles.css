@@ -573,7 +573,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 .memoriam-year{font-family:var(--serif);font-size:1.05rem;font-weight:900;letter-spacing:-.015em;color:var(--ink);margin-bottom:3px}
 .memoriam-term{font-family:var(--sans);font-size:.66rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:0}
 .memoriam-caption{display:none}
-.release-cat-badge{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);color:#fff;font-family:var(--sans);font-size:.58rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:999px;z-index:3;border:1px solid rgba(255,255,255,.25)}
+.release-cat-badge{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.62);backdrop-filter:blur(8px);color:#fff;font-family:var(--sans);font-size:.55rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:999px;z-index:3;border:1px solid rgba(255,255,255,.25)}
 .archive-filter-strip{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-bottom:28px}
 .archive-tab{font-family:var(--sans);font-size:.72rem;font-weight:750;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);background:var(--paper-2);border:1.5px solid var(--line);padding:8px 16px;border-radius:999px;cursor:pointer;transition:.15s var(--ease);white-space:nowrap}
 .archive-tab:hover{color:var(--ink);border-color:var(--ink-4)}
