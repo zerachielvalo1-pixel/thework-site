@@ -785,7 +785,17 @@ async function renderHome() {
   const fpGrid = $('#frontpageGrid');
   fpGrid.innerHTML = twSkelHome();
 
-  const published = await Data.listPublished();
+  let published = [];
+  try {
+    published = await Data.listPublished();
+  } catch (err) {
+    twShowError(fpGrid, 'Could not load stories.', () => renderHome());
+    return;
+  }
+  if (!published.length && !navigator.onLine) {
+    twShowError(fpGrid, 'No connection.', () => renderHome());
+    return;
+  }
   articles = published;
 
   let list = activeFilter === 'all' ? published : published.filter(a => a.cat === activeFilter);
@@ -1030,7 +1040,12 @@ function wireReleaseCards(container) {
 async function renderReleasesPage() {
   const grid = $('#releasesGrid');
   grid.innerHTML = twSkelGrid(8);
-  releases = await Data.listPublishedReleases();
+  try {
+    releases = await Data.listPublishedReleases();
+  } catch (err) {
+    twShowError(grid, 'Could not load archives.', () => renderReleasesPage());
+    return;
+  }
   if (!releases.length) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No archives yet</h3><p style="font-family:var(--sans);font-size:.85rem">Issues will appear here as they are uploaded.</p></div>';
     return;
@@ -1048,7 +1063,13 @@ async function renderVideosPage() {
   const grid = $('#videoGrid');
   if (!grid) return;
   grid.innerHTML = twSkelGrid(6);
-  const list = await Data.listVideos();
+  let list = [];
+  try {
+    list = await Data.listVideos();
+  } catch (err) {
+    twShowError(grid, 'Could not load videos.', () => renderVideosPage());
+    return;
+  }
   if (!list.length) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No videos yet</h3><p style="font-family:var(--sans);font-size:.85rem">Broadcast segments and reels will appear here.</p></div>';
     return;
@@ -2688,6 +2709,27 @@ $('#fThumb').addEventListener('change', e => {
 });
 
 
+// ---------- Error & offline handling ----------
+function twShowError(container, msg, onRetry) {
+  if (!container) return;
+  const btn = onRetry ? '<button class="btn btn-ghost btn-sm" id="twRetryBtn">Retry</button>' : '';
+  container.innerHTML = `<div class="tw-error"><strong>${esc(msg || 'Something went wrong')}</strong>Check your connection and try again.${btn}</div>`;
+  const b = container.querySelector('#twRetryBtn');
+  if (b && onRetry) b.addEventListener('click', () => { container.innerHTML = twSkelGrid(6); onRetry(); });
+}
+function twInitOfflineBanner() {
+  if (document.getElementById('twOfflineBanner')) return;
+  const b = document.createElement('div');
+  b.id = 'twOfflineBanner';
+  b.className = 'tw-offline-banner';
+  b.textContent = 'You are offline. Some content may not load.';
+  document.body.appendChild(b);
+  const update = () => b.classList.toggle('show', !navigator.onLine);
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
+}
+
 // ---------- Loading skeletons ----------
 function twSkelCard() {
   return '<div class="tw-skel-card"><div class="tw-skel tw-skel-thumb"></div><div class="tw-skel-body"><div class="tw-skel tw-skel-title"></div><div class="tw-skel tw-skel-text"></div><div class="tw-skel tw-skel-text short"></div><div class="tw-skel tw-skel-foot"></div></div></div>';
@@ -3238,6 +3280,7 @@ async function route() {
 
 async function init() {
   applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
+  twInitOfflineBanner();
   applyBrandColors();
   populateBoardNames();
 
