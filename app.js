@@ -110,10 +110,10 @@ const BOARD = [
   { group:'Writing Department', subgroup:'Writers',               name:'Vhenus Abigail T. Bagay',       role:'Writer',               program:'Bachelor of Arts in Communication',                                    initials:'VA' },
   { group:'Writing Department', subgroup:'Trainee Writer',        name:'Jhermel B. Dagalea',            role:'Trainee Writer',       program:'Bachelor of Science in Architecture',                                  initials:'JB' },
 
-  { group:'Art Department', subgroup:'Graphic Artists', name:'Benny Dick D. Paraso',        role:'Graphic Artist', program:'—',                                                              initials:'BP' },
-  { group:'Art Department', subgroup:'Graphic Artists', name:'Reina Jyneh L. Sapigao',     role:'Graphic Artist', program:'Bachelor of Science in Architecture',                            initials:'RJ' },
-  { group:'Art Department', subgroup:'Graphic Artists', name:'Nikka I. Salamanca',         role:'Graphic Artist', program:'Bachelor of Science in Environmental Science',                   initials:'NS' },
-  { group:'Art Department', subgroup:'Artist',          name:'Stephaney Joy C. Sarmiento', role:'Artist',         program:'Bachelor of Science in Business Administration',                 initials:'SJ' },
+  { group:'Art Department', subgroup:'Cartoonists/Graphic Artists', name:'Benny Dick D. Paraso',        role:'Graphic Artist', program:'—',                                                              initials:'BP' },
+  { group:'Art Department', subgroup:'Cartoonists/Graphic Artists', name:'Reina Jyneh L. Sapigao',     role:'Graphic Artist', program:'Bachelor of Science in Architecture',                            initials:'RJ' },
+  { group:'Art Department', subgroup:'Cartoonists/Graphic Artists', name:'Nikka I. Salamanca',         role:'Graphic Artist', program:'Bachelor of Science in Environmental Science',                   initials:'NS' },
+  { group:'Art Department', subgroup:'Cartoonists/Graphic Artists', name:'Stephaney Joy C. Sarmiento', role:'Artist',         program:'Bachelor of Science in Business Administration',                 initials:'SJ' },
   { group:'Art Department', subgroup:'Trainee Artist',  name:'John Hermie M. Sarceda',     role:'Trainee Artist', program:'Bachelor of Science in Information Technology Major in Web and Mobile Applications', initials:'JH' },
 
   { group:'Layout Department', subgroup:'Layout Artists', name:'Nathaniel P. Tintero',  role:'Layout Artist', program:'Bachelor of Science in Accountancy',                                 initials:'NP' },
@@ -1152,10 +1152,21 @@ async function renderVideosPage() {
   grid.innerHTML = filtered.map(v => {
     const thumb = v.thumbnail_url || youtubeThumb(v);
     const credits = [];
-    if (v.videojournalist) credits.push('Video by ' + esc(v.videojournalist));
-    if (v.broadcasters) credits.push('Broadcasters: ' + esc(v.broadcasters));
+    const j = (arr) => arr.filter(Boolean).join(', ');
+    const vj = j([v.videojournalist, v.videojournalist_2, v.videojournalist_3]);
+    const bc = j([v.broadcasters, v.broadcaster_2]);
+    const ct = j([v.video_courtesy, v.video_courtesy_2]);
+    const dr = j([v.director, v.director_2]);
+    const wr = j([v.writer, v.writer_2, v.writer_3]);
+    const an = j([v.animator, v.animator_2]);
+    if (vj) credits.push('VJ: ' + esc(vj));
+    if (bc) credits.push('Broadcaster: ' + esc(bc));
+    if (dr) credits.push('Director: ' + esc(dr));
+    if (wr) credits.push('Writer: ' + esc(wr));
+    if (an) credits.push('Animator: ' + esc(an));
+    if (v.editor) credits.push('Editor: ' + esc(v.editor));
     if (v.technicians) credits.push('Technical: ' + esc(v.technicians));
-    if (v.video_courtesy) credits.push(esc(v.video_courtesy));
+    if (ct) credits.push('Courtesy: ' + esc(ct));
     const isPortrait = (v.orientation || 'landscape') === 'portrait';
     const subLabel = SUBCAT_LABELS[v.subcategory || 'tvb'] || 'TVB';
     return `
@@ -1322,13 +1333,9 @@ function openVideo(id, list) {
 
   if (isFacebookUrl(v.video_url)) {
     const thumb = v.thumbnail_url || '';
-    const makeList = (raw) => (Array.isArray(raw) ? raw : (''+ (raw||'')).split(',')).map(s=>s.trim()).filter(Boolean);
-    const b = makeList(v.broadcasters);
-    const avatarHtml = b.length ? `<div class="fb-fallback-grid">${b.map(n=> boardPhotos[n] ? `<div class="fb-fallback-item"><img src="${esc(boardPhotos[n])}" alt="${esc(n)}"><div class="fb-fallback-name">${esc(n)}</div></div>` : `<div class="fb-fallback-item"><div class="fb-fallback-name">${esc(n)}</div></div>`).join('')}</div>` : '';
     stage.innerHTML = `
       <div class="fb-fallback-wrap">
         <div class="fb-fallback-inner">
-          ${avatarHtml}
           ${thumb ? `<img class="fb-fallback-img" src="${esc(thumb)}" alt="">` : ''}
           <div class="fb-fallback-label">Facebook video</div>
           <h3 class="fb-fallback-title">${esc(v.title||'')}</h3>
@@ -1459,14 +1466,18 @@ async function openBoardProfile(name) {
   let allVideos = [];
   try { allVideos = await Data.listVideos(); } catch (e) { allVideos = []; }
   const nameLower = name.toLowerCase();
-  const videoBroadcast = allVideos.filter(v => {
-    const b = String(v.broadcasters || '').toLowerCase();
-    return b.split(',').map(s => s.trim()).includes(nameLower);
-  });
-  const videoTech = allVideos.filter(v => {
-    const t = String(v.technicians || '').toLowerCase();
-    return t.split(',').map(s => s.trim()).includes(nameLower);
-  });
+  const matchField = (val) => {
+    if (!val) return false;
+    return String(val).toLowerCase().split(',').map(s => s.trim()).includes(nameLower);
+  };
+  const hasAny = (v, keys) => keys.some(k => matchField(v[k]));
+  const videoBroadcast = allVideos.filter(v => hasAny(v, ['broadcasters', 'broadcaster_2']));
+  const videoTech      = allVideos.filter(v => matchField(v.technicians));
+  const videoVJ        = allVideos.filter(v => hasAny(v, ['videojournalist', 'videojournalist_2', 'videojournalist_3']));
+  const videoDirector  = allVideos.filter(v => hasAny(v, ['director', 'director_2']));
+  const videoWriter    = allVideos.filter(v => hasAny(v, ['writer', 'writer_2', 'writer_3']));
+  const videoAnimator  = allVideos.filter(v => hasAny(v, ['animator', 'animator_2']));
+  const videoEditor    = allVideos.filter(v => matchField(v.editor));
 
   const photo = boardPhotos[name];
   $('#bpAvatar').innerHTML = photo ? `<img src="${esc(photo)}" alt="">` : esc(member.initials);
@@ -1484,7 +1495,12 @@ async function openBoardProfile(name) {
   if (byGraphics.length) sections.push({ label: 'As Graphics Artist', items: byGraphics });
   if (byLayout.length) sections.push({ label: 'As Layout Artist', items: byLayout });
   if (videoBroadcast.length) sections.push({ label: 'As Broadcaster', items: videoBroadcast, isVideo: true });
-  if (videoTech.length) sections.push({ label: 'As Technical', items: videoTech, isVideo: true });
+  if (videoVJ.length)        sections.push({ label: 'As Video Journalist', items: videoVJ, isVideo: true });
+  if (videoDirector.length)  sections.push({ label: 'As Director', items: videoDirector, isVideo: true });
+  if (videoWriter.length)    sections.push({ label: 'As Writer', items: videoWriter, isVideo: true });
+  if (videoAnimator.length)  sections.push({ label: 'As Animator', items: videoAnimator, isVideo: true });
+  if (videoEditor.length)    sections.push({ label: 'As Editor', items: videoEditor, isVideo: true });
+  if (videoTech.length)      sections.push({ label: 'As Technical', items: videoTech, isVideo: true });
 
   if (!sections.length) {
     $('#bpBody').innerHTML = `<div class="bp-empty">No published works yet.</div>`;
@@ -2247,10 +2263,23 @@ function showVideoForm(v) {
     $('#videoDescription').value = v.description || '';
     $('#videoStatus').value = v.status || 'published';
     $('#videoSort').value = v.sort_order != null ? v.sort_order : 0;
-    $('#videoBroadcasters').value = v.broadcasters || '';
-    $('#videoTechnicians').value = v.technicians || '';
-    if ($('#videoVideojournalist')) $('#videoVideojournalist').value = v.videojournalist || '';
-    if ($('#videoCourtesy')) $('#videoCourtesy').value = v.video_courtesy || '';
+    const setV = (sel, val) => { const el = $(sel); if (el) el.value = val || ''; };
+    setV('#videoBroadcasters', v.broadcasters);
+    setV('#videoBroadcaster2', v.broadcaster_2);
+    setV('#videoTechnicians', v.technicians);
+    setV('#videoVideojournalist', v.videojournalist);
+    setV('#videoVideojournalist2', v.videojournalist_2);
+    setV('#videoVideojournalist3', v.videojournalist_3);
+    setV('#videoCourtesy', v.video_courtesy);
+    setV('#videoCourtesy2', v.video_courtesy_2);
+    setV('#videoDirector', v.director);
+    setV('#videoDirector2', v.director_2);
+    setV('#videoWriter', v.writer);
+    setV('#videoWriter2', v.writer_2);
+    setV('#videoWriter3', v.writer_3);
+    setV('#videoAnimator', v.animator);
+    setV('#videoAnimator2', v.animator_2);
+    setV('#videoEditor', v.editor);
     $('#videoSubcategory').value = v.subcategory || 'tvb';
     $('#videoFormTitle').textContent = 'Edit video';
     pendingVideoThumb = v.thumbnail_url ? { existing:true, url: v.thumbnail_url } : null;
@@ -2360,9 +2389,21 @@ $('#videoForm').addEventListener('submit', async e => {
       status: $('#videoStatus').value,
       sort_order: parseInt($('#videoSort').value, 10) || 0,
       broadcasters: $('#videoBroadcasters').value.trim() || null,
+      broadcaster_2: $('#videoBroadcaster2') ? $('#videoBroadcaster2').value.trim() || null : null,
       technicians: $('#videoTechnicians').value.trim() || null,
       videojournalist: $('#videoVideojournalist') ? $('#videoVideojournalist').value.trim() || null : null,
+      videojournalist_2: $('#videoVideojournalist2') ? $('#videoVideojournalist2').value.trim() || null : null,
+      videojournalist_3: $('#videoVideojournalist3') ? $('#videoVideojournalist3').value.trim() || null : null,
       video_courtesy: $('#videoCourtesy') ? $('#videoCourtesy').value.trim() || null : null,
+      video_courtesy_2: $('#videoCourtesy2') ? $('#videoCourtesy2').value.trim() || null : null,
+      director: $('#videoDirector') ? $('#videoDirector').value.trim() || null : null,
+      director_2: $('#videoDirector2') ? $('#videoDirector2').value.trim() || null : null,
+      writer: $('#videoWriter') ? $('#videoWriter').value.trim() || null : null,
+      writer_2: $('#videoWriter2') ? $('#videoWriter2').value.trim() || null : null,
+      writer_3: $('#videoWriter3') ? $('#videoWriter3').value.trim() || null : null,
+      animator: $('#videoAnimator') ? $('#videoAnimator').value.trim() || null : null,
+      animator_2: $('#videoAnimator2') ? $('#videoAnimator2').value.trim() || null : null,
+      editor: $('#videoEditor') ? $('#videoEditor').value.trim() || null : null,
       subcategory: $('#videoSubcategory').value || 'tvb',
       orientation: $('#videoOrientation').value || 'landscape',
       updated: new Date().toISOString()
@@ -3113,13 +3154,6 @@ function updateBodyMeter() {
   else if (words > t.max)  wrap.classList.add('over');
   else                     wrap.classList.add('ok');
 
-  // Update author hint based on section
-  const authorHint = document.getElementById('fAuthorHint');
-  if (authorHint) {
-    const opt = catEl && (catEl.value === 'editorial' || catEl.value === 'news');
-    authorHint.textContent = opt ? 'optional for ' + (CAT_LABELS[catEl.value] || catEl.value) : '*';
-  }
-  // Dynamic sub-category field for sections with SUBCAT_OPTIONS
   const subcatField = document.getElementById('fSubcatField');
   const subcatSel = document.getElementById('fSubcat');
   if (subcatField && subcatSel) {
@@ -3135,6 +3169,14 @@ function updateBodyMeter() {
       subcatField.style.display = 'none';
       subcatSel.value = '';
     }
+  }
+
+  const authorHint = document.getElementById('fAuthorHint');
+  if (authorHint) {
+    const section = catEl ? catEl.value : '';
+    const sub = subcatSel ? subcatSel.value : '';
+    const opt = section === 'news' || (section === 'opinion' && (sub === 'editorial' || sub === 'standpoints'));
+    authorHint.textContent = opt ? 'optional' : '*';
   }
 }
 document.addEventListener('input', e => {
@@ -3210,7 +3252,8 @@ $('#articleForm').addEventListener('submit', async e => {
   const excerpt = $('#fExcerpt').value.trim();
   const status = $('#fStatus').value;
   const missing = [];
-  const noAuthorRequired = cat === 'editorial' || cat === 'news';
+  const subcat = ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : '';
+  const noAuthorRequired = cat === 'news' || (cat === 'opinion' && (subcat === 'editorial' || subcat === 'standpoints'));
 
   if (!title) missing.push('title');
   if (!cat) missing.push('section');
