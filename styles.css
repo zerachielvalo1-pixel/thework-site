@@ -912,3 +912,28 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 [data-theme="dark"] .badge.cat-devcom{background:rgba(16,185,129,.15);color:#6EE7B7}
 [data-theme="dark"] .badge.cat-standpoints{background:rgba(245,158,11,.18);color:#FCD34D}
 [data-theme="dark"] .badge.cat-entertainment{background:rgba(236,72,153,.18);color:#F9A8D4}
+/* Video category badge */
+.video-cat-badge{
+  position:absolute;top:10px;left:10px;
+  background:rgba(0,0,0,.62);backdrop-filter:blur(8px);
+  color:#fff;font-family:var(--sans);font-size:.55rem;font-weight:750;
+  letter-spacing:.1em;text-transform:uppercase;
+  padding:4px 9px;border-radius:999px;z-index:3;
+  border:1px solid rgba(255,255,255,.25);
+}
+
+/* Portrait video cards */
+.video-card.portrait .video-thumb{
+  aspect-ratio:9/16;
+  max-height:520px;
+  background:#0a0a0a;
+}
+.video-card.portrait .video-thumb img{
+  object-fit:contain;
+  background:#0a0a0a;
+}
+.video-card.portrait .video-play svg{width:60px;height:60px}
+
+@media(max-width:900px){
+  .video-card.portrait .video-thumb{max-height:480px}
+}

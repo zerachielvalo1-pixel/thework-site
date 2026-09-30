@@ -1088,30 +1088,25 @@ async function renderVideosPage() {
     return videoCatFilter === 'all' || sub === videoCatFilter;
   });
 
+  const SUBCAT_LABELS = { tvb:'TVB', mojo:'MoJo', reels:'Reels', animations:'Animations' };
   grid.innerHTML = filtered.map(v => {
     const thumb = v.thumbnail_url || youtubeThumb(v);
-    // build credits (broadcasters / technicians)
-    let creditsHtml = '';
-    const makeList = (raw) => (Array.isArray(raw) ? raw : (''+ (raw||'')).split(',')).map(s=>s.trim()).filter(Boolean);
-    const b = makeList(v.broadcasters);
-    const t = makeList(v.technicians);
-    if (b.length) {
-      creditsHtml += `<div class="video-credits">${b.map(name => boardPhotos[name] ? `<img class="video-credit-avatar" src="${esc(boardPhotos[name])}" title="${esc(name)}">` : `<span class="credit-name">${esc(name)}</span>`).join(' ')}</div>`;
-    }
-    if (t.length) {
-      creditsHtml += `<div class="video-credits"><strong>Tech:</strong> ${t.map(n=>esc(n)).join(', ')}</div>`;
-    }
-
+    const credits = [];
+    if (v.broadcasters) credits.push('Broadcasters: ' + esc(v.broadcasters));
+    if (v.technicians) credits.push('Technical: ' + esc(v.technicians));
+    const isPortrait = (v.orientation || 'landscape') === 'portrait';
+    const subLabel = SUBCAT_LABELS[v.subcategory || 'tvb'] || 'TVB';
     return `
-      <div class="video-card" data-video-id="${esc(v.id)}" role="button" tabindex="0">
+      <div class="video-card${isPortrait ? ' portrait' : ''}" data-video-id="${esc(v.id)}" role="button" tabindex="0">
         <div class="video-thumb">
           ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy">` : ''}
+          <span class="video-cat-badge">${esc(subLabel)}</span>
           <div class="video-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
         </div>
         <div class="video-body">
           <h3>${esc(v.title)}</h3>
           ${v.description ? `<p>${esc(v.description)}</p>` : ''}
-          ${creditsHtml}
+          ${credits.length ? `<div class="video-credits">${credits.join(' · ')}</div>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -1415,6 +1410,8 @@ async function openBoardProfile(name) {
   if (byPhoto.length) sections.push({ label: 'As Photojournalist', items: byPhoto });
   if (byGraphics.length) sections.push({ label: 'As Graphics Artist', items: byGraphics });
   if (byLayout.length) sections.push({ label: 'As Layout Artist', items: byLayout });
+  if (videoBroadcast.length) sections.push({ label: 'As Broadcaster', items: videoBroadcast, isVideo: true });
+  if (videoTech.length) sections.push({ label: 'As Technical', items: videoTech, isVideo: true });
 
   if (!sections.length) {
     $('#bpBody').innerHTML = `<div class="bp-empty">No published works yet.</div>`;
@@ -1423,13 +1420,18 @@ async function openBoardProfile(name) {
       <div class="bp-section">
         <div class="bp-section-title">${esc(sec.label)} <span class="bp-section-count">· ${sec.items.length}</span></div>
         ${sec.items.map(a => {
-          const thumbHtml = a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="">` : esc((CAT_LABELS[a.cat]||'?').charAt(0));
+          const isVideo = sec.isVideo;
+          const thumbSrc = isVideo ? (a.thumbnail_url || youtubeThumb(a)) : a.thumbnail;
+          const thumbHtml = thumbSrc ? `<img src="${esc(thumbSrc)}" alt="">` : esc(((isVideo ? a.title : (CAT_LABELS[a.cat]||'?'))||'?').charAt(0));
+          const metaText = isVideo
+            ? 'Video · ' + esc(fmtDate(a.published || a.updated))
+            : esc(CAT_LABELS[a.cat]||a.cat) + ' · ' + esc(fmtDate(a.date));
           return `
-            <div class="bp-article" data-article-id="${esc(a.id)}">
+            <div class="bp-article" ${isVideo ? `data-video-id="${esc(a.id)}"` : `data-article-id="${esc(a.id)}"`}>
               <div class="bp-article-thumb">${thumbHtml}</div>
               <div class="bp-article-info">
                 <div class="bp-article-title">${esc(a.title)}</div>
-                <div class="bp-article-meta">${esc(CAT_LABELS[a.cat]||a.cat)} · ${esc(fmtDate(a.date))}</div>
+                <div class="bp-article-meta">${metaText}</div>
               </div>
             </div>
           `;
@@ -1438,6 +1440,13 @@ async function openBoardProfile(name) {
     `).join('');
     $$('#bpBody [data-article-id]').forEach(el => {
       el.addEventListener('click', () => { closeBoardProfile(); openArticle(el.dataset.articleId); });
+    });
+    $$('#bpBody [data-video-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        closeBoardProfile();
+        const v = allVideos.find(x => String(x.id) === String(el.dataset.videoId));
+        if (v) openVideo(v.id, allVideos);
+      });
     });
   }
 
@@ -2173,6 +2182,7 @@ function showVideoForm(v) {
     $('#videoSort').value = '0';
     $('#videoPlatform').value = 'youtube';
     $('#videoSubcategory').value = 'tvb';
+    $('#videoOrientation').value = 'landscape';
     $('#videoFormTitle').textContent = 'New video';
     pendingVideoThumb = null;
   }
@@ -2272,6 +2282,7 @@ $('#videoForm').addEventListener('submit', async e => {
       broadcasters: $('#videoBroadcasters').value.trim() || null,
       technicians: $('#videoTechnicians').value.trim() || null,
       subcategory: $('#videoSubcategory').value || 'tvb',
+      orientation: $('#videoOrientation').value || 'landscape',
       updated: new Date().toISOString()
     };
 

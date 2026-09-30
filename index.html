@@ -501,8 +501,8 @@
               </div>
             </div>
             <div class="row-2">
-              <div class="field"><label for="videoBroadcasters">Broadcasters <span class="hint">optional · comma-separated</span></label><input type="text" id="videoBroadcasters" maxlength="200" list="boardNames"></div>
-              <div class="field"><label for="videoTechnicians">Technical <span class="hint">optional · comma-separated</span></label><input type="text" id="videoTechnicians" maxlength="200" list="boardNames"></div>
+              <div class="field"><label for="videoBroadcasters">Broadcasters <span class="hint">type to search EB · comma-separated for multiple</span></label><input type="text" id="videoBroadcasters" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
+              <div class="field"><label for="videoTechnicians">Technical <span class="hint">type to search EB · comma-separated for multiple</span></label><input type="text" id="videoTechnicians" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
             </div>
             <div class="row-2">
               <div class="field"><label for="videoSubcategory">Sub-category</label>
@@ -511,6 +511,12 @@
                   <option value="mojo">MoJo</option>
                   <option value="reels">Reels</option>
                   <option value="animations">Animations</option>
+                </select>
+              </div>
+              <div class="field"><label for="videoOrientation">Orientation <span class="hint">for portrait reels/MoJo</span></label>
+                <select id="videoOrientation">
+                  <option value="landscape">Landscape (16:9)</option>
+                  <option value="portrait">Portrait (9:16)</option>
                 </select>
               </div>
               <div class="field"><label for="videoSort">Sort order <span class="hint">lower = higher up</span></label><input type="text" id="videoSort" value="0"></div>
