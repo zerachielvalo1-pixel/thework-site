@@ -1364,6 +1364,87 @@ $('#boardProfileOverlay').addEventListener('click', e => { if (e.target === $('#
 $('#memoriamClose').addEventListener('click', closeMemoriam);
 $('#memoriamOverlay').addEventListener('click', e => { if (e.target === $('#memoriamOverlay')) closeMemoriam(); });
 
+function twGetShareUrl(a) {
+  const slug = a.slug || slugifyStoryTitle(a.title);
+  return 'https://thework.tw78.workers.dev/article/' + encodeURIComponent(slug);
+}
+function twRenderShare(a) {
+  const el = document.getElementById('modalShare');
+  if (!el) return;
+  const url = twGetShareUrl(a);
+  const enc = encodeURIComponent(url);
+  const encTitle = encodeURIComponent(a.title || 'The Work');
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const hasNativeShare = typeof navigator.share === 'function';
+
+  el.innerHTML = `
+    <div class="modal-share-label">Share this story</div>
+    <div class="modal-share-buttons">
+      ${hasNativeShare ? `
+        <button class="share-btn" data-share="native" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
+          <span>Share</span>
+        </button>
+      ` : ''}
+      <button class="share-btn" data-share="messenger" type="button">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.1 2 11.2c0 2.9 1.4 5.5 3.7 7.2V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4.1 10-9.2S17.5 2 12 2zm1 12.4l-2.6-2.7-5 2.7L8.2 11l2.6 2.7 4.9-2.7-2.7 3.4z"/></svg>
+        <span>Messenger</span>
+      </button>
+      <button class="share-btn" data-share="facebook" type="button">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg>
+        <span>Facebook</span>
+      </button>
+      <button class="share-btn" data-share="x" type="button">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>X</span>
+      </button>
+      <button class="share-btn" data-share="copy" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>Copy link</span>
+      </button>
+    </div>
+  `;
+
+  el.querySelectorAll('[data-share]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const type = btn.dataset.share;
+      if (type === 'copy') {
+        try {
+          await navigator.clipboard.writeText(url);
+          toast('Link copied');
+        } catch (e) {
+          const ta = document.createElement('textarea');
+          ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); toast('Link copied'); }
+          catch (err) { toast('Could not copy link', true); }
+          document.body.removeChild(ta);
+        }
+        return;
+      }
+      if (type === 'native') {
+        try {
+          await navigator.share({ title: a.title || 'The Work', text: a.excerpt || '', url: url });
+        } catch (e) { /* user cancelled */ }
+        return;
+      }
+      if (type === 'messenger') {
+        if (isMobile) { window.location.href = 'fb-messenger://share?link=' + enc; }
+        else { window.open('https://www.facebook.com/dialog/send?link=' + enc + '&redirect_uri=' + enc, '_blank', 'noopener,noreferrer,width=600,height=500'); }
+        return;
+      }
+      if (type === 'facebook') {
+        window.open('https://www.facebook.com/sharer/sharer.php?u=' + enc, '_blank', 'noopener,noreferrer,width=600,height=500');
+        return;
+      }
+      if (type === 'x') {
+        window.open('https://twitter.com/intent/tweet?url=' + enc + '&text=' + encTitle, '_blank', 'noopener,noreferrer,width=600,height=500');
+        return;
+      }
+    });
+  });
+}
+
 function openArticle(id) {
   const a = articles.find(x => x.id === id);
   if (!a) return;
@@ -1426,6 +1507,7 @@ function openArticle(id) {
   let content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
   if (a.excerpt) content += `<blockquote>${esc(a.excerpt)}</blockquote>`;
   $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
+  twRenderShare(a);
 
   try {
     const schema = {
