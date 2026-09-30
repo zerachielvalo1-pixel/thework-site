@@ -55,8 +55,23 @@ function twScheduleFade() {
     twApplyFade();
   });
 }
-const CAT_LABELS = { news:'News', editorial:'Editorial', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports', devcom:'DevCom', standpoints:'Standpoints', entertainment:'Entertainment' };
-const SECTION_ORDER = ['news','editorial','opinion','features','literary','devcom','sports','standpoints','entertainment'];
+const CAT_LABELS = { news:'News', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports', devcom:'DevCom', entertainment:'Entertainment' };
+const SECTION_ORDER = ['news','opinion','features','literary','devcom','sports','entertainment'];
+const SUBCAT_OPTIONS = {
+  news: [
+    { id:'university', label:'University' },
+    { id:'local',      label:'Local' },
+    { id:'national',   label:'National' },
+    { id:'politics',   label:'Politics' }
+  ],
+  opinion: [
+    { id:'editorial',   label:'Editorial' },
+    { id:'column',      label:'Column' },
+    { id:'standpoints', label:'Standpoints' }
+  ]
+};
+const SUBCAT_LABELS = {};
+Object.values(SUBCAT_OPTIONS).forEach(arr => arr.forEach(o => { SUBCAT_LABELS[o.id] = o.label; }));
 const RELEASE_CATEGORIES = [
   { id:'magazine',   label:'Magazine',       example:'Metanoia' },
   { id:'tabloid',    label:'Tabloid',        example:'' },
@@ -620,7 +635,21 @@ $('#themeToggle').addEventListener('click', () => {
   const cur = document.documentElement.getAttribute('data-theme');
   applyTheme(cur === 'dark' ? 'light' : 'dark');
 });
-
+(function initSortToggle(){
+  const sortStrip = document.querySelector('.sort-strip');
+  const btn = document.getElementById('sortToggle');
+  if (!sortStrip || !btn) return;
+  const saved = localStorage.getItem('tw_sort_visible');
+  const visible = saved === null ? true : saved === '1';
+  sortStrip.style.display = visible ? '' : 'none';
+  btn.style.opacity = visible ? '1' : '0.5';
+  btn.addEventListener('click', () => {
+    const isVisible = sortStrip.style.display !== 'none';
+    sortStrip.style.display = isVisible ? 'none' : '';
+    btn.style.opacity = isVisible ? '0.5' : '1';
+    try { localStorage.setItem('tw_sort_visible', isVisible ? '0' : '1'); } catch(e) {}
+  });
+})();
 $('#burger').addEventListener('click', () => {
   const open = $('#navSections').classList.toggle('open');
   $('#burger').setAttribute('aria-expanded', String(open));
@@ -803,21 +832,31 @@ async function renderHome() {
   }
   articles = published;
 
-  // Show/hide subcat strip based on active tab
+  // Dynamic subcat strip for sections with SUBCAT_OPTIONS
   const subcatStrip = document.getElementById('subcatStrip');
-  if (subcatStrip) {
-    if (activeFilter === 'news') {
+  const subcatInner = document.getElementById('subcatStripInner');
+  const subcatOpts = SUBCAT_OPTIONS[activeFilter] || [];
+  if (subcatStrip && subcatInner) {
+    if (subcatOpts.length) {
+      if (newsSubcat === 'all' || !subcatOpts.some(o => o.id === newsSubcat)) newsSubcat = 'all';
+      subcatInner.innerHTML = `<span class="subcat-label">${esc(CAT_LABELS[activeFilter] || activeFilter)}</span>` +
+        `<button class="subcat-tab ${newsSubcat === 'all' ? 'active' : ''}" data-subcat="all" type="button">All</button>` +
+        subcatOpts.map(o => `<button class="subcat-tab ${newsSubcat === o.id ? 'active' : ''}" data-subcat="${o.id}" type="button">${esc(o.label)}</button>`).join('');
       subcatStrip.style.display = 'block';
+      subcatInner.querySelectorAll('.subcat-tab').forEach(t => {
+        t.addEventListener('click', () => {
+          newsSubcat = t.dataset.subcat || 'all';
+          renderHome();
+        });
+      });
     } else {
       subcatStrip.style.display = 'none';
       newsSubcat = 'all';
-      $$('.subcat-tab').forEach(t => t.classList.toggle('active', t.dataset.subcat === 'all'));
     }
   }
 
   let list = activeFilter === 'all' ? published : published.filter(a => a.cat === activeFilter);
-  // Apply news sub-category filter
-  if (activeFilter === 'news' && newsSubcat !== 'all') {
+  if (newsSubcat !== 'all' && subcatOpts.length) {
     list = list.filter(a => (a.subcat || '') === newsSubcat);
   }
   if (searchTerm) {
@@ -1113,8 +1152,10 @@ async function renderVideosPage() {
   grid.innerHTML = filtered.map(v => {
     const thumb = v.thumbnail_url || youtubeThumb(v);
     const credits = [];
+    if (v.videojournalist) credits.push('Video by ' + esc(v.videojournalist));
     if (v.broadcasters) credits.push('Broadcasters: ' + esc(v.broadcasters));
     if (v.technicians) credits.push('Technical: ' + esc(v.technicians));
+    if (v.video_courtesy) credits.push(esc(v.video_courtesy));
     const isPortrait = (v.orientation || 'landscape') === 'portrait';
     const subLabel = SUBCAT_LABELS[v.subcategory || 'tvb'] || 'TVB';
     return `
@@ -1126,7 +1167,6 @@ async function renderVideosPage() {
         </div>
         <div class="video-body">
           <h3>${esc(v.title)}</h3>
-          ${v.description ? `<p>${esc(v.description)}</p>` : ''}
           ${credits.length ? `<div class="video-credits">${credits.join(' · ')}</div>` : ''}
         </div>
       </div>`;
@@ -2209,6 +2249,8 @@ function showVideoForm(v) {
     $('#videoSort').value = v.sort_order != null ? v.sort_order : 0;
     $('#videoBroadcasters').value = v.broadcasters || '';
     $('#videoTechnicians').value = v.technicians || '';
+    if ($('#videoVideojournalist')) $('#videoVideojournalist').value = v.videojournalist || '';
+    if ($('#videoCourtesy')) $('#videoCourtesy').value = v.video_courtesy || '';
     $('#videoSubcategory').value = v.subcategory || 'tvb';
     $('#videoFormTitle').textContent = 'Edit video';
     pendingVideoThumb = v.thumbnail_url ? { existing:true, url: v.thumbnail_url } : null;
@@ -2319,6 +2361,8 @@ $('#videoForm').addEventListener('submit', async e => {
       sort_order: parseInt($('#videoSort').value, 10) || 0,
       broadcasters: $('#videoBroadcasters').value.trim() || null,
       technicians: $('#videoTechnicians').value.trim() || null,
+      videojournalist: $('#videoVideojournalist') ? $('#videoVideojournalist').value.trim() || null : null,
+      video_courtesy: $('#videoCourtesy') ? $('#videoCourtesy').value.trim() || null : null,
       subcategory: $('#videoSubcategory').value || 'tvb',
       orientation: $('#videoOrientation').value || 'landscape',
       updated: new Date().toISOString()
@@ -3037,48 +3081,6 @@ function twSkelHome() {
   `;
 }
 
-// ---------- Auto-fill excerpt ----------
-function twAutoExcerpt(body, maxLen) {
-  maxLen = maxLen || 240;
-  const text = String(body || '').replace(/\s+/g, ' ').trim();
-  if (!text) return '';
-
-  const sentences = text.match(/[^.!?]+[.!?]+(?:["'”’])?/g) || [text];
-  let excerpt = '';
-  for (let i = 0; i < sentences.length && i < 3; i++) {
-    const s = sentences[i].trim();
-    if (!s) continue;
-    if (!excerpt) {
-      excerpt = s;
-    } else if ((excerpt.length + 1 + s.length) <= maxLen - 1) {
-      excerpt += ' ' + s;
-    } else {
-      break;
-    }
-  }
-  excerpt = excerpt.trim();
-  if (excerpt.length > maxLen) {
-    const cut = excerpt.slice(0, maxLen - 1);
-    const lastSpace = cut.lastIndexOf(' ');
-    excerpt = (lastSpace > maxLen * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[.,;:!?!\s]+$/, '') + '…';
-  }
-  if (!/[.!?…]["'”’]?$/.test(excerpt) && text.length > excerpt.replace(/…$/, '').length) {
-    excerpt = excerpt.replace(/[.,;:!?!\s]+$/, '') + '…';
-  }
-  return excerpt;
-}
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('#autoFillExcerptBtn')) return;
-  const bodyEl = document.getElementById('fBody');
-  const excEl  = document.getElementById('fExcerpt');
-  if (!bodyEl || !excEl) return;
-  const val = twAutoExcerpt(bodyEl.value, 240);
-  if (!val) { toast('Write the body first', true); return; }
-  if (excEl.value.trim() && !confirm('Replace the current excerpt?')) return;
-  excEl.value = val;
-  toast('Excerpt filled');
-});
 
 // ---------- word count meter ----------
 const WORD_TARGETS = {
@@ -3117,13 +3119,21 @@ function updateBodyMeter() {
     const opt = catEl && (catEl.value === 'editorial' || catEl.value === 'news');
     authorHint.textContent = opt ? 'optional for ' + (CAT_LABELS[catEl.value] || catEl.value) : '*';
   }
-  // Show sub-category field only for News
+  // Dynamic sub-category field for sections with SUBCAT_OPTIONS
   const subcatField = document.getElementById('fSubcatField');
-  if (subcatField) {
-    subcatField.style.display = (catEl && catEl.value === 'news') ? '' : 'none';
-    if (catEl && catEl.value !== 'news') {
-      const sc = document.getElementById('fSubcat');
-      if (sc) sc.value = '';
+  const subcatSel = document.getElementById('fSubcat');
+  if (subcatField && subcatSel) {
+    const section = catEl ? catEl.value : '';
+    const opts = SUBCAT_OPTIONS[section] || [];
+    if (opts.length) {
+      const currentVal = subcatSel.value;
+      subcatSel.innerHTML = '<option value="">—</option>' +
+        opts.map(o => `<option value="${o.id}">${o.label}</option>`).join('');
+      if (opts.some(o => o.id === currentVal)) subcatSel.value = currentVal;
+      subcatField.style.display = '';
+    } else {
+      subcatField.style.display = 'none';
+      subcatSel.value = '';
     }
   }
 }

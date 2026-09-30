@@ -114,12 +114,7 @@ async function renderStory(request, env, id) {
   const title = `${article.title} — The Work`;
   const description = storyDescription(article);
   const canonical = `${SITE_ORIGIN}${storyPath(article)}`;
-  // If thumbnail is WebP, force convert to JPEG for Messenger compatibility
-  let image = safeImageUrl(article.thumbnail);
-  if (image.includes('.webp')) {
-    // Facebook/Messenger prefer JPEG — proxy via Supabase image transform
-    image = image.replace(/\.webp(\?.*)?$/, '.jpg$1');
-  }
+  const image = safeImageUrl(article.thumbnail);
   const setMeta = (htmlText, pattern, attrs) => htmlText.replace(pattern, `<meta ${attrs}>`);
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);

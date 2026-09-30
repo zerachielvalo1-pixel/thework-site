@@ -69,6 +69,9 @@
       <button class="user-chip" id="userChip" style="display:none" title="Open dashboard"><span class="avatar" id="userAvatar">A</span><span class="uname" id="userName">Admin</span></button>
       <button class="btn btn-ghost btn-sm" id="loginBtn">Log in</button>
       <button class="btn btn-primary btn-sm" id="logoutBtn" style="display:none">Log out</button>
+            <button class="icon-btn" id="sortToggle" aria-label="Toggle sort options" title="Toggle sort options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+      </button>
       <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode">
         <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
         <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -84,13 +87,11 @@
       <div class="section-strip-inner" role="tablist">
         <button class="section-tab active" data-filter="all" role="tab" aria-selected="true">All Stories</button>
         <button class="section-tab" data-filter="news" role="tab" aria-selected="false">News</button>
-        <button class="section-tab" data-filter="editorial" role="tab" aria-selected="false">Editorial</button>
         <button class="section-tab" data-filter="opinion" role="tab" aria-selected="false">Opinion</button>
         <button class="section-tab" data-filter="features" role="tab" aria-selected="false">Features</button>
         <button class="section-tab" data-filter="literary" role="tab" aria-selected="false">Literary</button>
         <button class="section-tab" data-filter="devcom" role="tab" aria-selected="false">DevCom</button>
         <button class="section-tab" data-filter="sports" role="tab" aria-selected="false">Sports</button>
-        <button class="section-tab" data-filter="standpoints" role="tab" aria-selected="false">Standpoints</button>
         <button class="section-tab" data-filter="entertainment" role="tab" aria-selected="false">Entertainment</button>
       </div>
       <div class="search-wrap">
@@ -100,14 +101,7 @@
     </div>
   </div>
     <div class="subcat-strip" id="subcatStrip" style="display:none">
-    <div class="subcat-strip-inner" role="group" aria-label="News sub-categories">
-      <span class="subcat-label">News</span>
-      <button class="subcat-tab active" data-subcat="all" type="button">All</button>
-      <button class="subcat-tab" data-subcat="university" type="button">University</button>
-      <button class="subcat-tab" data-subcat="local" type="button">Local</button>
-      <button class="subcat-tab" data-subcat="national" type="button">National</button>
-      <button class="subcat-tab" data-subcat="politics" type="button">Politics</button>
-    </div>
+    <div class="subcat-strip-inner" id="subcatStripInner" role="group" aria-label="Sub-categories"></div>
   </div>
   <div class="sort-strip">
     <div class="sort-strip-inner" role="tablist" aria-label="Sort stories">
@@ -371,7 +365,7 @@
           <div class="table-toolbar">
             <input type="text" id="searchInput" placeholder="Search by title or author…">
             <select id="statusFilter"><option value="">All statuses</option><option value="published">Published</option><option value="draft">Drafts</option></select>
-            <select id="catFilter"><option value="">All sections</option><option value="news">News</option><option value="editorial">Editorial</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="standpoints">Standpoints</option><option value="entertainment">Entertainment</option></select>
+            <select id="catFilter"><option value="">All sections</option><option value="news">News</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="entertainment">Entertainment</option></select>
           </div>
           <div class="bulk-bar" id="bulkBar" hidden>
             <div class="bulk-status">
@@ -511,8 +505,12 @@
               </div>
             </div>
             <div class="row-2">
-              <div class="field"><label for="videoBroadcasters">Broadcasters <span class="hint">type to search EB · comma-separated for multiple</span></label><input type="text" id="videoBroadcasters" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
-              <div class="field"><label for="videoTechnicians">Technical <span class="hint">type to search EB · comma-separated for multiple</span></label><input type="text" id="videoTechnicians" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
+              <div class="field"><label for="videoVideojournalist">Video journalist <span class="hint">optional · comma-separated</span></label><input type="text" id="videoVideojournalist" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
+              <div class="field"><label for="videoCourtesy">Video courtesy <span class="hint">optional — credit or source</span></label><input type="text" id="videoCourtesy" maxlength="120" placeholder="e.g. Video courtesy of TSU SSC"></div>
+            </div>
+            <div class="row-2">
+              <div class="field"><label for="videoBroadcasters">Broadcasters <span class="hint">comma-separated</span></label><input type="text" id="videoBroadcasters" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
+              <div class="field"><label for="videoTechnicians">Technical <span class="hint">comma-separated</span></label><input type="text" id="videoTechnicians" maxlength="200" list="boardNames" placeholder="Start typing a name…"></div>
             </div>
             <div class="row-2">
               <div class="field"><label for="videoSubcategory">Sub-category</label>
@@ -625,18 +623,12 @@
             </div>
             <div class="field"><label for="fTitle">Title <span class="hint">*</span></label><input type="text" id="fTitle" required maxlength="160"></div>
             <div class="row-2">
-              <div class="field"><label for="fCat">Section <span class="hint">*</span></label><select id="fCat" required><option value="">Choose…</option><option value="news">News</option><option value="editorial">Editorial</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="standpoints">Standpoints</option><option value="entertainment">Entertainment</option></select></div>
+              <div class="field"><label for="fCat">Section <span class="hint">*</span></label><select id="fCat" required><option value="">Choose…</option><option value="news">News</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="entertainment">Entertainment</option></select></div>
               <div class="field"><label for="fAuthor">Author <span class="hint" id="fAuthorHint">*</span></label><input type="text" id="fAuthor" maxlength="80" list="boardNames"></div>
             </div>
             <div class="field" id="fSubcatField" style="display:none">
-              <label for="fSubcat">News sub-category <span class="hint">optional</span></label>
-              <select id="fSubcat">
-                <option value="">—</option>
-                <option value="university">University</option>
-                <option value="local">Local</option>
-                <option value="national">National</option>
-                <option value="politics">Politics</option>
-              </select>
+              <label for="fSubcat">Sub-category <span class="hint">optional</span></label>
+              <select id="fSubcat"><option value="">—</option></select>
             </div>
             <div class="field"><label for="fAuthor2">Second author <span class="hint">optional</span></label><input type="text" id="fAuthor2" maxlength="80" list="boardNames"></div>
             <div class="row-2">
@@ -648,19 +640,7 @@
               <div class="field"><label for="fLayout">Layout by <span class="hint">optional</span></label><input type="text" id="fLayout" maxlength="80" list="boardNames"></div>
               <div class="field"><label for="fLayout2">Second layout <span class="hint">optional</span></label><input type="text" id="fLayout2" maxlength="80" list="boardNames"></div>
             </div>
-            <div class="row-2">
-              <div class="field"><label for="fGraphics">Graphics by <span class="hint">optional</span></label><input type="text" id="fGraphics" maxlength="80" list="boardNames"></div>
-              <div class="field" id="fSubcatField" style="display:none">
-                <label for="fSubcat">News sub-category <span class="hint">optional</span></label>
-                <select id="fSubcat">
-                  <option value="">—</option>
-                  <option value="university">University</option>
-                  <option value="local">Local</option>
-                  <option value="national">National</option>
-                  <option value="politics">Politics</option>
-                </select>
-              </div>
-            </div>
+            <div class="field"><label for="fGraphics">Graphics by <span class="hint">optional</span></label><input type="text" id="fGraphics" maxlength="80" list="boardNames"></div>
             <div class="row-2">
               <div class="field"><label for="fDate">Date</label><input type="date" id="fDate"></div>
               <div class="field"><label for="fRead">Read time <span class="hint">auto</span></label><input type="text" id="fRead" maxlength="20" readonly style="opacity:.7;cursor:not-allowed"></div>
@@ -671,7 +651,7 @@
               <div style="margin:6px 0 0;font-family:var(--sans);font-size:.72rem;color:var(--ink-3);line-height:1.55">If set to a future time, the article stays hidden from the public site until then. Status must be <b>Published</b>.</div>
             </div>
             <div class="field">
-              <label for="fExcerpt" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Excerpt <button type="button" class="btn btn-ghost btn-sm" id="autoFillExcerptBtn" style="padding:5px 10px;font-size:.65rem;letter-spacing:.06em;text-transform:uppercase">✨ Auto-fill</button></label>
+              <label for="fExcerpt">Excerpt</label>
               <textarea id="fExcerpt" maxlength="280" style="min-height:70px"></textarea>
             </div>
             <div class="field">
