@@ -55,14 +55,14 @@ function twScheduleFade() {
     twApplyFade();
   });
 }
-const CAT_LABELS = { news:'News', editorial:'Editorial', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports' };
-const SECTION_ORDER = ['news','editorial','opinion','features','literary','sports'];
+const CAT_LABELS = { news:'News', editorial:'Editorial', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports', devcom:'DevCom', standpoints:'Standpoints', entertainment:'Entertainment' };
+const SECTION_ORDER = ['news','editorial','opinion','features','literary','sports','devcom','standpoints','entertainment'];
 const RELEASE_CATEGORIES = [
   { id:'magazine',   label:'Magazine',       example:'Metanoia' },
   { id:'tabloid',    label:'Tabloid',        example:'' },
   { id:'newsletter', label:'Newsletter',     example:'' },
   { id:'literary',   label:'Literary Folio', example:'Obra' },
-  { id:'minizine',   label:'Mini Zines',     example:'' }
+  { id:'minizine',   label:'Zine',            example:'' }
 ];
 const RELEASE_CAT_LABELS = Object.fromEntries(RELEASE_CATEGORIES.map(c => [c.id, c.label]));
 const BOARD = [
@@ -2912,12 +2912,15 @@ document.addEventListener('click', e => {
 
 // ---------- word count meter ----------
 const WORD_TARGETS = {
-  news:      { min: 300, max: 600,  label: 'News: 300–600 words' },
-  editorial: { min: 400, max: 800,  label: 'Editorial: 400–800 words' },
-  opinion:   { min: 500, max: 900,  label: 'Opinion: 500–900 words' },
-  features:  { min: 700, max: 1500, label: 'Features: 700–1,500 words' },
-  literary:  { min: 300, max: 2000, label: 'Literary: 300–2,000 words' },
-  sports:    { min: 350, max: 700,  label: 'Sports: 350–700 words' }
+  news:          { min: 150, max: 600,  label: 'News: 150–600 words' },
+  editorial:     { min: 300, max: 800,  label: 'Editorial: 300–800 words' },
+  opinion:       { min: 300, max: 900,  label: 'Opinion: 300–900 words' },
+  features:      { min: 400, max: 1500, label: 'Features: 400–1,500 words' },
+  literary:      { min: 10,  max: 2000, label: 'Literary: 10+ words' },
+  sports:        { min: 200, max: 700,  label: 'Sports: 200–700 words' },
+  devcom:        { min: 250, max: 1000, label: 'DevCom: 250–1,000 words' },
+  standpoints:   { min: 200, max: 800,  label: 'Standpoints: 200–800 words' },
+  entertainment: { min: 50,  max: 500,  label: 'Entertainment: 50–500 words' }
 };
 function updateBodyMeter() {
   const bodyEl  = document.getElementById('fBody');

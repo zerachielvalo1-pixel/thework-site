@@ -872,3 +872,11 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .related-title{font-size:.82rem}
   .related-meta{font-size:.62rem}
 }
+
+/* Badge colors for new sections */
+.badge.cat-devcom{background:#ECFDF5;color:#065F46}
+.badge.cat-standpoints{background:#FEF3C7;color:#92400E}
+.badge.cat-entertainment{background:#FCE7F3;color:#9F1239}
+[data-theme="dark"] .badge.cat-devcom{background:rgba(16,185,129,.15);color:#6EE7B7}
+[data-theme="dark"] .badge.cat-standpoints{background:rgba(245,158,11,.18);color:#FCD34D}
+[data-theme="dark"] .badge.cat-entertainment{background:rgba(236,72,153,.18);color:#F9A8D4}
