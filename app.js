@@ -56,7 +56,7 @@ function twScheduleFade() {
   });
 }
 const CAT_LABELS = { news:'News', editorial:'Editorial', opinion:'Opinion', features:'Features', literary:'Literary', sports:'Sports', devcom:'DevCom', standpoints:'Standpoints', entertainment:'Entertainment' };
-const SECTION_ORDER = ['news','editorial','opinion','features','literary','sports','devcom','standpoints','entertainment'];
+const SECTION_ORDER = ['news','editorial','opinion','features','literary','devcom','sports','standpoints','entertainment'];
 const RELEASE_CATEGORIES = [
   { id:'magazine',   label:'Magazine',       example:'Metanoia' },
   { id:'tabloid',    label:'Tabloid',        example:'' },
