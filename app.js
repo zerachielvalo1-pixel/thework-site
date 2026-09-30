@@ -783,7 +783,7 @@ function buildArticleCard(a) {
 
 async function renderHome() {
   const fpGrid = $('#frontpageGrid');
-  fpGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3);font-family:var(--sans);font-size:.9rem">Loading stories…</div>';
+  fpGrid.innerHTML = twSkelHome();
 
   const published = await Data.listPublished();
   articles = published;
@@ -1029,7 +1029,7 @@ function wireReleaseCards(container) {
 
 async function renderReleasesPage() {
   const grid = $('#releasesGrid');
-  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--ink-3);font-family:var(--sans);font-size:.9rem">Loading archives…</div>';
+  grid.innerHTML = twSkelGrid(8);
   releases = await Data.listPublishedReleases();
   if (!releases.length) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No archives yet</h3><p style="font-family:var(--sans);font-size:.85rem">Issues will appear here as they are uploaded.</p></div>';
@@ -1047,7 +1047,7 @@ async function renderReleasesPage() {
 async function renderVideosPage() {
   const grid = $('#videoGrid');
   if (!grid) return;
-  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--ink-3);font-family:var(--sans);font-size:.9rem">Loading videos…</div>';
+  grid.innerHTML = twSkelGrid(6);
   const list = await Data.listVideos();
   if (!list.length) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No videos yet</h3><p style="font-family:var(--sans);font-size:.85rem">Broadcast segments and reels will appear here.</p></div>';
@@ -1302,6 +1302,7 @@ function renderBoard() {
 function renderBoardAdmin() {
   const grid = $('#boardAdminGrid');
   if (!grid) return;
+  // (Board data is static, no loading needed — just render immediately)
   grid.innerHTML = BOARD.map(p => {
     const photo = boardPhotos[p.name];
     const avatarHtml = photo ? `<img src="${esc(photo)}" alt="">` : esc(p.initials);
@@ -2686,6 +2687,31 @@ $('#fThumb').addEventListener('change', e => {
   window.__pendingThumbFile = file;
 });
 
+
+// ---------- Loading skeletons ----------
+function twSkelCard() {
+  return '<div class="tw-skel-card"><div class="tw-skel tw-skel-thumb"></div><div class="tw-skel-body"><div class="tw-skel tw-skel-title"></div><div class="tw-skel tw-skel-text"></div><div class="tw-skel tw-skel-text short"></div><div class="tw-skel tw-skel-foot"></div></div></div>';
+}
+function twSkelGrid(count) {
+  return '<div class="tw-skel-grid">' + Array.from({length: count || 6}, twSkelCard).join('') + '</div>';
+}
+function twSkelHome() {
+  return `
+    <div style="display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(24px,3vw,40px)" class="tw-skel-home">
+      <div>
+        <div class="tw-skel tw-skel-lead"></div>
+        <div class="tw-skel tw-skel-title" style="height:26px;margin-top:20px;width:85%"></div>
+        <div class="tw-skel tw-skel-title" style="height:26px;margin-top:8px;width:60%"></div>
+        <div class="tw-skel tw-skel-text" style="margin-top:14px"></div>
+        <div class="tw-skel tw-skel-text short"></div>
+      </div>
+      <div class="tw-skel-sidebar">
+        ${Array.from({length:4}).map(() => '<div class="tw-skel-side-item"><div class="tw-skel tw-skel-side-thumb"></div><div class="tw-skel-side-body"><div class="tw-skel tw-skel-title" style="height:12px;width:40%"></div><div class="tw-skel tw-skel-text"></div><div class="tw-skel tw-skel-text short"></div></div></div>').join('')}
+      </div>
+    </div>
+    <style>@media(max-width:900px){.tw-skel-home{grid-template-columns:1fr !important}}</style>
+  `;
+}
 
 // ---------- Auto-fill excerpt ----------
 function twAutoExcerpt(body, maxLen) {
