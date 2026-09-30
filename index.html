@@ -576,7 +576,10 @@
               <input type="datetime-local" id="fPublishAt">
               <div style="margin:6px 0 0;font-family:var(--sans);font-size:.72rem;color:var(--ink-3);line-height:1.55">If set to a future time, the article stays hidden from the public site until then. Status must be <b>Published</b>.</div>
             </div>
-            <div class="field"><label for="fExcerpt">Excerpt</label><textarea id="fExcerpt" maxlength="280" style="min-height:70px"></textarea></div>
+            <div class="field">
+              <label for="fExcerpt" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Excerpt <button type="button" class="btn btn-ghost btn-sm" id="autoFillExcerptBtn" style="padding:5px 10px;font-size:.65rem;letter-spacing:.06em;text-transform:uppercase">✨ Auto-fill</button></label>
+              <textarea id="fExcerpt" maxlength="280" style="min-height:70px"></textarea>
+            </div>
             <div class="field">
               <label for="fBody">Body <span class="hint">blank line between paragraphs</span></label>
               <textarea id="fBody" style="min-height:260px"></textarea>

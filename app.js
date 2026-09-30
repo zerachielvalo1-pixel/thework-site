@@ -2687,6 +2687,49 @@ $('#fThumb').addEventListener('change', e => {
 });
 
 
+// ---------- Auto-fill excerpt ----------
+function twAutoExcerpt(body, maxLen) {
+  maxLen = maxLen || 240;
+  const text = String(body || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+
+  const sentences = text.match(/[^.!?]+[.!?]+(?:["'”’])?/g) || [text];
+  let excerpt = '';
+  for (let i = 0; i < sentences.length && i < 3; i++) {
+    const s = sentences[i].trim();
+    if (!s) continue;
+    if (!excerpt) {
+      excerpt = s;
+    } else if ((excerpt.length + 1 + s.length) <= maxLen - 1) {
+      excerpt += ' ' + s;
+    } else {
+      break;
+    }
+  }
+  excerpt = excerpt.trim();
+  if (excerpt.length > maxLen) {
+    const cut = excerpt.slice(0, maxLen - 1);
+    const lastSpace = cut.lastIndexOf(' ');
+    excerpt = (lastSpace > maxLen * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[.,;:!?!\s]+$/, '') + '…';
+  }
+  if (!/[.!?…]["'”’]?$/.test(excerpt) && text.length > excerpt.replace(/…$/, '').length) {
+    excerpt = excerpt.replace(/[.,;:!?!\s]+$/, '') + '…';
+  }
+  return excerpt;
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#autoFillExcerptBtn')) return;
+  const bodyEl = document.getElementById('fBody');
+  const excEl  = document.getElementById('fExcerpt');
+  if (!bodyEl || !excEl) return;
+  const val = twAutoExcerpt(bodyEl.value, 240);
+  if (!val) { toast('Write the body first', true); return; }
+  if (excEl.value.trim() && !confirm('Replace the current excerpt?')) return;
+  excEl.value = val;
+  toast('Excerpt filled');
+});
+
 // ---------- word count meter ----------
 const WORD_TARGETS = {
   news:      { min: 300, max: 600,  label: 'News: 300–600 words' },
