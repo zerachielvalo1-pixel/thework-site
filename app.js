@@ -3083,7 +3083,7 @@ document.addEventListener('click', e => {
 
 // ---------- word count meter ----------
 const WORD_TARGETS = {
-  news:          { min: 150, max: 600,  label: 'News: 150–600 words' },
+  news:          { min: 50,  max: 600,  label: 'News: 50–600 words' },
   editorial:     { min: 300, max: 800,  label: 'Editorial: 300–800 words' },
   opinion:       { min: 300, max: 900,  label: 'Opinion: 300–900 words' },
   features:      { min: 150, max: 1500, label: 'Features: 150–1,500 words' },
