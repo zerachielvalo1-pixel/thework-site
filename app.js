@@ -150,6 +150,7 @@ let releaseProvider = 'heyzine';
 let archiveFilter = 'all';
 let videoCatFilter = 'all';
 let homeSort = 'recent';
+let newsSubcat = 'all';
 let editingMemoriamId = null;
 let pendingMemoriamPhoto = null;
 let draftTimer = null;
@@ -766,9 +767,13 @@ function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
     ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">`
     : `<div class="article-thumb-text">${esc((CAT_LABELS[a.cat]||'?').charAt(0))}</div>`;
+  const SUBCAT_LABELS = { university:'University', local:'Local', national:'National', politics:'Politics' };
+  const subcatBadge = (a.cat === 'news' && a.subcat && SUBCAT_LABELS[a.subcat])
+    ? `<span class="article-subcat">${esc(SUBCAT_LABELS[a.subcat])}</span>`
+    : '';
   const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'The Work');
   return `
-    <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span></div>
+    <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>${subcatBadge}</div>
     <div class="article-body">
       <h3 class="article-title"><a data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a></h3>
       <p class="article-excerpt">${esc(a.excerpt||(a.body||'').split('\n\n')[0]||'')}</p>
@@ -798,7 +803,23 @@ async function renderHome() {
   }
   articles = published;
 
+  // Show/hide subcat strip based on active tab
+  const subcatStrip = document.getElementById('subcatStrip');
+  if (subcatStrip) {
+    if (activeFilter === 'news') {
+      subcatStrip.style.display = 'block';
+    } else {
+      subcatStrip.style.display = 'none';
+      newsSubcat = 'all';
+      $$('.subcat-tab').forEach(t => t.classList.toggle('active', t.dataset.subcat === 'all'));
+    }
+  }
+
   let list = activeFilter === 'all' ? published : published.filter(a => a.cat === activeFilter);
+  // Apply news sub-category filter
+  if (activeFilter === 'news' && newsSubcat !== 'all') {
+    list = list.filter(a => (a.subcat || '') === newsSubcat);
+  }
   if (searchTerm) {
     list = list.filter(a => {
       const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.body||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.photojournalist_2||'')+' '+(a.photo_courtesy||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
@@ -3097,6 +3118,15 @@ function updateBodyMeter() {
     const opt = catEl && (catEl.value === 'editorial' || catEl.value === 'news');
     authorHint.textContent = opt ? 'optional for ' + (CAT_LABELS[catEl.value] || catEl.value) : '*';
   }
+  // Show sub-category field only for News
+  const subcatField = document.getElementById('fSubcatField');
+  if (subcatField) {
+    subcatField.style.display = (catEl && catEl.value === 'news') ? '' : 'none';
+    if (catEl && catEl.value !== 'news') {
+      const sc = document.getElementById('fSubcat');
+      if (sc) sc.value = '';
+    }
+  }
 }
 document.addEventListener('input', e => {
   if (e.target && e.target.id === 'fBody') updateBodyMeter();
@@ -3113,6 +3143,7 @@ function resetForm() {
   $('#fDate').value = todayISO();
   $('#fRead').value = '';
   $('#fPublishAt').value = '';
+    if ($('#fSubcat')) $('#fSubcat').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
     $('#fPhoto2').value = '';
@@ -3135,6 +3166,7 @@ function loadIntoForm(id) {
   $('#fId').value = id;
   $('#fTitle').value = a.title || '';
   $('#fCat').value = a.cat || '';
+    if ($('#fSubcat')) $('#fSubcat').value = a.subcat || '';
   $('#fAuthor').value = a.author || '';
   $('#fAuthor2').value = a.author2 || '';
   $('#fPhoto').value = a.photojournalist || '';
@@ -3200,6 +3232,7 @@ $('#articleForm').addEventListener('submit', async e => {
     const payload = {
       id: editingId || uid(),
       title, cat, author,
+      subcat: ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : null,
       author2: $('#fAuthor2').value.trim() || null,
       photojournalist: $('#fPhoto').value.trim() || null,
       photojournalist_2: $('#fPhoto2').value.trim() || null,
@@ -3457,6 +3490,14 @@ $$('.archive-tab').forEach(tab => {
     }
     archiveFilter = tab.dataset.filter;
     renderReleasesPage();
+  });
+});
+$$('.subcat-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.subcat-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    newsSubcat = tab.dataset.subcat || 'all';
+    renderHome();
   });
 });
 $$('.sort-tab').forEach(tab => {

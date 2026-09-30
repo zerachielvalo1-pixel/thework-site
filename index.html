@@ -99,6 +99,16 @@
       </div>
     </div>
   </div>
+    <div class="subcat-strip" id="subcatStrip" style="display:none">
+    <div class="subcat-strip-inner" role="group" aria-label="News sub-categories">
+      <span class="subcat-label">News</span>
+      <button class="subcat-tab active" data-subcat="all" type="button">All</button>
+      <button class="subcat-tab" data-subcat="university" type="button">University</button>
+      <button class="subcat-tab" data-subcat="local" type="button">Local</button>
+      <button class="subcat-tab" data-subcat="national" type="button">National</button>
+      <button class="subcat-tab" data-subcat="politics" type="button">Politics</button>
+    </div>
+  </div>
   <div class="sort-strip">
     <div class="sort-strip-inner" role="tablist" aria-label="Sort stories">
       <span class="sort-label">Sort</span>
@@ -617,6 +627,16 @@
             <div class="row-2">
               <div class="field"><label for="fCat">Section <span class="hint">*</span></label><select id="fCat" required><option value="">Choose…</option><option value="news">News</option><option value="editorial">Editorial</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="standpoints">Standpoints</option><option value="entertainment">Entertainment</option></select></div>
               <div class="field"><label for="fAuthor">Author <span class="hint" id="fAuthorHint">*</span></label><input type="text" id="fAuthor" maxlength="80" list="boardNames"></div>
+            </div>
+            <div class="field" id="fSubcatField" style="display:none">
+              <label for="fSubcat">News sub-category <span class="hint">optional</span></label>
+              <select id="fSubcat">
+                <option value="">—</option>
+                <option value="university">University</option>
+                <option value="local">Local</option>
+                <option value="national">National</option>
+                <option value="politics">Politics</option>
+              </select>
             </div>
             <div class="field"><label for="fAuthor2">Second author <span class="hint">optional</span></label><input type="text" id="fAuthor2" maxlength="80" list="boardNames"></div>
             <div class="row-2">

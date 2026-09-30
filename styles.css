@@ -1054,3 +1054,21 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   position:relative;
   z-index:1;
 }
+/* News sub-category strip */
+.subcat-strip{border-bottom:1px solid var(--line);background:var(--paper)}
+.subcat-strip-inner{max-width:var(--maxw);margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x;overscroll-behavior-x:contain;overscroll-behavior-y:none}
+.subcat-strip-inner::-webkit-scrollbar{display:none}
+.subcat-label{font-family:var(--sans);font-size:.6rem;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-4);margin-right:8px;flex:none}
+.subcat-tab{font-family:var(--sans);font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);background:transparent;border:1.5px solid var(--line);padding:5px 12px;border-radius:999px;cursor:pointer;transition:.15s var(--ease);white-space:nowrap;flex:none}
+.subcat-tab:hover{color:var(--ink);border-color:var(--ink-4)}
+.subcat-tab.active{background:var(--accent);color:#fff;border-color:transparent}
+[data-theme="dark"] .subcat-tab.active{background:var(--brand-primary)}
+
+/* News sub-cat badge on cards */
+.article-subcat{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);color:#fff;font-family:var(--sans);font-size:.55rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:999px;z-index:3;border:1px solid rgba(255,255,255,.2)}
+
+@media(max-width:640px){
+  .subcat-strip-inner{padding:8px 12px;gap:4px}
+  .subcat-label{font-size:.55rem;margin-right:4px}
+  .subcat-tab{font-size:.6rem;padding:4px 10px}
+}
