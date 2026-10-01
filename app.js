@@ -640,7 +640,7 @@ async function loadRole() {
 function canAccess(panel) {
   const r = currentRole || 'member';
   if (r === 'dev') return true;
-  if (panel === 'releases' || panel === 'memoriam' || panel === 'board') return r === 'eb';
+  if (panel === 'releases' || panel === 'memoriam' || panel === 'board' || panel === 'roster') return r === 'eb';
   if (panel === 'trash') return r === 'eb';
   return true; // dashboard, articles, new, videos, settings, permissions
 }
@@ -3922,6 +3922,10 @@ async function init() {
   twUpdateSavedUI();
   twInitOfflineBanner();
   applyBrandColors();
+  try {
+    const loaded = await Data.listBoardMembers();
+    if (Array.isArray(loaded) && loaded.length) boardMembers = loaded;
+  } catch (e) { /* keep hardcoded fallback */ }
   populateBoardNames();
 
   $('#year').textContent = new Date().getFullYear();
