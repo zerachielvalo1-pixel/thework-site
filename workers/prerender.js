@@ -173,7 +173,10 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
     image,
     mainEntityOfPage: { '@type': 'WebPage', '@id': canonical }
   };
-  const jsonLd = JSON.stringify(schema).replace(/</g, '\u003c');
+  const jsonLd = JSON.stringify(schema)
+  .replace(/</g, '\\u003c')
+  .replace(/>/g, '\\u003e')
+  .replace(/&/g, '\\u0026');
   html = html.replace('</head>', `<script type="application/ld+json">${jsonLd}</script>\n</head>`);
   html = html.replace(/<main id="view-home" class="view active">[\s\S]*?<\/main>/i, storyMarkup(article));
 

@@ -586,25 +586,18 @@ function ensureReleasesPreview() {
 }
 
 async function getSession() {
-  if (!sb) { const s = localStorage.getItem('tw_session'); return s ? JSON.parse(s) : null; }
+  if (!sb) return null;
   const { data } = await sb.auth.getSession();
   return data.session;
 }
 async function signIn(email, password) {
-  if (!sb) {
-    if (email === 'admin@thework.tsu' && password === 'admin123') {
-      const s = { user: { email } };
-      localStorage.setItem('tw_session', JSON.stringify(s));
-      return { ok: true, session: s };
-    }
-    return { ok: false, error: 'Demo mode only' };
-  }
+  if (!sb) return { ok: false, error: 'Connection error. Reload the page.' };
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) return { ok: false, error: error.message };
   return { ok: true, session: data.session };
 }
 async function signOut() {
-  if (!sb) { localStorage.removeItem('tw_session'); return; }
+  if (!sb) return;
   await sb.auth.signOut();
 }
 
@@ -625,7 +618,7 @@ const ROLE_PERMISSIONS = {
 };
 
 async function loadRole() {
-  if (!sb) { currentRole = 'dev'; applyRoleUI(); return; }
+  if (!sb) { currentRole = null; return; }
   if (!session || !session.user) { currentRole = null; return; }
   try {
     const { data, error } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
