@@ -14,6 +14,92 @@ const $ = (s,c) => (c||document).querySelector(s);
 const $$ = (s,c) => Array.from((c||document).querySelectorAll(s));
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,10));
+
+/* ---------- Responsive image delivery ----------
+   Thumbnails in the Storage bucket are full-resolution uploads. Served from
+   /storage/v1/object/public/ they are both huge (measured: one JPEG at 4.5 MB,
+   one PNG at 552 KB) and uncacheable, because that endpoint answers
+   `Cache-Control: no-cache` and forces a revalidation on every page view.
+
+   Supabase also exposes an on-the-fly renderer at /storage/v1/render/image/,
+   which resizes and re-encodes server-side and replies with
+   `Cache-Control: max-age=31536000`. Routing thumbnails through it with a
+   display-appropriate width and an explicit webp output (PNG sources otherwise
+   stay PNG and stay enormous) removes 75-95% of the bytes.
+
+   Non-Supabase URLs - external embeds and pasted links - pass through as-is. */
+const IMG_OBJECT_PATH = '/storage/v1/object/public/';
+const IMG_RENDER_PATH = '/storage/v1/render/image/public/';
+const IMG_QUALITY = 68;
+
+function imgUrl(url, width) {
+  const src = String(url == null ? '' : url);
+  if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
+  const sep = src.indexOf('?') === -1 ? '?' : '&';
+  /* resize=contain is required, not cosmetic. With only `width` and no resize
+     mode the renderer *stretches* the image to that width and leaves the height
+     alone - a 1400x1400 upload came back as 640x1400. `contain` scales
+     proportionally, which is what object-fit:cover in the CSS then crops. */
+  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+    'width=' + width + '&resize=contain&quality=' + IMG_QUALITY + '&format=webp';
+}
+
+/* Emits <img> with srcset so phones fetch the small variant and wide screens
+   fetch the larger one. Falls back to a plain tag for untransformable URLs. */
+function imgTag(url, widths, sizes, attrs) {
+  const src = String(url == null ? '' : url);
+  const extra = attrs || '';
+  if (!src) return '';
+  if (src.indexOf(IMG_OBJECT_PATH) === -1) {
+    return `<img src="${esc(src)}"${extra}>`;
+  }
+  const largest = widths[widths.length - 1];
+  const set = widths.map(w => `${imgUrl(src, w)} ${w}w`).join(', ');
+  const sizeAttr = sizes ? ` sizes="${esc(sizes)}"` : '';
+  return `<img src="${esc(imgUrl(src, largest))}" srcset="${esc(set)}"${sizeAttr}${extra}>`;
+}
+
+/* Link-preview card. Mirrors socialCardUrl() in workers/prerender.js so the
+   client-rendered and server-prerendered versions of a story agree.
+   Note there is no `format` argument: that makes the renderer transcode the
+   .webp uploads to JPEG, which is what the social crawlers can actually read.
+   No size is declared either, because the renderer never upscales and so the
+   output is not reliably 1200x630. */
+function socialCardUrl(url) {
+  const src = String(url == null ? '' : url);
+  if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
+  const sep = src.indexOf('?') === -1 ? '?' : '&';
+  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+    'width=1200&height=630&resize=cover&quality=80';
+}
+
+/* Common `sizes` hints, kept in one place so layouts stay in sync. */
+const SIZES = {
+  lead:    '(max-width: 900px) 100vw, 700px',
+  card:    '(max-width: 580px) 100vw, (max-width: 900px) 50vw, 380px',
+  video:   '(max-width: 560px) 100vw, (max-width: 900px) 50vw, 380px',
+  preview: '(max-width: 480px) 100vw, (max-width: 900px) 50vw, 380px',
+  hero:    '(max-width: 900px) 100vw, 900px',
+  modal:   '(max-width: 780px) 100vw, 720px'
+};
+
+/* ---------- Overlay scroll lock ----------
+   Every full-screen overlay needs the page behind it to stop scrolling. The
+   previous approach set `body.style.overflow` directly, which had two faults:
+   iOS Safari largely ignores it, and closing one overlay released the lock even
+   when another (article modal opened from the board profile, say) was still
+   open. A counter plus a class on <html> - which Safari does honour - fixes
+   both, and keeps the CSS overflow guard on <body> intact. */
+let twScrollLocks = 0;
+function lockScroll() {
+  twScrollLocks++;
+  if (twScrollLocks === 1) document.documentElement.classList.add('tw-locked');
+}
+function unlockScroll() {
+  if (twScrollLocks === 0) return;
+  twScrollLocks--;
+  if (twScrollLocks === 0) document.documentElement.classList.remove('tw-locked');
+}
 const todayISO = () => new Date().toISOString().slice(0,10);
 const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
 const fmtDateLong = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); };
@@ -279,7 +365,12 @@ const Data = {
       appCache.publishedArticles = result;
       return result.slice();
     }
-    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,author,author2,read,views,featured,updated,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by';
+    /* `status` must stay in this list. Without it every public article has
+       status === undefined, which silently broke three things that test for
+       'published': the related-articles list in the modal, the view counter,
+       and articleModalSeo - the flag that pushes /stories/<slug>/<id> into the
+       address bar and updates the og:/canonical tags. */
+    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by';
     const { data, error } = await sb.from('articles').select(PUBLISHED_COLUMNS).eq('status','published').is('deleted_at', null).order('date',{ascending:false, nullsFirst:false});
     if (error) { console.error(error); return []; }
     appCache.publishedArticles = data || [];
@@ -722,10 +813,26 @@ $('#confirmCancel').addEventListener('click', closeConfirm);
 $('#confirmOverlay').addEventListener('click', e => { if (e.target === $('#confirmOverlay')) closeConfirm(); });
 $('#confirmOk').addEventListener('click', () => { if (confirmCb) confirmCb(); closeConfirm(); });
 
+/* The head ships prefers-color-scheme variants of theme-color. Once the user
+   picks a theme by hand the OS preference is no longer the source of truth, so
+   append a media-less meta - last in <head> wins - and keep it updated. */
+function syncThemeColor(t) {
+  let m = document.getElementById('themeColorMeta');
+  if (!m) {
+    m = document.createElement('meta');
+    m.id = 'themeColorMeta';
+    document.head.appendChild(m);
+  }
+  m.removeAttribute('media');
+  m.setAttribute('name', 'theme-color');
+  m.setAttribute('content', t === 'dark' ? '#0D0720' : '#FAF8FF');
+}
+
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   $('#iconSun').style.display = t==='dark'?'none':'block';
   $('#iconMoon').style.display = t==='dark'?'block':'none';
+  syncThemeColor(t);
   try { localStorage.setItem('tw_theme', t); } catch(e){}
 }
 $('#themeToggle').addEventListener('click', () => {
@@ -747,15 +854,22 @@ $('#themeToggle').addEventListener('click', () => {
     try { localStorage.setItem('tw_sort_visible', isVisible ? '0' : '1'); } catch(e) {}
   });
 })();
+/* Single owner of the mobile menu so the burger, the links and the router can
+   never disagree about its state - or about the scroll lock that goes with it. */
+function setNavMenu(open) {
+  const nav = $('#navSections');
+  const burger = $('#burger');
+  if (!nav) return;
+  if (nav.classList.contains('open') === open) return;
+  nav.classList.toggle('open', open);
+  if (burger) burger.setAttribute('aria-expanded', String(open));
+  if (open) lockScroll(); else unlockScroll();
+}
 $('#burger').addEventListener('click', () => {
-  const open = $('#navSections').classList.toggle('open');
-  $('#burger').setAttribute('aria-expanded', String(open));
+  setNavMenu(!$('#navSections').classList.contains('open'));
 });
 $('#navSections').addEventListener('click', e => {
-  if (e.target.tagName === 'A') {
-    $('#navSections').classList.remove('open');
-    $('#burger').setAttribute('aria-expanded','false');
-  }
+  if (e.target.tagName === 'A') setNavMenu(false);
 });
 window.addEventListener('scroll', () => {
   $('#nav').classList.toggle('stuck', window.scrollY > 6);
@@ -856,7 +970,7 @@ function renderStoryPage(article) {
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
-        ${article.thumbnail ? `<figure class="story-hero"><img src="${esc(article.thumbnail)}" alt="" fetchpriority="high" decoding="async"></figure>` : ''}
+        ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
       </div>
     </article>`;
@@ -870,15 +984,33 @@ function updateArticleMeta(article) {
   const canonicalUrl = article ? new URL(storyUrl(article), location.origin).href : `${location.origin}/`;
   document.title = title;
   const meta = (selector, value, attr = 'content') => {
-    const el = document.querySelector(selector);
-    if (el) el.setAttribute(attr, value || '');
+    let el = document.querySelector(selector);
+    if (!el) {
+      /* Opening a story from the list never reloads the page, so tags the
+         prerender worker would have injected do not exist yet. Create them,
+         otherwise the SPA silently advertises nothing. */
+      const parsed = selector.match(/^meta\[(name|property)="([^"]+)"\]$/);
+      if (!parsed) return;
+      el = document.createElement('meta');
+      el.setAttribute(parsed[1], parsed[2]);
+      document.head.appendChild(el);
+    }
+    el.setAttribute(attr, value || '');
   };
   meta('meta[name="description"]', description);
   meta('meta[property="og:type"]', article ? 'article' : 'website');
   meta('meta[property="og:title"]', title);
   meta('meta[property="og:description"]', description);
   meta('meta[property="og:url"]', canonicalUrl);
-  meta('meta[property="og:image"]', article && article.thumbnail ? article.thumbnail : `${location.origin}/logo-tw.png`);
+  const cardImage = article && article.thumbnail
+    ? socialCardUrl(article.thumbnail)
+    : `${location.origin}/logo-tw.png`;
+  meta('meta[property="og:image"]', cardImage);
+  meta('meta[property="og:image:secure_url"]', cardImage);
+  meta('meta[property="og:image:alt"]', article ? article.title : 'The Work');
+  meta('meta[name="twitter:card"]', 'summary_large_image');
+  meta('meta[name="twitter:image"]', cardImage);
+  meta('meta[name="twitter:image:alt"]', article ? article.title : 'The Work');
   meta('link[rel="canonical"]', canonicalUrl, 'href');
 }
 
@@ -892,7 +1024,7 @@ function fmtViews(n) {
 
 function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
-    ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">`
+    ? imgTag(a.thumbnail, [320, 640], SIZES.card, ' alt="" loading="lazy" decoding="async"')
     : `<div class="article-thumb-text">${esc((CAT_LABELS[a.cat]||'?').charAt(0))}</div>`;
   const SUBCAT_LABELS = { university:'University', local:'Local', national:'National', politics:'Politics' };
   const subcatBadge = (a.cat === 'news' && a.subcat && SUBCAT_LABELS[a.subcat])
@@ -993,14 +1125,14 @@ async function renderHome() {
   const gridArticles = list.slice(5);
 
   const leadThumbHtml = lead.thumbnail
-    ? `<img src="${esc(lead.thumbnail)}" alt="" loading="eager" fetchpriority="high" decoding="async">`
+    ? imgTag(lead.thumbnail, [480, 960], SIZES.lead, ' alt="" loading="eager" fetchpriority="high" decoding="async"')
     : `<div class="lead-story-thumb-text">${esc((CAT_LABELS[lead.cat]||'?').charAt(0))}</div>`;
   const leadByline = lead.author2 ? `${lead.author} & ${lead.author2}` : (lead.author || 'The Work');
 
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}">
       <div class="sidebar-item-thumb">
-        ${a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="" loading="lazy">` : esc((CAT_LABELS[a.cat]||'?').charAt(0))}
+        ${a.thumbnail ? imgTag(a.thumbnail, [240], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[a.cat]||'?').charAt(0))}
       </div>
       <div class="sidebar-item-content">
         <span class="sidebar-item-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>
@@ -1176,7 +1308,7 @@ async function renderReleasesPreview() {
 function releaseCardHtml(issue) {
   const cover = issue.cover_url || '';
   const coverHtml = cover
-    ? `<img src="${esc(cover)}" alt="" loading="lazy">`
+    ? imgTag(cover, [280, 560], '(max-width: 480px) 100vw, (max-width: 900px) 50vw, 280px', ' alt="" loading="lazy" decoding="async"')
     : `<div class="release-cover-text">${esc((issue.title||'?').charAt(0))}</div>`;
   const prov = detectProvider(issue.heyzine_url);
   const catLabel = RELEASE_CAT_LABELS[issue.category] || 'Magazine';
@@ -1270,7 +1402,7 @@ async function renderVideosPage() {
     return `
       <div class="video-card${isPortrait ? ' portrait' : ''}" data-video-id="${esc(v.id)}" role="button" tabindex="0">
         <div class="video-thumb">
-          ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy">` : ''}
+          ${thumb ? imgTag(thumb, [320, 640], SIZES.video, ' alt="" loading="lazy" decoding="async"') : ''}
           <span class="video-cat-badge">${esc(subLabel)}</span>
           <div class="video-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
         </div>
@@ -1300,7 +1432,7 @@ async function renderMemoriamPage() {
   list.innerHTML = items.map(m => `
     <div class="memoriam-item" data-memoriam-id="${esc(m.id)}" role="button" tabindex="0">
       <div class="memoriam-photo">
-        ${m.photo_url ? `<img src="${esc(m.photo_url)}" alt="" loading="lazy">` : `<div class="memoriam-fallback">${esc((m.school_year||'?').slice(0,4))}</div>`}
+        ${m.photo_url ? imgTag(m.photo_url, [400], '(max-width: 420px) 100vw, (max-width: 720px) 50vw, 260px', ' alt="" loading="lazy" decoding="async"') : `<div class="memoriam-fallback">${esc((m.school_year||'?').slice(0,4))}</div>`}
       </div>
       <div class="memoriam-body">
         <div class="memoriam-year">${esc(m.school_year||'')}</div>
@@ -1322,7 +1454,7 @@ function openMemoriam(id, list) {
   lastFocused = document.activeElement;
   const photo = document.getElementById('memoriamModalPhoto');
   photo.innerHTML = m.photo_url
-    ? `<img src="${esc(m.photo_url)}" alt="" loading="lazy" decoding="async">`
+    ? imgTag(m.photo_url, [480, 960], '(max-width: 780px) 100vw, 520px', ' alt="" loading="lazy" decoding="async"')
     : `<div class="memoriam-fallback">${esc((m.school_year||'?').slice(0,4))}</div>`;
   document.getElementById('memoriamModalYear').textContent = m.school_year || '';
   document.getElementById('memoriamModalTerm').textContent = m.term_label || '';
@@ -1330,11 +1462,11 @@ function openMemoriam(id, list) {
   if (m.caption) { cap.textContent = m.caption; cap.style.display = 'block'; }
   else { cap.textContent = ''; cap.style.display = 'none'; }
   document.getElementById('memoriamOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  lockScroll();
 }
 function closeMemoriam() {
   document.getElementById('memoriamOverlay').classList.remove('open');
-  document.body.style.overflow = '';
+  unlockScroll();
   if (lastFocused) lastFocused.focus();
 }
 
@@ -1353,7 +1485,7 @@ function openReader(releaseId) {
   const stage = $('#readerStage');
   stage.innerHTML = '<div class="reader-loading"><div class="spinner"></div>Loading flipbook…</div>';
   $('#readerOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  lockScroll();
   const iframe = document.createElement('iframe');
   iframe.src = embed;
   iframe.setAttribute('allowfullscreen', 'allowfullscreen');
@@ -1368,7 +1500,7 @@ function openReader(releaseId) {
 
 function closeReader() {
   $('#readerOverlay').classList.remove('open');
-  document.body.style.overflow = '';
+  unlockScroll();
   $('#readerStage').innerHTML = '';
   if (lastFocused) lastFocused.focus();
 }
@@ -1434,7 +1566,7 @@ function openVideo(id, list) {
     stage.innerHTML = `
       <div class="fb-fallback-wrap">
         <div class="fb-fallback-inner">
-          ${thumb ? `<img class="fb-fallback-img" src="${esc(thumb)}" alt="">` : ''}
+          ${thumb ? imgTag(thumb, [400], '(max-width: 640px) 90vw, 400px', ' class="fb-fallback-img" alt="" decoding="async"') : ''}
           <div class="fb-fallback-label">Facebook video</div>
           <h3 class="fb-fallback-title">${esc(v.title||'')}</h3>
           ${v.description ? `<p class="fb-fallback-desc">${esc(v.description)}</p>` : ''}
@@ -1447,7 +1579,7 @@ function openVideo(id, list) {
       </div>`;
     ext.classList.remove('show');
     $('#readerOverlay').classList.add('open');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     return;
   }
 
@@ -1457,7 +1589,7 @@ function openVideo(id, list) {
   else { ext.classList.remove('show'); ext.href = '#'; }
   stage.innerHTML = '<div class="reader-loading"><div class="spinner"></div>Loading video…</div>';
   $('#readerOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  lockScroll();
   const iframe = document.createElement('iframe');
   iframe.src = embed;
   iframe.setAttribute('allowfullscreen','allowfullscreen');
@@ -1510,7 +1642,7 @@ function renderBoard() {
         el.setAttribute('tabindex','0');
         el.setAttribute('role','button');
         const photo = boardPhotos[m.name];
-        const avatarHtml = photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : esc(m.initials);
+        const avatarHtml = photo ? imgTag(photo, [160], '', ' alt="" loading="lazy" decoding="async"') : esc(m.initials);
         el.innerHTML = `<div class="board-avatar">${avatarHtml}</div><h3>${esc(m.name)}</h3><div class="board-role">${esc(m.role)}</div><div class="board-program" style="font-family:var(--sans);font-size:.68rem;color:var(--ink-4);margin-top:6px;line-height:1.35">${esc(m.program||'')}</div>`;
         el.addEventListener('click', () => openBoardProfile(m.name));
         grid.appendChild(el);
@@ -1525,7 +1657,7 @@ function renderBoardAdmin() {
   // (Board data is static, no loading needed — just render immediately)
   grid.innerHTML = boardMembers.map(p => {
     const photo = boardPhotos[p.name];
-    const avatarHtml = photo ? `<img src="${esc(photo)}" alt="">` : esc(p.initials);
+    const avatarHtml = photo ? imgTag(photo, [160], '', ' alt="" loading="lazy" decoding="async"') : esc(p.initials);
     return `
       <div class="board-admin-card">
         <div class="board-admin-photo">${avatarHtml}</div>
@@ -1581,7 +1713,7 @@ async function openBoardProfile(name) {
   const videoEditor    = allVideos.filter(v => matchField(v.editor));
 
   const photo = boardPhotos[name];
-  $('#bpAvatar').innerHTML = photo ? `<img src="${esc(photo)}" alt="">` : esc(member.initials);
+  $('#bpAvatar').innerHTML = photo ? imgTag(photo, [200], '', ' alt="" decoding="async"') : esc(member.initials);
   $('#bpName').textContent = member.name;
   $('#bpRole').textContent = member.role;
   if (member.program && member.program !== '—') {
@@ -1612,7 +1744,7 @@ async function openBoardProfile(name) {
         ${sec.items.map(a => {
           const isVideo = sec.isVideo;
           const thumbSrc = isVideo ? (a.thumbnail_url || youtubeThumb(a)) : a.thumbnail;
-          const thumbHtml = thumbSrc ? `<img src="${esc(thumbSrc)}" alt="">` : esc(((isVideo ? a.title : (CAT_LABELS[a.cat]||'?'))||'?').charAt(0));
+          const thumbHtml = thumbSrc ? imgTag(thumbSrc, [480, 960], SIZES.modal, ' alt="" decoding="async"') : esc(((isVideo ? a.title : (CAT_LABELS[a.cat]||'?'))||'?').charAt(0));
           const metaText = isVideo
             ? 'Video · ' + esc(fmtDate(a.published || a.updated))
             : esc(CAT_LABELS[a.cat]||a.cat) + ' · ' + esc(fmtDate(a.date));
@@ -1642,13 +1774,13 @@ async function openBoardProfile(name) {
 
   $('#boardProfileOverlay').classList.add('open');
   boardProfileOpen = true;
-  document.body.style.overflow = 'hidden';
+  lockScroll();
 }
 
 function closeBoardProfile() {
   $('#boardProfileOverlay').classList.remove('open');
   boardProfileOpen = false;
-  document.body.style.overflow = '';
+  unlockScroll();
   if (lastFocused) lastFocused.focus();
 }
 $('#boardProfileClose').addEventListener('click', closeBoardProfile);
@@ -1657,7 +1789,11 @@ $('#memoriamClose').addEventListener('click', closeMemoriam);
 $('#memoriamOverlay').addEventListener('click', e => { if (e.target === $('#memoriamOverlay')) closeMemoriam(); });
 
 function twGetShareUrl(a) {
-  return 'https://thework.tw78.workers.dev' + storyUrl(a);
+  /* Derived from the current origin rather than a hardcoded workers.dev host, so
+     shared links keep working on a custom domain (and in local testing). The
+     path form matters: crawlers ignore #fragments, so a hash route would always
+     preview the generic homepage card. */
+  return location.origin + storyUrl(a);
 }
 function twRenderRelated(a) {
   const el = document.getElementById('modalRelated');
@@ -1674,7 +1810,7 @@ function twRenderRelated(a) {
     <div class="related-list">
       ${related.map(r => `
         <div class="related-item" data-related-id="${esc(r.id)}" role="button" tabindex="0">
-          <div class="related-thumb">${r.thumbnail ? `<img src="${esc(r.thumbnail)}" alt="" loading="lazy">` : esc((CAT_LABELS[r.cat]||'?').charAt(0))}</div>
+          <div class="related-thumb">${r.thumbnail ? imgTag(r.thumbnail, [160], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[r.cat]||'?').charAt(0))}</div>
           <div class="related-info">
             <div class="related-title">${esc(r.title)}</div>
             <div class="related-meta">${esc(r.author || 'Staff')} · ${esc(fmtDate(r.date))}</div>
@@ -1842,7 +1978,7 @@ async function openArticle(id) {
 
   const letter = esc((CAT_LABELS[a.cat]||'?').charAt(0));
   $('#modalHero').innerHTML = a.thumbnail
-    ? `<div class="modal-hero-bg" style="background-image:url('${esc(a.thumbnail)}')"></div><img src="${esc(a.thumbnail)}" alt="" loading="lazy" decoding="async">`
+    ? `<div class="modal-hero-bg" style="background-image:url('${esc(imgUrl(a.thumbnail, 160))}')"></div>${imgTag(a.thumbnail, [480, 1080], SIZES.modal, ' alt="" loading="lazy" decoding="async"')}`
     : `<span class="modal-hero-text">${letter}</span>`;
   const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
   const content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
@@ -1889,13 +2025,13 @@ async function openArticle(id) {
 
   $('#modalOverlay').classList.add('open');
   modalOpen = true;
-  document.body.style.overflow = 'hidden';
+  lockScroll();
   $('#modalClose').focus();
 }
 function closeArticle(syncUrl = true) {
   $('#modalOverlay').classList.remove('open');
   modalOpen = false;
-  document.body.style.overflow = '';
+  unlockScroll();
   if (articleModalSeo) {
     if (syncUrl && storyRouteId()) history.replaceState(null, '', articleReturnUrl || '/#/');
     updateArticleMeta(null);
@@ -1946,7 +2082,7 @@ function openCropModal(file, name) {
       imgEl.src = e.target.result;
       document.getElementById('cropZoom').value = 1;
       document.getElementById('cropOverlay').classList.add('open');
-      document.body.style.overflow = 'hidden';
+      lockScroll();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const stage = document.getElementById('cropStage');
         const rect = stage.getBoundingClientRect();
@@ -2010,7 +2146,7 @@ function drawCropPreview() {
 
 function closeCropModal() {
   document.getElementById('cropOverlay').classList.remove('open');
-  document.body.style.overflow = '';
+  unlockScroll();
   crop.img = null; crop.name = null;
 }
 
@@ -2095,7 +2231,7 @@ async function renderReleasesAdmin() {
   }
   el.innerHTML = list.map(r => {
     const cover = r.cover_url || '';
-    const coverHtml = cover ? `<img src="${esc(cover)}" alt="">` : '';
+    const coverHtml = cover ? imgTag(cover, [280, 560], '(max-width: 480px) 100vw, (max-width: 900px) 50vw, 280px', ' alt="" loading="lazy" decoding="async"') : '';
     const prov = detectProvider(r.heyzine_url);
     return `
       <div class="release-list-item">
@@ -2303,7 +2439,7 @@ async function renderVideosAdmin() {
   }
   el.innerHTML = list.map(v => {
     const thumb = v.thumbnail_url || youtubeThumb(v);
-    const thumbHtml = thumb ? `<img src="${esc(thumb)}" alt="">` : '';
+    const thumbHtml = thumb ? imgTag(thumb, [320, 640], SIZES.video, ' alt="" loading="lazy" decoding="async"') : '';
     return `
       <div class="release-list-item">
         <div class="release-list-cover">${thumbHtml}</div>
@@ -2559,7 +2695,7 @@ async function renderMemoriamAdmin() {
   }
   el.innerHTML = list.map(m => {
     const photo = m.photo_url || '';
-    const photoHtml = photo ? `<img src="${esc(photo)}" alt="">` : '';
+    const photoHtml = photo ? imgTag(photo, [320], '', ' alt="" loading="lazy" decoding="async"') : '';
     const captionPreview = m.caption ? (m.caption.length > 60 ? m.caption.slice(0,60) + '…' : m.caption) : '';
     return `
       <div class="release-list-item">
@@ -2888,7 +3024,7 @@ function renderTable() {
   }
   let html = '<table><thead><tr><th style="width:34px;padding-right:0"><input type="checkbox" id="selectAllRows" aria-label="Select all visible rows" /></th><th>Title</th><th>Section</th><th>Status</th><th>Updated</th><th style="text-align:right">Actions</th></tr></thead><tbody>';
   list.forEach(a => {
-    const thumbHtml = a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="">` : esc((CAT_LABELS[a.cat]||'?').charAt(0));
+    const thumbHtml = a.thumbnail ? imgTag(a.thumbnail, [96], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[a.cat]||'?').charAt(0));
     html += `<tr>
       <td style="width:34px;padding-right:0"><input class="row-check" type="checkbox" data-row-id="${esc(a.id)}" ${selectedIds.has(a.id) ? 'checked' : ''} /></td>
       <td class="title-cell"><div class="cell-title"><div class="mini-thumb">${thumbHtml}</div><div style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div><small>by ${esc(a.author||'—')} · ${esc(fmtDate(a.date))}</small></div></div></td>
@@ -3457,7 +3593,7 @@ async function renderTrashAdmin() {
     const deleted = a.deleted_at ? new Date(a.deleted_at).getTime() : now;
     const daysLeft = Math.max(0, 30 - Math.floor((now - deleted) / (24 * 60 * 60 * 1000)));
     const expired = (now - deleted) > THIRTY_DAYS;
-    const thumbHtml = a.thumbnail ? `<img src="${esc(a.thumbnail)}" alt="">` : esc((CAT_LABELS[a.cat]||'?').charAt(0));
+    const thumbHtml = a.thumbnail ? imgTag(a.thumbnail, [96], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[a.cat]||'?').charAt(0));
     return `
       <div class="release-list-item">
         <div class="release-list-cover" style="width:60px;height:60px;border-radius:8px">${thumbHtml}</div>
@@ -3839,6 +3975,7 @@ if (searchBar) {
 }
 
 async function route() {
+  setNavMenu(false);
   const directStoryId = storyRouteId();
   if (directStoryId && location.hash) {
     history.replaceState(null, '', `/${location.hash}`);

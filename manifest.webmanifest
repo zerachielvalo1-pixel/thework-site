@@ -1,0 +1,40 @@
+{
+  "name": "The Work — Tarlac State University",
+  "short_name": "The Work",
+  "description": "The official student publication of Tarlac State University. Founded 1948.",
+  "id": "/",
+  "start_url": "/?utm_source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FAF8FF",
+  "theme_color": "#7C3AED",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["news", "education"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Latest stories", "url": "/#/" },
+    { "name": "Archives", "url": "/#/releases" },
+    { "name": "Video Library", "url": "/#/videos" }
+  ]
+}

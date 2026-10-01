@@ -15,6 +15,9 @@
   --shadow:0 1px 3px rgba(26,14,46,.06),0 4px 14px rgba(26,14,46,.05);
   --shadow-lg:0 4px 12px rgba(26,14,46,.09), 0 18px 48px rgba(26,14,46,.13);
   --ease:cubic-bezier(.22,.61,.36,1);
+  /* Tells the browser to render native UI (scrollbars, form controls,
+     the area behind the page during overscroll) in the matching scheme. */
+  color-scheme:light;
 }
 [data-theme="dark"]{
   --paper:#0D0720; --paper-2:#150C2E; --paper-3:#1E1338;
@@ -22,6 +25,7 @@
   --line:#2A1E4A; --line-2:#22183C;
   --shadow:0 1px 3px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.3);
   --shadow-lg:0 4px 12px rgba(0,0,0,.45), 0 18px 48px rgba(0,0,0,.4);
+  color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 60px)}
@@ -399,7 +403,11 @@ footer ul a:hover{color:var(--accent)}
 .crop-hint{padding:0 24px 12px;font-family:var(--sans);font-size:.72rem;color:var(--ink-3);text-align:center;line-height:1.5}
 .crop-actions{padding:14px 24px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--line)}
 .admin-shell{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - var(--nav-h));background:var(--paper)}
-@media(max-width:900px){.admin-shell{grid-template-columns:1fr}}
+/* minmax(0,1fr) rather than 1fr: the horizontal admin nav strip has a wide
+   min-content width, and a plain 1fr track would let it push the whole admin
+   layout wider than the phone viewport. */
+@media(max-width:900px){.admin-shell{grid-template-columns:minmax(0,1fr)}}
+.admin-main{min-width:0}
 .admin-side{background:var(--paper-2);border-right:1px solid var(--line);padding:24px 14px;position:sticky;top:var(--nav-h);height:calc(100vh - var(--nav-h));overflow-y:auto}
 @media(max-width:900px){.admin-side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:14px;display:flex;gap:6px;overflow-x:auto}}
 .admin-side h4{font-family:var(--sans);font-size:.62rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-4);margin:0 0 12px;padding:0 10px}
@@ -1072,3 +1080,252 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .subcat-label{font-size:.55rem;margin-right:4px}
   .subcat-tab{font-size:.6rem;padding:4px 10px}
 }
+
+/* ============================================================
+   MOBILE / TOUCH OPTIMIZATION LAYER
+   Added as one self-contained block at the end of the sheet so
+   the rules above stay untouched. Everything here is either
+   mobile-scoped or a non-visual correctness fix.
+   ============================================================ */
+
+/* ---------- 1. Correctness & robustness ---------- */
+
+/* iOS inflates text in landscape unless this is pinned down. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+
+/* Kill the grey flash on tapped links/buttons and the legacy 300ms delay. */
+a,button,[role="button"],.section-tab,.sort-tab,.subcat-tab,
+.icon-btn,.icon-action,.board-card,.article,.video-card,.release-card{
+  -webkit-tap-highlight-color:transparent;
+}
+a,button,[role="button"],.section-tab,.sort-tab,.subcat-tab{
+  touch-action:manipulation;
+}
+
+/* Long unbroken strings (URLs, pasted links, long Filipino compounds) must
+   wrap instead of widening the layout past the viewport. */
+.story-content p,#modalContent p,.modal-body p,.article-excerpt,
+.sidebar-item-title,.related-title,.release-list-info h4,.video-body h3,
+.bp-article-info h4,.modal-credit-value,.article-credits .credit-row{
+  overflow-wrap:break-word;
+}
+
+/* Last-resort guard against a sideways scrollbar.
+   `clip` is deliberate: `hidden` would turn the body into a scroll container
+   and break the sticky header. Declared after the sticky rules on purpose. */
+body{overflow-x:clip}
+
+/* Scroll containers shouldn't rubber-band the page behind them. */
+.section-strip-inner,.sort-strip-inner,.subcat-strip-inner,.admin-side{
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+}
+
+/* Overlay scroll lock. Set on <html> rather than <body> because iOS Safari
+   honours it on the root element. Applied by lockScroll() in app.js. */
+html.tw-locked,html.tw-locked body{overflow:hidden}
+
+/* ---------- 2. Safe areas (notch, rounded corners, home indicator) ---------- */
+/* index.html sets viewport-fit=cover, so content may reach the screen edges.
+   env() resolves to 0 on devices without insets. */
+.nav-inner{
+  padding-left:max(24px,env(safe-area-inset-left));
+  padding-right:max(24px,env(safe-area-inset-right));
+}
+.wrap{
+  padding-left:max(24px,env(safe-area-inset-left));
+  padding-right:max(24px,env(safe-area-inset-right));
+}
+@media(max-width:900px){
+  .section-strip-row{
+    padding-left:env(safe-area-inset-left);
+    padding-right:env(safe-area-inset-right);
+  }
+  .nav-inner{
+    padding-left:max(16px,env(safe-area-inset-left));
+    padding-right:max(16px,env(safe-area-inset-right));
+  }
+}
+@media(max-width:640px){
+  .pubbar-inner{
+    padding-left:max(16px,env(safe-area-inset-left));
+    padding-right:max(16px,env(safe-area-inset-right));
+  }
+}
+.toast{bottom:calc(24px + env(safe-area-inset-bottom))}
+.tw-offline-banner{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+.reader-overlay{padding-bottom:env(safe-area-inset-bottom)}
+
+/* ---------- 3. Dynamic viewport units ---------- */
+/* 100vh on iOS includes the collapsing URL bar, which pushes fixed panels
+   off-screen. dvh tracks the *visible* viewport. */
+@supports(height:100dvh){
+  .nav-sections{max-height:calc(100dvh - var(--nav-h))}
+  .admin-side{height:calc(100dvh - var(--nav-h))}
+  .admin-shell{min-height:calc(100dvh - var(--nav-h))}
+  .modal{max-height:88dvh}
+  .crop-modal{max-height:92dvh}
+  .modal-hero{max-height:60dvh}
+  .modal-hero img{max-height:60dvh}
+}
+
+/* ---------- 4. Touch targets & header density ---------- */
+/* The header is the tightest flex row on a phone: brand + Log in + three icon
+   buttons + burger. Measured at 360px it overflowed by 7px, which pushed the
+   burger past the viewport edge. Trimmed here while leaving the 44px hit areas
+   below intact - those come from the ::after box, not the visual one. */
+@media(max-width:520px){
+  .nav-inner{gap:8px}
+  .brand{font-size:1.2rem}
+  .brand-logo{width:24px;height:24px;margin-right:6px}
+  .nav-actions{gap:6px}
+  .nav-actions .btn-sm{padding:7px 11px;font-size:.72rem}
+}
+
+/* Visual size is kept where the design calls for it; the *hit* area is grown
+   to the 44px minimum with an invisible pseudo-element. */
+.icon-btn,.burger{position:relative}
+.icon-btn::after,.burger::after{
+  content:"";
+  position:absolute;
+  inset:-4px;              /* 36px visual -> 44px tappable */
+}
+
+/* Chips and tabs get real padding on touch screens. */
+@media(max-width:900px){
+  .section-tab{min-height:44px;display:inline-flex;align-items:center}
+  .subcat-tab{min-height:34px;display:inline-flex;align-items:center}
+  .sort-tab{min-height:36px;display:inline-flex;align-items:center}
+  .admin-nav button{min-height:44px}
+  .provider-opt{min-height:44px}
+  .icon-action{width:44px;height:44px}
+  .row-actions{gap:8px}
+  .modal-close{width:44px;height:44px}
+  .reader-close{width:44px;height:44px}
+  .social-btn{width:44px;height:44px}
+  .related-item,.bp-article,.release-list-item{padding-top:12px;padding-bottom:12px}
+}
+
+/* Very narrow phones (320px class). Shrink the visual boxes further, but push
+   the invisible hit area back out so taps stay comfortably large. */
+@media(max-width:360px){
+  .nav-inner{gap:6px}
+  .brand{font-size:1.1rem}
+  .brand-logo{width:22px;height:22px;margin-right:5px}
+  .nav-actions{gap:5px}
+  .nav-actions .btn-sm{padding:6px 9px;font-size:.7rem}
+  .icon-btn,.burger{width:32px;height:32px}
+  .icon-btn::after,.burger::after{inset:-6px}   /* 32px visual -> 44px tappable */
+}
+
+/* ---------- 5. Stop iOS zooming the page when a field is focused ---------- */
+/* Safari force-zooms any input whose computed font-size is below 16px. */
+@media(max-width:900px){
+  input[type=text],input[type=email],input[type=password],input[type=date],
+  input[type=datetime-local],input[type=search],input[type=number],select,textarea,
+  .search-input{
+    font-size:16px;
+  }
+  .search-input{padding:10px 34px 10px 14px}
+}
+
+/* ---------- 6. Modals behave as bottom sheets on phones ---------- */
+@media(max-width:640px){
+  .modal-overlay{padding:0;align-items:flex-end}
+  .modal{
+    max-width:100%;
+    width:100%;
+    max-height:92dvh;
+    border-radius:16px 16px 0 0;
+    transform:translateY(40px);
+  }
+  .modal-overlay.open .modal{transform:none}
+  .modal-body{padding:22px 18px calc(22px + env(safe-area-inset-bottom))}
+  .modal-close{top:10px;right:10px}
+  .modal-hero{min-height:150px}
+  .crop-modal{max-width:100%;border-radius:16px 16px 0 0}
+  .crop-head,.crop-preview-wrap,.crop-stage-wrap,.crop-controls,.crop-hint{padding-left:18px;padding-right:18px}
+  .crop-actions{padding:14px 18px calc(18px + env(safe-area-inset-bottom))}
+}
+/* A drag inside a sheet shouldn't scroll the article behind it. */
+.modal,.crop-modal{overscroll-behavior:contain}
+
+/* ---------- 7. Admin toolbar controls must not force a min width ---------- */
+@media(max-width:900px){
+  .table-toolbar{padding:14px}
+  .table-toolbar input[type=text]{flex:1 1 100%;min-width:0}
+  .table-toolbar select{flex:1 1 auto;min-width:0;width:auto}
+  .bulk-bar{flex-direction:column;align-items:stretch;gap:10px}
+  .bulk-actions{justify-content:stretch}
+  .bulk-actions .btn{flex:1}
+  .admin-main{padding:20px 16px}
+  .admin-head{margin-bottom:20px}
+  .stat-grid{gap:10px}
+  .stat-card{padding:14px}
+  .stat-card b{font-size:1.5rem}
+  .form-actions{flex-direction:column}
+  .form-actions .btn{width:100%}
+  .row-2{grid-template-columns:1fr}
+}
+
+/* ---------- 8. Admin tables ---------- */
+/* The wrapper used `overflow:hidden` purely to clip the table to its rounded
+   corners - on a phone that silently cut the "Status", "Updated" and action
+   columns off with no way to reach them. It now scrolls instead of clipping. */
+.table-wrap{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
+
+/* The capability matrix stays a table (it is genuinely tabular); it just gets
+   a readable minimum width and scrolls sideways. */
+#permissionsTable table{min-width:420px}
+@media(max-width:900px){
+  #permissionsTable{overscroll-behavior-x:contain}
+  #permissionsTable th,#permissionsTable td{padding:11px 12px;font-size:.8rem}
+  #permissionsTable th:first-child,#permissionsTable td:first-child{position:sticky;left:0;background:var(--paper-2);z-index:1}
+  #permissionsTable th:first-child{background:var(--paper-3)}
+}
+
+/* The article list becomes one card per row so no column is ever cut off.
+   `td` order is remapped and an empty flex item forces the break after the
+   title, keeping the title row separate from the chips/actions row. */
+@media(max-width:760px){
+  .table-wrap{overflow:visible;border:none;background:transparent}
+  #tableContainer table,#tableContainer thead,#tableContainer tbody,
+  #tableContainer tr,#tableContainer td{display:block;width:auto}
+  #tableContainer thead{display:none}
+  #tableContainer tbody{display:flex;flex-direction:column;gap:10px}
+  #tableContainer tr{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px 10px;
+    padding:14px;
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    background:var(--paper-2);
+    box-shadow:var(--shadow);
+  }
+  #tableContainer td{border:none;padding:0;min-width:0}
+  #tableContainer td:nth-child(1){order:1;flex:none;width:auto}
+  #tableContainer td:nth-child(2){order:2;flex:1 1 60%;min-width:0}
+  /* Empty flex item that guarantees the chips/actions wrap onto their own row. */
+  #tableContainer tr::after{content:"";order:3;flex-basis:100%;height:0;margin-top:-4px}
+  #tableContainer td:nth-child(3){order:4;flex:none}
+  #tableContainer td:nth-child(4){order:5;flex:none}
+  #tableContainer td:nth-child(5){order:6;flex:none}
+  #tableContainer td:nth-child(6){order:7;flex:none;margin-left:auto}
+  #tableContainer .row-actions{gap:8px}
+  #tableContainer td.title-cell{max-width:none}
+  #tableContainer td.title-cell small{white-space:normal;max-width:none}
+  #tableContainer .cell-title{gap:10px;align-items:flex-start}
+  /* :not(.mini-thumb) matters - .mini-thumb is itself a direct div child of
+     .cell-title, so a bare `> div` also matched it and stretched the thumb. */
+  #tableContainer .cell-title > div:not(.mini-thumb){min-width:0;flex:1}
+  #tableContainer .cell-title > div:not(.mini-thumb) > div{white-space:normal!important;overflow:visible!important}
+  #tableContainer .mini-thumb{width:48px;height:48px;flex:none}
+  .row-check,#selectAllRows{width:22px;height:22px}
+}
+
+/* The 760px block above resets `.table-wrap` to `overflow:visible` for the
+   card layout. #permissionsTable *is* a .table-wrap, so re-assert scrolling
+   for it here - the ID selector outranks the class regardless of order. */
+#permissionsTable{overflow-x:auto;overflow-y:hidden}

@@ -39,6 +39,39 @@ function safeImageUrl(value) {
   }
 }
 
+const RENDER_PATH = '/storage/v1/render/image/public/';
+const OBJECT_PATH = '/storage/v1/object/public/';
+const OG_CARD = { width: 1200, height: 630, quality: 80 };
+
+/* Route a Storage object through Supabase's on-the-fly image renderer.
+   Anything not in our bucket (external thumbnails, the local logo) is returned
+   untouched, since there is nothing to transform it with. */
+function renderImage(url, params) {
+  const src = String(url || '');
+  if (src.indexOf(OBJECT_PATH) === -1) return src;
+  const sep = src.indexOf('?') === -1 ? '?' : '&';
+  return src.replace(OBJECT_PATH, RENDER_PATH) + sep + params;
+}
+
+/* The image used for link previews.
+   Social crawlers never run our JavaScript and are far pickier than a browser.
+   Nearly every thumbnail in the bucket is a .webp upload, which those crawlers
+   do not reliably render, so the card is pulled through the renderer with NO
+   `format` argument: that transcodes webp and jpeg to JPEG while leaving PNG as
+   PNG, and both are formats every preview crawler accepts. resize=cover fits it
+   to the 1.91:1 that Facebook, Messenger and X expect.
+
+   og:image:width / og:image:height are deliberately NOT emitted. They used to be
+   hardcoded to 1200x630, which matched no image in the bucket (uploads are
+   square, portrait and landscape). Worse, the renderer never upscales, so a
+   908px-wide source comes back 908x630 rather than 1200x630 - and declaring a
+   size the file does not have is a documented reason for crawlers to drop the
+   preview entirely. Omitting them lets the crawler measure the real file. */
+function socialCardUrl(url) {
+  return renderImage(url, `width=${OG_CARD.width}&height=${OG_CARD.height}` +
+    `&resize=cover&quality=${OG_CARD.quality}`);
+}
+
 function storyMarkup(article) {
   const authors = [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
@@ -144,6 +177,9 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   const description = storyDescription(article);
   const canonical = `${SITE_ORIGIN}${storyPath(article)}`;
   const image = safeImageUrl(article.thumbnail);
+  /* Two different jobs: the page itself wants a responsive source, while the
+     link preview needs one fixed, crawler-safe card. */
+  const cardImage = socialCardUrl(image);
   const setMeta = (htmlText, pattern, attrs) => htmlText.replace(pattern, `<meta ${attrs}>`);
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
@@ -152,12 +188,28 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   html = setMeta(html, /<meta property="og:title"[^>]*>/i, `property="og:title" content="${escapeHtml(title)}"`);
   html = setMeta(html, /<meta property="og:description"[^>]*>/i, `property="og:description" content="${escapeHtml(description)}"`);
   html = setMeta(html, /<meta property="og:url"[^>]*>/i, `property="og:url" content="${escapeHtml(canonical)}"`);
-  html = setMeta(html, /<meta property="og:image"[^>]*>/i, `property="og:image" content="${escapeHtml(image)}"`);
-    html = html.replace('</head>', `<meta property="og:image:secure_url" content="${escapeHtml(image)}">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta property="og:image:type" content="${image.endsWith('.webp') ? 'image/webp' : 'image/jpeg'}">\n</head>`);
+  html = setMeta(html, /<meta property="og:image"[^>]*>/i, `property="og:image" content="${escapeHtml(cardImage)}"`);
   html = setMeta(html, /<meta name="twitter:card"[^>]*>/i, 'name="twitter:card" content="summary_large_image"');
   html = html.replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escapeHtml(canonical)}">`);
+
+  /* Preview-crawler tags. These must REPLACE the generic homepage defaults that
+     index.html ships with, not be appended - a crawler reads the first matching
+     tag, so a leftover `og:image:secure_url` pointing at the logo would quietly
+     win over the story image. og:image:width / height / type are deliberately
+     never emitted; see socialCardUrl above. */
+  html = setMeta(html, /<meta property="og:image:secure_url"[^>]*>/i, `property="og:image:secure_url" content="${escapeHtml(cardImage)}"`);
+  html = setMeta(html, /<meta property="og:image:alt"[^>]*>/i, `property="og:image:alt" content="${escapeHtml(article.title)}"`);
+  html = setMeta(html, /<meta name="twitter:image"[^>]*>/i, `name="twitter:image" content="${escapeHtml(cardImage)}"`);
+  html = setMeta(html, /<meta name="twitter:image:alt"[^>]*>/i, `name="twitter:image:alt" content="${escapeHtml(article.title)}"`);
+
+  /* Preload the hero the page will actually render. It used to preload the raw
+     bucket object, which is a multi-megabyte upload, so the "optimisation" was
+     fetching megabytes before first paint. */
   if (image && image !== `${SITE_ORIGIN}/logo-tw.png`) {
-    html = html.replace('</head>', `<link rel="preload" as="image" href="${escapeHtml(image)}" fetchpriority="high">\n</head>`);
+    const srcset = [600, 1200].map(w => `${renderImage(image, `width=${w}&resize=contain&quality=68&format=webp`)} ${w}w`).join(', ');
+    html = html.replace('</head>',
+      `<link rel="preload" as="image" href="${escapeHtml(renderImage(image, 'width=1200&resize=contain&quality=68&format=webp'))}"` +
+      ` imagesrcset="${escapeHtml(srcset)}" imagesizes="(max-width: 900px) 100vw, 900px" fetchpriority="high">\n</head>`);
   }
 
   const schema = {
@@ -170,7 +222,9 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
     articleSection: CATEGORY_LABELS[article.cat] || article.cat,
     author: { '@type': 'Person', name: [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff' },
     publisher: { '@type': 'Organization', name: 'The Work', logo: { '@type': 'ImageObject', url: `${SITE_ORIGIN}/logo-tw.png` } },
-    image,
+    /* The same normalised card as og:image, so Google News picks up an image it
+       can actually fetch rather than a multi-megabyte bucket upload. */
+    image: cardImage,
     mainEntityOfPage: { '@type': 'WebPage', '@id': canonical }
   };
   const jsonLd = JSON.stringify(schema)
