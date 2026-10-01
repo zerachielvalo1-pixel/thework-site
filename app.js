@@ -139,6 +139,7 @@ let articles = [];
 let releases = [];
 const appCache = { publishedArticles: null, allArticles: null };
 let session = null;
+let currentRole = null;
 let activeFilter = 'all';
 let searchTerm = '';
 let editingId = null;
@@ -569,6 +570,60 @@ async function signOut() {
   await sb.auth.signOut();
 }
 
+// ---------- Role-based access ----------
+const ROLE_LABELS = { dev: 'Developer', eb: 'Editorial Board', member: 'Member' };
+
+const ROLE_PERMISSIONS = {
+  articles:    { dev: 'Full',      eb: 'Full',      member: 'Full' },
+  videos:      { dev: 'Full',      eb: 'Full',      member: 'Full' },
+  releases:    { dev: 'Full',      eb: 'Full',      member: '—' },
+  memoriam:    { dev: 'Full',      eb: 'Full',      member: '—' },
+  boardPhotos: { dev: 'Full',      eb: 'Full',      member: '—' },
+  ebRoster:    { dev: 'Full',      eb: 'Full',      member: '—' },
+  trash:       { dev: 'Full',      eb: 'Restore',   member: 'Hidden' },
+  purge:       { dev: 'Yes',       eb: 'No',        member: 'No' },
+  settings:    { dev: 'Full',      eb: 'Full',      member: 'Full' },
+  users:       { dev: 'Full',      eb: '—',         member: '—' }
+};
+
+async function loadRole() {
+  if (!sb) { currentRole = 'dev'; applyRoleUI(); return; }
+  if (!session || !session.user) { currentRole = null; return; }
+  try {
+    const { data, error } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+    if (error || !data) { currentRole = 'member'; }
+    else { currentRole = data.role || 'member'; }
+  } catch (e) {
+    currentRole = 'member';
+  }
+  applyRoleUI();
+}
+
+function canAccess(panel) {
+  const r = currentRole || 'member';
+  if (r === 'dev') return true;
+  if (panel === 'releases' || panel === 'memoriam' || panel === 'board') return r === 'eb';
+  if (panel === 'trash') return r === 'eb';
+  return true; // dashboard, articles, new, videos, settings, permissions
+}
+
+function applyRoleUI() {
+  const r = currentRole;
+  // Sidebar
+  document.querySelectorAll('.admin-nav button[data-panel]').forEach(btn => {
+    const p = btn.dataset.panel;
+    if (p === 'back') return;
+    btn.style.display = canAccess(p) ? '' : 'none';
+  });
+  // Purge buttons in trash (only dev)
+  document.querySelectorAll('[data-trash-purge]').forEach(btn => {
+    btn.style.display = (r === 'dev') ? '' : 'none';
+  });
+  // Role badge in settings
+  const roleEl = document.getElementById('acRole');
+  if (roleEl) roleEl.textContent = ROLE_LABELS[r] || r || '—';
+}
+
 function toast(msg, isError) {
   $('#toastText').textContent = msg;
   $('#toast').classList.toggle('error', !!isError);
@@ -713,14 +768,15 @@ $('#loginForm').addEventListener('submit', async e => {
     session = r.session;
     $('#loginOverlay').classList.remove('open');
     updateAuthUI();
+    await loadRole();
     toast('Welcome back');
     location.hash = '#/admin';
   } finally {
     btn.disabled = false; btn.textContent = 'Sign In';
   }
 });
-$('#logoutBtn').addEventListener('click', async () => { await signOut(); session = null; updateAuthUI(); location.hash = '#/'; toast('Signed out'); });
-$('#signOutBtn').addEventListener('click', async () => { await signOut(); session = null; updateAuthUI(); location.hash = '#/'; toast('Signed out'); });
+$('#logoutBtn').addEventListener('click', async () => { await signOut(); session = null; currentRole = null; updateAuthUI(); location.hash = '#/'; toast('Signed out'); });
+$('#signOutBtn').addEventListener('click', async () => { await signOut(); session = null; currentRole = null; updateAuthUI(); location.hash = '#/'; toast('Signed out'); });
 $('#userChip').addEventListener('click', () => location.hash = '#/admin');
 
 function setView(v) {
@@ -3380,7 +3436,7 @@ async function renderTrashAdmin() {
         </div>
         <div class="release-list-actions">
           <button class="btn btn-ghost btn-sm" data-trash-restore="${esc(a.id)}">Restore</button>
-          <button class="icon-action danger" data-trash-purge="${esc(a.id)}" title="Delete permanently">✕</button>
+          ${currentRole === 'dev' ? `<button class="icon-action danger" data-trash-purge="${esc(a.id)}" title="Delete permanently">✕</button>` : ''}
         </div>
       </div>
     `;
@@ -3411,6 +3467,8 @@ async function renderTrashAdmin() {
 
 function setPanel(name, skipReset) {
   if (name === 'back') { location.hash = '#/'; return; }
+  if (!canAccess(name)) { name = 'dashboard'; }
+  if (!canAccess(name)) { name = 'dashboard'; }
   if (name === 'new' && !skipReset) resetForm();
   if (name === 'releases') hideReleaseForm();
   if (name === 'videos') hideVideoForm();
@@ -3429,6 +3487,37 @@ function setPanel(name, skipReset) {
   if (name === 'videos') renderVideosAdmin();
   if (name === 'memoriam') renderMemoriamAdmin();
   if (name === 'trash') renderTrashAdmin();
+  if (name === 'permissions') renderPermissions();
+}
+
+function renderPermissions() {
+  const el = document.getElementById('permissionsTable');
+  if (!el) return;
+  const rows = [
+    ['Manage Articles',        'Full',    'Full',    'Full'],
+    ['Manage Videos',          'Full',    'Full',    'Full'],
+    ['Manage Archives',        'Full',    'Full',    'No access'],
+    ['Manage Look Back',       'Full',    'Full',    'No access'],
+    ['Manage Board Photos',    'Full',    'Full',    'No access'],
+    ['Edit EB Roster',         'Full',    'Full',    'No access'],
+    ['Restore from Trash',     'Full',    'Yes',     'No access'],
+    ['Permanently Delete',     'Yes',     'No',      'No'],
+    ['Brand Colors / Settings','Full',    'Full',    'Full'],
+    ['Manage Users',           'Full',    'No',      'No']
+  ];
+  el.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Capability</th>
+        <th>Dev</th>
+        <th>EB</th>
+        <th>Member</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 document.addEventListener('click', e => {
@@ -3645,7 +3734,7 @@ async function route() {
     setView('admin');
     const parts = path.split('/');
     const sub = parts[2] || 'dashboard';
-    setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings','trash'].includes(sub) ? sub : 'dashboard');
+    setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings','trash','permissions'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
     if (sub === 'board') ensureBoardPhotos();
     updateAuthUI();
@@ -3700,9 +3789,10 @@ async function init() {
   }
   twScheduleFade();
 
-  sessionReady = getSession().then(s => {
+  sessionReady = getSession().then(async s => {
     session = s;
     updateAuthUI();
+    if (s) await loadRole();
     return s;
   }).catch(err => {
     session = null;
@@ -3712,7 +3802,12 @@ async function init() {
   });
 
   if (sb) {
-    sb.auth.onAuthStateChange((_evt, s) => { session = s; updateAuthUI(); });
+    sb.auth.onAuthStateChange(async (_evt, s) => {
+      session = s;
+      updateAuthUI();
+      if (s) await loadRole();
+      else { currentRole = null; applyRoleUI(); }
+    });
   }
 
   let routeFrame = null;
