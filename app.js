@@ -393,7 +393,6 @@ const Data = {
     const { error } = await sb.from('board_members').delete().eq('id', id);
     if (error) throw error;
   },
-  
   async listTrashed() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.deleted_at);
     const { data, error } = await sb.from('articles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
@@ -641,7 +640,7 @@ async function loadRole() {
 function canAccess(panel) {
   const r = currentRole || 'member';
   if (r === 'dev') return true;
-  if (panel === 'releases' || panel === 'memoriam' || panel === 'board' || panel === 'roster') return r === 'eb';
+  if (panel === 'releases' || panel === 'memoriam' || panel === 'board') return r === 'eb';
   if (panel === 'trash') return r === 'eb';
   return true; // dashboard, articles, new, videos, settings, permissions
 }
@@ -3507,7 +3506,6 @@ async function renderTrashAdmin() {
 function setPanel(name, skipReset) {
   if (name === 'back') { location.hash = '#/'; return; }
   if (!canAccess(name)) { name = 'dashboard'; }
-  if (!canAccess(name)) { name = 'dashboard'; }
   if (name === 'new' && !skipReset) resetForm();
   if (name === 'releases') hideReleaseForm();
   if (name === 'videos') hideVideoForm();
@@ -3529,6 +3527,7 @@ function setPanel(name, skipReset) {
   if (name === 'permissions') renderPermissions();
   if (name === 'roster') renderRosterAdmin();
 }
+
 function showBoardMemberForm(m) {
   $('#boardMemberFormPanel').style.display = 'block';
   $('#newBoardMemberBtn').style.display = 'none';
@@ -3625,7 +3624,7 @@ $('#boardMemberForm').addEventListener('submit', async e => {
   const group = $('#bmGroup').value.trim();
   if (!name || !role || !group) { toast('Name, role, and department are required', true); return; }
   const btn = $('#bmSaveBtn');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const payload = {
       id: $('#bmId').value || undefined,
@@ -3648,6 +3647,7 @@ $('#boardMemberForm').addEventListener('submit', async e => {
     btn.disabled = false; btn.textContent = 'Save member';
   }
 });
+
 function renderPermissions() {
   const el = document.getElementById('permissionsTable');
   if (!el) return;
@@ -3922,10 +3922,6 @@ async function init() {
   twUpdateSavedUI();
   twInitOfflineBanner();
   applyBrandColors();
-  try {
-    const loaded = await Data.listBoardMembers();
-    if (Array.isArray(loaded) && loaded.length) boardMembers = loaded;
-  } catch (e) { /* keep the hardcoded fallback */ }
   populateBoardNames();
 
   $('#year').textContent = new Date().getFullYear();

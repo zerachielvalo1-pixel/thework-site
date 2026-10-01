@@ -623,39 +623,6 @@
         <div class="board-admin-grid" id="boardAdminGrid"></div>
       </section>
 
-      <section class="admin-section" id="panel-roster">
-        <div class="admin-head">
-          <div><h1>EB Roster</h1><p>Manage the editorial board members shown on the Board page.</p></div>
-          <button class="btn btn-primary" id="newBoardMemberBtn">Add member</button>
-        </div>
-        <div class="panel" id="boardMemberFormPanel" style="display:none;margin-bottom:22px">
-          <div class="panel-head"><h2 id="boardMemberFormTitle">New member</h2><p>Who's on the board?</p></div>
-          <form id="boardMemberForm" novalidate>
-            <input type="hidden" id="bmId">
-            <datalist id="bmGroups"></datalist>
-            <datalist id="bmSubgroups"></datalist>
-            <div class="row-2">
-              <div class="field"><label for="bmName">Full name <span class="hint">*</span></label><input type="text" id="bmName" required maxlength="80"></div>
-              <div class="field"><label for="bmRole">Role <span class="hint">*</span></label><input type="text" id="bmRole" required maxlength="80" placeholder="Editor-in-Chief"></div>
-            </div>
-            <div class="row-2">
-              <div class="field"><label for="bmGroup">Department <span class="hint">*</span></label><input type="text" id="bmGroup" required maxlength="60" list="bmGroups"></div>
-              <div class="field"><label for="bmSubgroup">Subgroup <span class="hint">optional</span></label><input type="text" id="bmSubgroup" maxlength="60" list="bmSubgroups"></div>
-            </div>
-            <div class="row-2">
-              <div class="field"><label for="bmProgram">Program <span class="hint">optional</span></label><input type="text" id="bmProgram" maxlength="120" placeholder="e.g. BS Computer Science"></div>
-              <div class="field"><label for="bmInitials">Initials <span class="hint">optional</span></label><input type="text" id="bmInitials" maxlength="6" placeholder="e.g. JD"></div>
-            </div>
-            <div class="field"><label for="bmSort">Sort order <span class="hint">lower = higher up</span></label><input type="number" id="bmSort" value="100"></div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary" id="bmSaveBtn">Save member</button>
-              <button type="button" class="btn btn-ghost" id="bmCancelBtn">Cancel</button>
-            </div>
-          </form>
-        </div>
-        <div id="boardMemberList"></div>
-      </section>
-
       <section class="admin-section" id="panel-new">
         <div class="admin-head">
           <div><h1 id="editorTitle">New article</h1><p id="editorSub">Draft a new story for The Work.</p></div>
@@ -763,17 +730,41 @@
         </div>
       </section>
 
-      <section class="admin-section" id="panel-permissions">
+      <section class="admin-section" id="panel-roster">
         <div class="admin-head">
-          <div><h1>Permissions</h1><p>What each role can do on The Work.</p></div>
+          <div><h1>EB Roster</h1><p>Members shown on the Editorial Board page.</p></div>
+          <button class="btn btn-primary" id="newBoardMemberBtn">Add member</button>
         </div>
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Role capability matrix</h2>
-            <p>You are signed in as <strong id="acRole">—</strong>.</p>
-          </div>
-          <div class="table-wrap" id="permissionsTable"></div>
+
+        <div class="panel" id="boardMemberFormPanel" style="display:none;margin-bottom:22px">
+          <div class="panel-head"><h2 id="boardMemberFormTitle">New member</h2><p>All fields except Program are required.</p></div>
+          <form id="boardMemberForm" novalidate>
+            <input type="hidden" id="bmId">
+            <div class="row-2">
+              <div class="field"><label for="bmName">Name <span class="hint">*</span></label><input type="text" id="bmName" required maxlength="120"></div>
+              <div class="field"><label for="bmRole">Role <span class="hint">*</span></label><input type="text" id="bmRole" required maxlength="120" placeholder="e.g. News Editor"></div>
+            </div>
+            <div class="row-2">
+              <div class="field"><label for="bmGroup">Department <span class="hint">*</span></label><input type="text" id="bmGroup" required maxlength="80" list="bmGroups" placeholder="e.g. Editorial Board">
+                <datalist id="bmGroups"></datalist>
+              </div>
+              <div class="field"><label for="bmSubgroup">Subgroup <span class="hint">optional</span></label><input type="text" id="bmSubgroup" maxlength="80" list="bmSubgroups" placeholder="e.g. Senior Correspondents">
+                <datalist id="bmSubgroups"></datalist>
+              </div>
+            </div>
+            <div class="field"><label for="bmProgram">Program <span class="hint">optional — leave blank to hide</span></label><input type="text" id="bmProgram" maxlength="160" placeholder="e.g. Bachelor of Science in Accountancy"></div>
+            <div class="row-2">
+              <div class="field"><label for="bmInitials">Initials <span class="hint">optional — 2 letters for the avatar fallback</span></label><input type="text" id="bmInitials" maxlength="4" placeholder="e.g. CF"></div>
+              <div class="field"><label for="bmSort">Sort order <span class="hint">lower = appears first</span></label><input type="text" id="bmSort" value="100"></div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="bmSaveBtn">Save member</button>
+              <button type="button" class="btn btn-ghost" id="bmCancelBtn">Cancel</button>
+            </div>
+          </form>
         </div>
+
+        <div id="boardMemberList"></div>
       </section>
 
       <section class="admin-section" id="panel-settings">
@@ -941,6 +932,6 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=7" defer></script>
+<script src="app.js?v=8" defer></script>
 </body>
 </html>
