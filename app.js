@@ -277,7 +277,8 @@ const Data = {
       appCache.publishedArticles = result;
       return result.slice();
     }
-    const { data, error } = await sb.from('articles').select('*').eq('status','published').is('deleted_at', null).order('date',{ascending:false, nullsFirst:false});
+    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,author,author2,read,views,featured,updated,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by';
+    const { data, error } = await sb.from('articles').select(PUBLISHED_COLUMNS).eq('status','published').is('deleted_at', null).order('date',{ascending:false, nullsFirst:false});
     if (error) { console.error(error); return []; }
     appCache.publishedArticles = data || [];
     return appCache.publishedArticles.slice();
@@ -358,6 +359,16 @@ const Data = {
     const { data, error } = await sb.from('articles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
     if (error) return [];
     return data || [];
+  },
+  async fetchBody(id) {
+    if (!sb) {
+      const list = JSON.parse(localStorage.getItem('tw_articles') || '[]');
+      const found = list.find(a => a.id === id);
+      return found ? (found.body || '') : '';
+    }
+    const { data, error } = await sb.from('articles').select('body').eq('id', id).single();
+    if (error) return '';
+    return data ? (data.body || '') : '';
   },
   async uploadThumb(file) {
     if (!sb) return await resizeImage(file, 900, 0.82);
@@ -861,7 +872,7 @@ async function renderHome() {
   }
   if (searchTerm) {
     list = list.filter(a => {
-      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.body||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.photojournalist_2||'')+' '+(a.photo_courtesy||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
+      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.photojournalist_2||'')+' '+(a.photo_courtesy||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
       return hay.includes(searchTerm);
     });
   }
@@ -1669,10 +1680,15 @@ function twRenderShare(a) {
   });
 }
 
-function openArticle(id) {
+async function openArticle(id) {
   const a = articles.find(x => x.id === id);
   if (!a) return;
   if (window.umami) window.umami.track('Article Read', { title: a.title || '', cat: a.cat || '' });
+
+  // Fetch body on demand if not already loaded (list query no longer includes it)
+  if (!a.body && sb) {
+    try { a.body = await Data.fetchBody(a.id); } catch (e) { a.body = ''; }
+  }
 
   // Fire-and-forget view counter, deduped per browser for 6 hours
   if (sb && a.status === 'published') {
