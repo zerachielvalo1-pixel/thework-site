@@ -137,6 +137,7 @@ const BOARD = [
 
 let articles = [];
 let releases = [];
+let boardMembers = BOARD.slice();
 const appCache = { publishedArticles: null, allArticles: null };
 let session = null;
 let currentRole = null;
@@ -355,6 +356,44 @@ const Data = {
     appCache.publishedArticles = null;
     appCache.allArticles = null;
   },
+  async listBoardMembers() {
+    if (!sb) return BOARD.slice();
+    const { data, error } = await sb.from('board_members').select('*').order('sort_order',{ascending:true});
+    if (error) return BOARD.slice();
+    return (data || []).map(r => ({
+      id: r.id,
+      name: r.name,
+      role: r.role,
+      program: r.program,
+      group: r.member_group,
+      subgroup: r.subgroup,
+      initials: r.initials,
+      sort_order: r.sort_order
+    }));
+  },
+  async upsertBoardMember(m) {
+    if (!sb) throw new Error('Offline');
+    const payload = {
+      id: m.id || undefined,
+      name: m.name,
+      role: m.role,
+      program: m.program || null,
+      member_group: m.group,
+      subgroup: m.subgroup || null,
+      initials: m.initials || null,
+      sort_order: m.sort_order || 100,
+      updated: new Date().toISOString()
+    };
+    const { data, error } = await sb.from('board_members').upsert(payload).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async removeBoardMember(id) {
+    if (!sb) throw new Error('Offline');
+    const { error } = await sb.from('board_members').delete().eq('id', id);
+    if (error) throw error;
+  },
+  
   async listTrashed() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.deleted_at);
     const { data, error } = await sb.from('articles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
@@ -602,7 +641,7 @@ async function loadRole() {
 function canAccess(panel) {
   const r = currentRole || 'member';
   if (r === 'dev') return true;
-  if (panel === 'releases' || panel === 'memoriam' || panel === 'board') return r === 'eb';
+  if (panel === 'releases' || panel === 'memoriam' || panel === 'board' || panel === 'roster') return r === 'eb';
   if (panel === 'trash') return r === 'eb';
   return true; // dashboard, articles, new, videos, settings, permissions
 }
@@ -1442,15 +1481,15 @@ function renderBoard() {
   grid.innerHTML = '';
 
   const totalEl = document.getElementById('boardTotalCount');
-  if (totalEl) totalEl.textContent = String(BOARD.length);
+  if (totalEl) totalEl.textContent = String(boardMembers.length);
 
   const seenDepts = new Set();
-  BOARD.forEach(p => {
+  boardMembers.forEach(p => {
     const dept = p.group;
     if (seenDepts.has(dept)) return;
     seenDepts.add(dept);
 
-    const deptMembers = BOARD.filter(x => x.group === dept);
+    const deptMembers = boardMembers.filter(x => x.group === dept);
 
     const deptHead = document.createElement('div');
     const isFirst = seenDepts.size === 1;
@@ -1492,7 +1531,7 @@ function renderBoardAdmin() {
   const grid = $('#boardAdminGrid');
   if (!grid) return;
   // (Board data is static, no loading needed — just render immediately)
-  grid.innerHTML = BOARD.map(p => {
+  grid.innerHTML = boardMembers.map(p => {
     const photo = boardPhotos[p.name];
     const avatarHtml = photo ? `<img src="${esc(photo)}" alt="">` : esc(p.initials);
     return `
@@ -1513,11 +1552,11 @@ function renderBoardAdmin() {
 function populateBoardNames() {
   const dl = document.getElementById('boardNames');
   if (!dl) return;
-  dl.innerHTML = BOARD.map(p => `<option value="${esc(p.name)}">${esc(p.role)}</option>`).join('');
+  dl.innerHTML = boardMembers.map(p => `<option value="${esc(p.name)}">${esc(p.role)}</option>`).join('');
 }
 
 async function openBoardProfile(name) {
-  const member = BOARD.find(m => m.name === name);
+  const member = boardMembers.find(m => m.name === name);
   if (!member) return;
   lastFocused = document.activeElement;
   const published = await Data.listPublished();
@@ -3488,8 +3527,127 @@ function setPanel(name, skipReset) {
   if (name === 'memoriam') renderMemoriamAdmin();
   if (name === 'trash') renderTrashAdmin();
   if (name === 'permissions') renderPermissions();
+  if (name === 'roster') renderRosterAdmin();
+}
+function showBoardMemberForm(m) {
+  $('#boardMemberFormPanel').style.display = 'block';
+  $('#newBoardMemberBtn').style.display = 'none';
+  const gList = document.getElementById('bmGroups');
+  const sList = document.getElementById('bmSubgroups');
+  if (gList) gList.innerHTML = [...new Set(boardMembers.map(x => x.group).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
+  if (sList) sList.innerHTML = [...new Set(boardMembers.map(x => x.subgroup).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
+  if (m) {
+    $('#bmId').value = m.id || '';
+    $('#bmName').value = m.name || '';
+    $('#bmRole').value = m.role || '';
+    $('#bmGroup').value = m.group || '';
+    $('#bmSubgroup').value = m.subgroup || '';
+    $('#bmProgram').value = m.program || '';
+    $('#bmInitials').value = m.initials || '';
+    $('#bmSort').value = m.sort_order != null ? m.sort_order : 100;
+    $('#boardMemberFormTitle').textContent = 'Edit member';
+  } else {
+    $('#boardMemberForm').reset();
+    $('#bmId').value = '';
+    $('#bmSort').value = '100';
+    $('#boardMemberFormTitle').textContent = 'New member';
+  }
+  setTimeout(() => $('#bmName').focus(), 60);
 }
 
+function hideBoardMemberForm() {
+  $('#boardMemberFormPanel').style.display = 'none';
+  $('#newBoardMemberBtn').style.display = 'inline-flex';
+  $('#boardMemberForm').reset();
+  $('#bmId').value = '';
+}
+
+function renderRosterAdmin() {
+  const el = $('#boardMemberList');
+  if (!el) return;
+  if (!boardMembers.length) {
+    el.innerHTML = '<div style="text-align:center;padding:56px 24px;color:var(--ink-3);font-family:var(--sans);font-size:.88rem">No members yet.</div>';
+    return;
+  }
+  const groups = {};
+  boardMembers.forEach(m => {
+    const g = m.group || 'Uncategorized';
+    (groups[g] = groups[g] || []).push(m);
+  });
+  el.innerHTML = Object.keys(groups).map(g => `
+    <div style="margin-bottom:20px">
+      <h4 style="font-family:var(--sans);font-size:.7rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);margin:0 0 10px">${esc(g)} <span style="color:var(--accent)">· ${groups[g].length}</span></h4>
+      ${groups[g].map(m => `
+        <div class="release-list-item">
+          <div class="release-list-cover" style="width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--serif);font-weight:900;color:#fff;font-size:.9rem">${esc(m.initials || (m.name||'?').charAt(0))}</div>
+          <div class="release-list-info">
+            <h4>${esc(m.name)}</h4>
+            <small>${esc(m.role)}${m.subgroup ? ' · ' + esc(m.subgroup) : ''}${m.program ? ' · ' + esc(m.program) : ''} · <span style="color:var(--ink-4)">sort ${esc(String(m.sort_order || 0))}</span></small>
+          </div>
+          <div class="release-list-actions">
+            <button class="icon-action" data-bm-edit="${esc(m.id)}" title="Edit">✎</button>
+            <button class="icon-action danger" data-bm-del="${esc(m.id)}" title="Delete">✕</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('#newBoardMemberBtn')) { showBoardMemberForm(null); return; }
+  if (e.target.closest('#bmCancelBtn')) { hideBoardMemberForm(); return; }
+  const ed = e.target.closest('[data-bm-edit]');
+  if (ed) {
+    const m = boardMembers.find(x => String(x.id) === String(ed.dataset.bmEdit));
+    if (m) showBoardMemberForm(m);
+    return;
+  }
+  const dl = e.target.closest('[data-bm-del]');
+  if (dl) {
+    const m = boardMembers.find(x => String(x.id) === String(dl.dataset.bmDel));
+    openConfirm('Remove member?', `"${m ? m.name : 'This member'}" will be removed from the Editorial Board page.`, async () => {
+      try {
+        await Data.removeBoardMember(dl.dataset.bmDel);
+        boardMembers = boardMembers.filter(x => String(x.id) !== String(dl.dataset.bmDel));
+        renderRosterAdmin(); renderBoard(); populateBoardNames();
+        toast('Member removed');
+      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+    });
+  }
+});
+
+$('#boardMemberForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!session) { toast('Please sign in first.', true); return; }
+  const name = $('#bmName').value.trim();
+  const role = $('#bmRole').value.trim();
+  const group = $('#bmGroup').value.trim();
+  if (!name || !role || !group) { toast('Name, role, and department are required', true); return; }
+  const btn = $('#bmSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const payload = {
+      id: $('#bmId').value || undefined,
+      name,
+      role,
+      group,
+      subgroup: $('#bmSubgroup').value.trim() || null,
+      program: $('#bmProgram').value.trim() || null,
+      initials: $('#bmInitials').value.trim() || null,
+      sort_order: parseInt($('#bmSort').value, 10) || 100
+    };
+    await Data.upsertBoardMember(payload);
+    boardMembers = await Data.listBoardMembers();
+    hideBoardMemberForm();
+    renderRosterAdmin(); renderBoard(); populateBoardNames();
+    toast(payload.id ? 'Member updated' : 'Member added');
+  } catch (err) {
+    toast('Save failed: ' + (err.message || err), true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save member';
+  }
+});
 function renderPermissions() {
   const el = document.getElementById('permissionsTable');
   if (!el) return;
@@ -3734,7 +3892,7 @@ async function route() {
     setView('admin');
     const parts = path.split('/');
     const sub = parts[2] || 'dashboard';
-    setPanel(['dashboard','articles','releases','videos','memoriam','board','new','settings','trash','permissions'].includes(sub) ? sub : 'dashboard');
+    setPanel(['dashboard','articles','releases','videos','memoriam','board','roster','new','settings','trash','permissions'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
     if (sub === 'board') ensureBoardPhotos();
     updateAuthUI();
@@ -3764,6 +3922,10 @@ async function init() {
   twUpdateSavedUI();
   twInitOfflineBanner();
   applyBrandColors();
+  try {
+    const loaded = await Data.listBoardMembers();
+    if (Array.isArray(loaded) && loaded.length) boardMembers = loaded;
+  } catch (e) { /* keep the hardcoded fallback */ }
   populateBoardNames();
 
   $('#year').textContent = new Date().getFullYear();
