@@ -1,6 +1,8 @@
 const SITE_ORIGIN = 'https://thework.tw78.workers.dev';
 const SUPABASE_URL = 'https://fgojhhgqpvnwtcqkornz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_UiH_F3V2tFE1doecIb337w__hYVQIQf';
+const CACHE_TTL = 600; // 10 minutes
+const STALE_WHILE_REVALIDATE_SECONDS = 172800; // revalidate up to 2 days stale
 const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,author,author2,photojournalist,graphics_by,layout_by,layout_by_2,read';
 const CATEGORY_LABELS = {
   news: 'News', editorial: 'Editorial', opinion: 'Opinion',
@@ -77,7 +79,34 @@ async function fetchArticles(query) {
   });
 }
 
-async function renderStory(request, env, id) {
+async function serveFreshOrStale(request, ctx, key, render) {
+  const cache = caches.default;
+  const cacheKey = new Request(key);
+  const cached = await cache.match(cacheKey);
+  const ageMs = cached ? (Date.now() - Number(cached.headers.get('tw-swr-at') || 0)) : Infinity;
+  if (cached && ageMs < CACHE_TTL * 1000) return cached;
+  if (cached) {
+    // Serve stale instantly, refresh the cache in the background
+    ctx.waitUntil(render(true));
+    return cached;
+  }
+  return render(false);
+}
+
+async function renderStory(request, env, ctx, id) {
+  const storyUrlKey = `${SITE_ORIGIN}/stories/${encodeURIComponent(id)}`;
+  return serveFreshOrStale(request, ctx, storyUrlKey, async (isRevalidate) => {
+    const rendered = await renderAndCacheStory(request, env, id, storyUrlKey, ctx, isRevalidate);
+    if (rendered.status === 503 || rendered.status === 404) {
+      const cache = caches.default;
+      const stale = await cache.match(new Request(storyUrlKey));
+      if (stale) return stale;
+    }
+    return rendered;
+  });
+}
+
+async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   let response;
   try {
     response = await fetchArticles({
@@ -127,6 +156,9 @@ async function renderStory(request, env, id) {
     html = html.replace('</head>', `<meta property="og:image:secure_url" content="${escapeHtml(image)}">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta property="og:image:type" content="${image.endsWith('.webp') ? 'image/webp' : 'image/jpeg'}">\n</head>`);
   html = setMeta(html, /<meta name="twitter:card"[^>]*>/i, 'name="twitter:card" content="summary_large_image"');
   html = html.replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escapeHtml(canonical)}">`);
+  if (image && image !== `${SITE_ORIGIN}/logo-tw.png`) {
+    html = html.replace('</head>', `<link rel="preload" as="image" href="${escapeHtml(image)}" fetchpriority="high">\n</head>`);
+  }
 
   const schema = {
     '@context': 'https://schema.org',
@@ -148,49 +180,60 @@ async function renderStory(request, env, id) {
   const headers = new Headers(assetResponse.headers);
   for (const header of ['content-length', 'content-encoding', 'etag', 'last-modified']) headers.delete(header);
   headers.set('content-type', 'text/html; charset=utf-8');
-  headers.set('cache-control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400');
-  return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers });
+  headers.set('cache-control', `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`);
+  const storyResponse = new Response(request.method === 'HEAD' ? null : html, { status: 200, headers });
+  if (request.method === 'GET') {
+    const cache = caches.default;
+    try { await cache.put(new Request(storyUrlKey), storyResponse.clone()); } catch (e) { /* cache failure is non-fatal */ }
+  }
+  return storyResponse;
 }
 
-async function renderSitemap(env) {
-  let rows;
-  try {
-    const response = await fetchArticles({
-      select: 'id,title,date,updated',
-      status: 'eq.published',
-      order: 'date.desc',
-      limit: '1000'
-    });
-    if (!response.ok) throw new Error('Sitemap query failed');
-    rows = await response.json();
-  } catch {
-    return env.ASSETS.fetch(new URL('/sitemap.xml', SITE_ORIGIN));
-  }
-
-  const urls = [`<url><loc>${SITE_ORIGIN}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`];
-  for (const article of Array.isArray(rows) ? rows : []) {
-    const lastmod = article.updated || article.date;
-    urls.push(`<url><loc>${SITE_ORIGIN}${storyPath(article)}</loc>${lastmod ? `<lastmod>${escapeHtml(lastmod)}</lastmod>` : ''}</url>`);
-  }
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
-  return new Response(xml, {
-    headers: {
-      'content-type': 'application/xml; charset=utf-8',
-      'cache-control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400'
+async function renderSitemap(env, ctx) {
+  const key = `${SITE_ORIGIN}/sitemap.xml`;
+  return serveFreshOrStale(null, ctx, key, async () => {
+    let rows;
+    try {
+      const response = await fetchArticles({
+        select: 'id,title,date,updated',
+        status: 'eq.published',
+        order: 'date.desc',
+        limit: '1000'
+      });
+      if (!response.ok) throw new Error('Sitemap query failed');
+      rows = await response.json();
+    } catch {
+      return env.ASSETS.fetch(new URL('/sitemap.xml', SITE_ORIGIN));
     }
+
+    const urls = [`<url><loc>${SITE_ORIGIN}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`];
+    for (const article of Array.isArray(rows) ? rows : []) {
+      const lastmod = article.updated || article.date;
+      urls.push(`<url><loc>${SITE_ORIGIN}${storyPath(article)}</loc>${lastmod ? `<lastmod>${escapeHtml(lastmod)}</lastmod>` : ''}</url>`);
+    }
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`;
+    const response = new Response(xml, {
+      headers: {
+        'content-type': 'application/xml; charset=utf-8',
+        'cache-control': `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
+      }
+    });
+    const cache = caches.default;
+    try { await cache.put(new Request(key), response.clone()); } catch (e) { /* non-fatal */ }
+    return response;
   });
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env);
+    if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
 
     const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
     if (match && (request.method === 'GET' || request.method === 'HEAD')) {
       let id;
       try { id = decodeURIComponent(match[1]); } catch { return new Response('Story not found.', { status: 404 }); }
-      return renderStory(request, env, id);
+      return renderStory(request, env, ctx, id);
     }
 
     return env.ASSETS.fetch(request);

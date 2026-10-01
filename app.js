@@ -1224,7 +1224,7 @@ function openMemoriam(id, list) {
   lastFocused = document.activeElement;
   const photo = document.getElementById('memoriamModalPhoto');
   photo.innerHTML = m.photo_url
-    ? `<img src="${esc(m.photo_url)}" alt="">`
+    ? `<img src="${esc(m.photo_url)}" alt="" loading="lazy" decoding="async">`
     : `<div class="memoriam-fallback">${esc((m.school_year||'?').slice(0,4))}</div>`;
   document.getElementById('memoriamModalYear').textContent = m.school_year || '';
   document.getElementById('memoriamModalTerm').textContent = m.term_label || '';
@@ -1739,7 +1739,7 @@ function openArticle(id) {
 
   const letter = esc((CAT_LABELS[a.cat]||'?').charAt(0));
   $('#modalHero').innerHTML = a.thumbnail
-    ? `<div class="modal-hero-bg" style="background-image:url('${esc(a.thumbnail)}')"></div><img src="${esc(a.thumbnail)}" alt="">`
+    ? `<div class="modal-hero-bg" style="background-image:url('${esc(a.thumbnail)}')"></div><img src="${esc(a.thumbnail)}" alt="" loading="lazy" decoding="async">`
     : `<span class="modal-hero-text">${letter}</span>`;
   const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
   const content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
