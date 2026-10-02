@@ -290,6 +290,7 @@ let editingReleaseId = null;
 let pendingReleaseCover = null;
 let editingVideoId = null;
 let pendingVideoThumb = null;
+let videoThumbMode = 'auto';   // 'auto' | 'upload'
 let releaseProvider = 'heyzine';
 let archiveFilter = 'all';
 let videoCatFilter = 'all';
