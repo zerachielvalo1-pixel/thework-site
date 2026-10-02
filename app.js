@@ -4046,6 +4046,10 @@ $('#boardMemberForm').addEventListener('submit', async e => {
     };
     await Data.upsertBoardMember(payload);
     boardMembers = await Data.listBoardMembers();
+    /* A rename moved the photo row's key in the DB; the in-memory map still
+       has the old key, so force a re-fetch before re-rendering. */
+    boardPhotosPromise = null;
+    await ensureBoardPhotos();
     hideBoardMemberForm();
     renderRosterAdmin(); renderBoard(); populateBoardNames();
     toast(payload.id ? 'Member updated' : 'Member added');
