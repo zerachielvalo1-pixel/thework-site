@@ -506,6 +506,15 @@ const Data = {
   },
   async upsertBoardMember(m) {
     if (!sb) throw new Error('Offline');
+    /* Articles and board_photos both key off the member's name as a plain
+       string, so a rename without this cascade orphans their photo and every
+       byline/credit that mentioned the old name. Look up the previous name
+       first, then repair those references after the member row is saved. */
+    let oldName = null;
+    if (m.id) {
+      const { data: existing } = await sb.from('board_members').select('name').eq('id', m.id).maybeSingle();
+      if (existing && existing.name && existing.name !== m.name) oldName = existing.name;
+    }
     const payload = {
       id: m.id || undefined,
       name: m.name,
@@ -519,7 +528,63 @@ const Data = {
     };
     const { data, error } = await sb.from('board_members').upsert(payload).select().single();
     if (error) throw error;
+    if (oldName) await Data.renameMemberReferences(oldName, m.name);
     return data;
+  },
+  async renameMemberReferences(oldName, newName) {
+    if (!sb || !oldName || !newName || oldName === newName) return;
+
+    /* --- board_photos: photo row is keyed by name. Move the key. --- */
+    try {
+      const { error: renameErr } = await sb.from('board_photos')
+        .update({ name: newName, updated: new Date().toISOString() })
+        .eq('name', oldName);
+      if (renameErr) {
+        /* If `name` is a PK and RLS blocks UPDATE, fall back to delete+insert. */
+        const { data: row } = await sb.from('board_photos').select('*').eq('name', oldName).maybeSingle();
+        if (row) {
+          await sb.from('board_photos').delete().eq('name', oldName);
+          await sb.from('board_photos').insert({ name: newName, photo_url: row.photo_url, updated: new Date().toISOString() });
+        }
+      }
+    } catch (e) { console.warn('[The Work] Photo rename failed', e); }
+
+    /* --- articles --- */
+    const articleFields = ['author', 'author2', 'photojournalist', 'photojournalist_2', 'layout_by', 'layout_by_2', 'graphics_by'];
+    for (const field of articleFields) await Data._cascadeName('articles', field, oldName, newName);
+
+    /* --- videos (some fields may hold comma-separated names) --- */
+    const videoFields = ['broadcasters', 'broadcaster_2', 'technicians',
+      'videojournalist', 'videojournalist_2', 'videojournalist_3',
+      'director', 'director_2', 'writer', 'writer_2', 'writer_3',
+      'animator', 'animator_2', 'editor'];
+    for (const field of videoFields) await Data._cascadeName('videos', field, oldName, newName);
+
+    /* Client caches hold the old name until invalidated. */
+    appCache.publishedArticles = null;
+    appCache.allArticles = null;
+  },
+  async _cascadeName(table, field, oldName, newName) {
+    if (!sb) return;
+    try {
+      /* ilike finds the row regardless of surrounding text; the split/compare
+         below then only rewrites whole-token matches, so "John Doe" inside
+         "John Doe, Jane Smith" is replaced but "John Doeson" is left alone. */
+      const { data: rows, error } = await sb.from(table).select('id,' + field).ilike(field, '%' + oldName + '%');
+      if (error || !rows || !rows.length) return;
+      for (const row of rows) {
+        const raw = String(row[field] || '');
+        const parts = raw.split(',').map(s => s.trim());
+        let changed = false;
+        for (let i = 0; i < parts.length; i++) {
+          if (parts[i] === oldName) { parts[i] = newName; changed = true; }
+        }
+        if (changed) {
+          const { error: upErr } = await sb.from(table).update({ [field]: parts.join(', ') }).eq('id', row.id);
+          if (upErr) console.warn('[The Work] Cascade update failed', table, field, upErr.message);
+        }
+      }
+    } catch (e) { console.warn('[The Work] Cascade failed for ' + table + '.' + field, e); }
   },
   async removeBoardMember(id) {
     if (!sb) throw new Error('Offline');
