@@ -308,39 +308,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .board-profile-info h2{font-size:1.3rem;margin-bottom:6px;line-height:1.25;font-weight:900}
 .board-profile-role{font-family:var(--sans);font-size:.72rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
 .board-profile-group{font-family:var(--sans);font-size:.72rem;color:var(--ink-3)}
-
-/* ---------- Site credit (who built this) ---------- */
-/* Sits under the role/group on a credited member's profile. Uses the brand
-   gradient so it reads as a distinction rather than another metadata line. */
-.board-profile-credit:empty{display:none}
-.bp-credit-badge{
-  display:inline-flex;align-items:center;gap:7px;
-  margin-top:12px;
-  padding:6px 13px 6px 11px;
-  border-radius:999px;
-  background:var(--gradient);
-  color:#fff;
-  font-family:var(--sans);font-size:.68rem;font-weight:750;
-  letter-spacing:.06em;text-transform:uppercase;
-  line-height:1.2;
-  box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 34%,transparent);
-}
-.bp-credit-badge svg{width:13px;height:13px;flex:none;opacity:.95}
-@media(max-width:520px){
-  .bp-credit-badge{font-size:.63rem;padding:6px 12px 6px 10px;margin-top:10px}
-}
-
-/* Small marker beside the name on the board card, so the credit is visible
-   before the profile is opened. */
-.board-card h3{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
-.board-credit-mark{
-  display:inline-grid;place-items:center;
-  width:17px;height:17px;border-radius:50%;
-  background:var(--gradient);color:#fff;
-  flex:none;
-  box-shadow:0 2px 6px color-mix(in srgb,var(--brand-primary) 32%,transparent);
-}
-.board-credit-mark svg{width:10px;height:10px}
 .board-profile-body{padding:24px 32px 32px}
 @media(max-width:520px){.board-profile-body{padding:20px}}
 .bp-section{margin-bottom:26px}
@@ -828,7 +795,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   margin-top:14px;
   line-height:1.15;
 }
-.about-figure-label em{
+.about-figure-label{ 
   font-style:italic;
   font-weight:900;
   background:var(--gradient);
@@ -902,64 +869,6 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 /* Offline banner */
 .tw-offline-banner{position:fixed;left:0;right:0;bottom:0;background:#B45309;color:#fff;padding:10px 18px;text-align:center;font-family:var(--sans);font-size:.8rem;font-weight:650;z-index:9000;transform:translateY(100%);transition:transform .3s var(--ease)}
 .tw-offline-banner.show{transform:translateY(0)}
-
-/* ---------- Install prompt ---------- */
-/* Shown once, after the reader has opened a story or scrolled a fair way down,
-   and never again once dismissed. */
-.tw-install{
-  position:fixed;
-  left:50%;
-  bottom:calc(16px + env(safe-area-inset-bottom));
-  transform:translate(-50%,140%);
-  width:min(440px,calc(100vw - 24px));
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:12px 12px 12px 14px;
-  background:var(--paper-2);
-  border:1px solid var(--line);
-  border-radius:var(--radius-lg);
-  box-shadow:var(--shadow-lg);
-  z-index:8000;
-  opacity:0;
-  transition:transform .34s cubic-bezier(.2,.9,.3,1.2), opacity .3s var(--ease);
-}
-.tw-install.show{transform:translate(-50%,0);opacity:1}
-/* Lift clear of the offline banner when both are on screen (banner is a
-   sibling appended before this one, hence the sibling selector). */
-.tw-offline-banner.show ~ .tw-install{bottom:calc(58px + env(safe-area-inset-bottom))}
-
-.tw-install-icon{width:44px;height:27px;object-fit:contain;flex:none}
-[data-theme="dark"] .tw-install-icon{filter:invert(1)}
-
-.tw-install-body{flex:1;min-width:0}
-.tw-install-title{font-family:var(--serif);font-weight:900;font-size:.95rem;color:var(--ink);line-height:1.2;margin-bottom:2px}
-.tw-install-text{font-family:var(--sans);font-size:.76rem;color:var(--ink-3);line-height:1.45;margin:0}
-.tw-install-steps{
-  font-family:var(--sans);font-size:.76rem;color:var(--ink-2);line-height:1.5;
-  margin:5px 0 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;
-}
-.tw-install-steps svg{width:14px;height:14px;flex:none;color:var(--accent)}
-.tw-install-steps strong{color:var(--ink);font-weight:700}
-
-.tw-install-actions{display:flex;align-items:center;gap:4px;flex:none}
-.tw-install-close{
-  width:32px;height:32px;border:1px solid var(--line);border-radius:var(--radius);
-  background:var(--paper);color:var(--ink-3);cursor:pointer;display:grid;place-items:center;
-  transition:.16s var(--ease);position:relative;flex:none;
-}
-.tw-install-close:hover{border-color:var(--accent);color:var(--accent)}
-.tw-install-close svg{width:15px;height:15px}
-/* 32px visual, 44px tappable - matches the header controls. */
-.tw-install-close::after{content:"";position:absolute;inset:-6px}
-
-@media(max-width:520px){
-  .tw-install{gap:10px;padding:11px 10px 11px 12px}
-  .tw-install-text,.tw-install-steps{font-size:.73rem}
-}
-@media (prefers-reduced-motion: reduce){
-  .tw-install{transition:opacity .2s var(--ease)}
-}
 
 /* Error state */
 .tw-error{grid-column:1/-1;text-align:center;padding:56px 20px;color:var(--ink-3);font-family:var(--sans);font-size:.9rem;border:1.5px dashed var(--line);border-radius:var(--radius-lg)}
@@ -1076,7 +985,7 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 /* Facebook fallback — clean, always-clickable */
 .fb-fallback-wrap{
   position:absolute;
-  inset:0;
+  inset:0;  
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   display:flex;
