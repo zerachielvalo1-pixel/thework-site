@@ -515,8 +515,10 @@ const Data = {
     }));
   },
   async upsertBoardMember(m) {
-    console.log('[MEMBER] upsert called:', { id: m.id, name: m.name });
     if (!sb) throw new Error('Offline');
+    /* Articles and board_photos key off the member's name as a plain string,
+       so a rename must rewrite those references or it orphans their photo and
+       every byline/credit that mentioned the old name. */
     let oldName = null;
     if (m.id) {
       const { data: existing } = await sb.from('board_members').select('name').eq('id', m.id).maybeSingle();
@@ -542,71 +544,42 @@ const Data = {
       updated: new Date().toISOString()
     };
     const { data, error } = await sb.from('board_members').upsert(payload).select().single();
-    if (error) { console.error('[MEMBER] upsert failed:', error); throw error; }
-    console.log('[MEMBER] saved. Cascade from', oldName, 'to', m.name);
+    if (error) throw error;
     if (oldName) await Data.renameMemberReferences(oldName, m.name);
     return data;
   },
   async renameMemberReferences(oldName, newName) {
-    console.log('[CASCADE] starting:', JSON.stringify(oldName), '→', JSON.stringify(newName));
-    if (!sb || !oldName || !newName || oldName === newName) {
-      console.log('[CASCADE] skipped — no-op condition');
-      return;
-    }
+    if (!sb || !oldName || !newName || oldName === newName) return;
 
+    /* --- board_photos: photo row is keyed by name. Move the key. --- */
     try {
-      const { data: bpRows, error: bpErr } = await sb.from('board_photos')
+      const { error: renameErr } = await sb.from('board_photos')
         .update({ name: newName, updated: new Date().toISOString() })
-        .eq('name', oldName)
-        .select();
-      console.log('[CASCADE] board_photos UPDATE →', bpRows, bpErr ? bpErr.message : 'no error');
-      if ((!bpRows || bpRows.length === 0) && !bpErr) {
-        const { data: fallback } = await sb.from('board_photos').select('*').eq('name', oldName).maybeSingle();
-        console.log('[CASCADE] fallback lookup:', fallback);
-        if (fallback) {
-          const { error: insErr } = await sb.from('board_photos').insert({ name: newName, photo_url: fallback.photo_url, updated: new Date().toISOString() });
-          const { error: delErr } = await sb.from('board_photos').delete().eq('name', oldName);
-          console.log('[CASCADE] fallback insert:', insErr ? insErr.message : 'ok', '| delete old:', delErr ? delErr.message : 'ok');
+        .eq('name', oldName);
+      if (renameErr) {
+        /* If `name` is a PK and RLS blocks UPDATE, fall back to delete+insert. */
+        const { data: row } = await sb.from('board_photos').select('*').eq('name', oldName).maybeSingle();
+        if (row) {
+          await sb.from('board_photos').delete().eq('name', oldName);
+          await sb.from('board_photos').insert({ name: newName, photo_url: row.photo_url, updated: new Date().toISOString() });
         }
       }
-    } catch (e) { console.warn('[CASCADE] photo error', e); }
+    } catch (e) { console.warn('[The Work] Photo rename failed', e); }
 
+    /* --- articles --- */
     const articleFields = ['author', 'author2', 'photojournalist', 'photojournalist_2', 'layout_by', 'layout_by_2', 'graphics_by'];
-    for (const field of articleFields) {
-      const { data: rows, error: findErr } = await sb.from('articles').select('id,' + field).ilike(field, '%' + oldName + '%');
-      console.log('[CASCADE] articles.' + field + ' →', rows ? rows.length + ' rows' : 'error', findErr ? findErr.message : '');
-      if (!rows || !rows.length) continue;
-      for (const row of rows) {
-        const parts = String(row[field] || '').split(',').map(s => s.trim());
-        let changed = false;
-        for (let i = 0; i < parts.length; i++) if (parts[i] === oldName) { parts[i] = newName; changed = true; }
-        if (changed) {
-          const { error: upErr } = await sb.from('articles').update({ [field]: parts.join(', ') }).eq('id', row.id);
-          console.log('[CASCADE]   article', row.id, upErr ? upErr.message : 'updated');
-        } else {
-          console.log('[CASCADE]   article', row.id, 'ilike-matched but no exact token; skipped');
-        }
-      }
-    }
+    for (const field of articleFields) await Data._cascadeName('articles', field, oldName, newName);
 
-    const videoFields = ['broadcasters','broadcaster_2','technicians','videojournalist','videojournalist_2','videojournalist_3','director','director_2','writer','writer_2','writer_3','animator','animator_2','editor'];
-    for (const field of videoFields) {
-      const { data: rows } = await sb.from('videos').select('id,' + field).ilike(field, '%' + oldName + '%');
-      if (!rows || !rows.length) continue;
-      for (const row of rows) {
-        const parts = String(row[field] || '').split(',').map(s => s.trim());
-        let changed = false;
-        for (let i = 0; i < parts.length; i++) if (parts[i] === oldName) { parts[i] = newName; changed = true; }
-        if (changed) {
-          await sb.from('videos').update({ [field]: parts.join(', ') }).eq('id', row.id);
-          console.log('[CASCADE]   video', row.id, field, 'updated');
-        }
-      }
-    }
+    /* --- videos (some fields may hold comma-separated names) --- */
+    const videoFields = ['broadcasters', 'broadcaster_2', 'technicians',
+      'videojournalist', 'videojournalist_2', 'videojournalist_3',
+      'director', 'director_2', 'writer', 'writer_2', 'writer_3',
+      'animator', 'animator_2', 'editor'];
+    for (const field of videoFields) await Data._cascadeName('videos', field, oldName, newName);
 
+    /* Client caches hold the old name until invalidated. */
     appCache.publishedArticles = null;
     appCache.allArticles = null;
-    console.log('[CASCADE] complete');
   },
   async _cascadeName(table, field, oldName, newName) {
     if (!sb) return;
