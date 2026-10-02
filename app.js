@@ -1906,6 +1906,8 @@ function twRenderShare(a) {
 async function openArticle(id) {
   const a = articles.find(x => x.id === id);
   if (!a) return;
+  // Reading a story is the strongest signal that this is worth installing.
+  window.dispatchEvent(new CustomEvent('tw:article-open'));
   if (window.umami) window.umami.track('Article Read', { title: a.title || '', cat: a.cat || '' });
 
   // Fetch body on demand if not already loaded (list query no longer includes it)
@@ -3339,6 +3341,180 @@ function twInitOfflineBanner() {
   update();
 }
 
+// ---------- Service worker + install prompt ----------
+/* The offline banner above only *reports* a lost connection. The service
+   worker is what makes the site actually open and stay readable without one,
+   and it is also the condition Chrome attaches to its automatic install
+   prompt (a fetch handler - Chrome 108+/112+ dropped that requirement for
+   installs from the browser menu, but not for the prompt itself). */
+function twRegisterServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  // A worker on localhost is useful for testing; anywhere else it must be HTTPS.
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('[The Work] Service worker registration failed:', err && err.message);
+    });
+  });
+}
+
+const TW_INSTALL_DISMISSED = 'tw_install_dismissed';
+let twInstallEvent = null;       // the deferred beforeinstallprompt event
+let twInstallEngaged = false;    // has the reader actually used the site yet
+let twInstallShown = false;
+
+function twIsStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
+    window.navigator.standalone === true;
+}
+
+function twIsIOS() {
+  const ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ reports itself as a Mac, distinguished only by touch points.
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/* On iOS only Safari can add to the home screen - Chrome, Firefox and Edge are
+   all WebKit wrappers that cannot. Telling an iOS Chrome user to "tap Share"
+   would send them looking for a control their browser does not have. */
+function twIsIOSSafari() {
+  const ua = navigator.userAgent || '';
+  return twIsIOS() && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+}
+
+function twInstallDismissed() {
+  try { return localStorage.getItem(TW_INSTALL_DISMISSED) === '1'; } catch (e) { return false; }
+}
+
+function twDismissInstall() {
+  try { localStorage.setItem(TW_INSTALL_DISMISSED, '1'); } catch (e) {}
+  const el = document.getElementById('twInstall');
+  if (el) {
+    el.classList.remove('show');
+    window.setTimeout(() => el.remove(), 320);
+  }
+}
+
+function twBuildInstallUI() {
+  if (document.getElementById('twInstall')) return;
+  const el = document.createElement('div');
+  el.id = 'twInstall';
+  el.className = 'tw-install';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Install The Work');
+
+  const shareIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg>';
+  // iOS has no install event, so those readers get the manual route instead.
+  const body = twIsIOSSafari()
+    ? `<p class="tw-install-text">Add The Work to your home screen for the latest stories, one tap away.</p>
+       <p class="tw-install-steps">Tap ${shareIcon} <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</p>`
+    : `<p class="tw-install-text">Install The Work for faster loading and offline reading.</p>`;
+
+  el.innerHTML = `
+    <img class="tw-install-icon" src="logo-tw-128.webp" width="44" height="27" alt="" decoding="async">
+    <div class="tw-install-body">
+      <div class="tw-install-title">The Work</div>
+      ${body}
+    </div>
+    <div class="tw-install-actions">
+      ${twIsIOSSafari() ? '' : '<button class="btn btn-primary btn-sm" id="twInstallGo" type="button">Install</button>'}
+      <button class="tw-install-close" id="twInstallNo" type="button" aria-label="Not now">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>`;
+  document.body.appendChild(el);
+
+  document.getElementById('twInstallNo').addEventListener('click', twDismissInstall);
+  const go = document.getElementById('twInstallGo');
+  if (go) {
+    go.addEventListener('click', async () => {
+      if (!twInstallEvent) return;
+      twInstallEvent.prompt();
+      let choice = null;
+      try { choice = await twInstallEvent.userChoice; } catch (e) {}
+      twInstallEvent = null;
+      /* Chrome only allows a deferred prompt to be shown once, so the card goes
+         either way. But the two outcomes are not the same "no": declining the
+         X means don't ask again, while backing out of Chrome's own dialog is a
+         soft no that should not permanently cost them the offer. */
+      if (choice && choice.outcome === 'accepted') {
+        twDismissInstall();                       // appinstalled confirms it
+        toast('Installing The Work');
+      } else {
+        twHideInstallForSession();
+      }
+    });
+  }
+}
+
+/* Hide without writing the permanent flag, so a reader who backs out of
+   Chrome's dialog can still be offered the install on a later visit. */
+function twHideInstallForSession() {
+  twInstallShown = true;
+  const el = document.getElementById('twInstall');
+  if (el) {
+    el.classList.remove('show');
+    window.setTimeout(() => el.remove(), 320);
+  }
+}
+
+function twMaybeShowInstall() {
+  if (twInstallShown || !twInstallEngaged) return;
+  if (twIsStandalone() || twInstallDismissed()) return;
+  // Nothing to offer unless Chrome deferred a prompt, or this is iOS Safari
+  // where the manual instructions are the only route.
+  if (!twInstallEvent && !twIsIOSSafari()) return;
+  twInstallShown = true;
+  twBuildInstallUI();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('twInstall');
+    if (el) el.classList.add('show');
+  });
+}
+
+/* Engagement gate: readers install a publication they are already reading, not
+   one they just landed on. Opening a story or scrolling a fair way counts. */
+function twNoteEngagement() {
+  if (twInstallEngaged) return;
+  twInstallEngaged = true;
+  window.setTimeout(twMaybeShowInstall, 1200);
+}
+
+function twInitInstall() {
+  if (twIsStandalone()) return;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();          // suppress Chrome's own mini-infobar
+    twInstallEvent = e;
+    twMaybeShowInstall();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    twInstallEvent = null;
+    twInstallShown = true;
+    try { localStorage.setItem(TW_INSTALL_DISMISSED, '1'); } catch (e) {}
+    const el = document.getElementById('twInstall');
+    if (el) el.remove();
+    toast('The Work installed');
+  });
+
+  // Opening a story is the strongest signal.
+  window.addEventListener('tw:article-open', twNoteEngagement);
+
+  // Otherwise, a reader who scrolls a good way down the homepage counts.
+  let scrollTicks = 0;
+  window.addEventListener('scroll', () => {
+    if (twInstallEngaged) return;
+    scrollTicks++;
+    if (scrollTicks < 12) return;
+    const scrolled = window.scrollY + window.innerHeight;
+    const height = document.documentElement.scrollHeight;
+    if (height > 0 && scrolled / height > 0.45) twNoteEngagement();
+  }, { passive: true });
+}
+
 // ---------- Loading skeletons ----------
 function twSkelCard() {
   return '<div class="tw-skel-card"><div class="tw-skel tw-skel-thumb"></div><div class="tw-skel-body"><div class="tw-skel tw-skel-title"></div><div class="tw-skel tw-skel-text"></div><div class="tw-skel tw-skel-text short"></div><div class="tw-skel tw-skel-foot"></div></div></div>';
@@ -4051,6 +4227,8 @@ async function init() {
   applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
   twUpdateSavedUI();
   twInitOfflineBanner();
+  twRegisterServiceWorker();
+  twInitInstall();
   applyBrandColors();
   try {
     const loaded = await Data.listBoardMembers();

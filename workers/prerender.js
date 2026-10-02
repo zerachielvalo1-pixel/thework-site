@@ -72,6 +72,23 @@ function socialCardUrl(url) {
     `&resize=cover&quality=${OG_CARD.quality}`);
 }
 
+/* The site is published in the Philippines, so previews get an explicit locale
+   rather than being guessed from the crawler's own region. */
+const OG_LOCALE = 'en_PH';
+
+/* The `articles.date` column is a plain YYYY-MM-DD while `updated` is already a
+   full timestamp. The Open Graph article namespace expects ISO 8601 datetimes,
+   so a bare date is anchored to midnight Philippine time (UTC+8) rather than
+   left to the crawler to interpret - which would otherwise shift the published
+   date by a day for anyone reading it west of Manila. */
+function isoDateTime(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  if (raw.indexOf('T') !== -1) return raw;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  return `${raw}T00:00:00+08:00`;
+}
+
 function storyMarkup(article) {
   const authors = [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
@@ -188,6 +205,7 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   html = setMeta(html, /<meta property="og:title"[^>]*>/i, `property="og:title" content="${escapeHtml(title)}"`);
   html = setMeta(html, /<meta property="og:description"[^>]*>/i, `property="og:description" content="${escapeHtml(description)}"`);
   html = setMeta(html, /<meta property="og:url"[^>]*>/i, `property="og:url" content="${escapeHtml(canonical)}"`);
+  html = setMeta(html, /<meta property="og:locale"[^>]*>/i, `property="og:locale" content="${OG_LOCALE}"`);
   html = setMeta(html, /<meta property="og:image"[^>]*>/i, `property="og:image" content="${escapeHtml(cardImage)}"`);
   html = setMeta(html, /<meta name="twitter:card"[^>]*>/i, 'name="twitter:card" content="summary_large_image"');
   html = html.replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escapeHtml(canonical)}">`);
@@ -201,6 +219,21 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   html = setMeta(html, /<meta property="og:image:alt"[^>]*>/i, `property="og:image:alt" content="${escapeHtml(article.title)}"`);
   html = setMeta(html, /<meta name="twitter:image"[^>]*>/i, `name="twitter:image" content="${escapeHtml(cardImage)}"`);
   html = setMeta(html, /<meta name="twitter:image:alt"[^>]*>/i, `name="twitter:image:alt" content="${escapeHtml(article.title)}"`);
+
+  /* Open Graph article namespace. og:type is "article", so these are the
+     properties Facebook, Slack, Discord and Google News read to show a date and
+     section alongside the card. article:author is intentionally omitted: the
+     spec wants profile URLs and there are no author pages to point at, so a
+     bare name would be worse than nothing. */
+  const published = isoDateTime(article.date);
+  const modified = isoDateTime(article.updated) || published;
+  if (published) {
+    html = html.replace('</head>',
+      `<meta property="article:published_time" content="${escapeHtml(published)}">\n` +
+      (modified ? `<meta property="article:modified_time" content="${escapeHtml(modified)}">\n` : '') +
+      `<meta property="article:section" content="${escapeHtml(CATEGORY_LABELS[article.cat] || article.cat || 'News')}">\n` +
+      `</head>`);
+  }
 
   /* Preload the hero the page will actually render. It used to preload the raw
      bucket object, which is a multi-megabyte upload, so the "optimisation" was
