@@ -1260,6 +1260,30 @@ function twBuildCarousel(items) {
     });
   });
 
+  /* Swipe gestures for touch. passive:true so vertical page scroll still
+     works; horizontal swipes with |dx| > |dy| and a minimum distance win. */
+  let tStartX = 0, tStartY = 0, tStartT = 0, tTracking = false;
+  root.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    tStartX = e.touches[0].clientX;
+    tStartY = e.touches[0].clientY;
+    tStartT = Date.now();
+    tTracking = true;
+  }, { passive: true });
+  root.addEventListener('touchend', (e) => {
+    if (!tTracking) return;
+    tTracking = false;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - tStartX;
+    const dy = t.clientY - tStartY;
+    const dt = Date.now() - tStartT;
+    if (dt > 700) return;                    // too slow — probably a scroll
+    if (Math.abs(dx) < 40) return;           // too short
+    if (Math.abs(dy) > Math.abs(dx)) return; // vertical — let the page scroll
+    twCarouselGo(twCarousel.index + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+
   /* Autoplay runs regardless of hover. Reduced-motion only disables the
      transition animations, not the advance itself. */
   twCarouselSetActive(0, { animate: false });

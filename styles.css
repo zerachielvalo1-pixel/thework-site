@@ -1655,9 +1655,64 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   pointer-events:none;
   overflow:visible;
 }
-@media(max-width:640px){
-  .tw-carousel-thumbs{bottom:16px;right:16px;gap:8px}
-  .tw-thumb{width:44px;height:44px}
-  .tw-carousel-arrow{width:36px;height:36px}
-  .tw-carousel-arrow svg{width:16px;height:16px}
+/* ---------- Carousel on mobile ----------
+   Arrows are hidden entirely on phones; swipe is the navigation. Thumbs
+   shrink and centre along the bottom so they stop eating the byline. */
+@media(max-width:760px){
+  .tw-carousel-arrow{display:none !important}
+
+  .tw-carousel-thumbs{
+    bottom:12px;
+    left:50%;
+    right:auto;
+    transform:translateX(-50%);
+    gap:6px;
+    padding:4px 8px;
+    border-radius:999px;
+    background:rgba(0,0,0,.28);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+  }
+  .tw-thumb{width:40px;height:40px}
+  .tw-thumb-img{inset:5px;border-radius:7px}
+  .tw-thumb-fallback{font-size:.9rem}
+  .tw-thumb-ring rect{stroke-width:5}
+
+  .tw-slide-content{
+    left:16px;
+    right:16px;
+    bottom:72px;          /* clears the thumb bar */
+    padding-right:0;
+    max-width:none;
+  }
+  .tw-slide-cat{
+    font-size:.56rem;
+    padding:5px 10px;
+    margin-bottom:9px;
+  }
+  .tw-slide-title{
+    font-size:clamp(1.15rem,5.4vw,1.5rem);
+    line-height:1.16;
+    margin-bottom:8px;
+  }
+  .tw-slide-excerpt{
+    font-size:.8rem;
+    line-height:1.5;
+    -webkit-line-clamp:2;
+    margin-bottom:8px;
+  }
+  .tw-slide-meta{
+    font-size:.66rem;
+  }
+  .tw-slide.active .tw-slide-content > *{
+    animation-duration:.5s;
+  }
+}
+
+/* Very narrow phones — trim a little further. */
+@media(max-width:380px){
+  .tw-carousel{aspect-ratio:5/4 !important;max-height:460px !important}
+  .tw-thumb{width:36px;height:36px}
+  .tw-slide-title{font-size:1.1rem}
+  .tw-slide-excerpt{display:none}
 }
