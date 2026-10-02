@@ -2528,33 +2528,63 @@ function renderVideoThumbPreview() {
   const img = $('#videoThumbImg');
   const actions = $('#videoThumbActions');
   const nameEl = $('#videoThumbName');
+  const emptyText = $('#videoThumbEmptyText');
+  const emptyHint = $('#videoThumbEmptyHint');
   if (!uploader) return;
 
-  if (!pendingVideoThumb) {
+  /* Auto mode: always reflect the URL. The DB stores thumbnail_url:null so the
+     renderer falls back to youtubeThumb() at read time — nothing to upload. */
+  if (videoThumbMode === 'auto') {
     const auto = youtubeThumb({ video_url: $('#videoUrl').value });
     if (auto) {
       img.src = auto;
       preview.style.display = 'grid';
       empty.style.display = 'none';
       uploader.classList.add('has-image');
-      actions.style.display = 'none';
-      return;
+    } else {
+      img.src = '';
+      preview.style.display = 'none';
+      empty.style.display = 'flex';
+      uploader.classList.remove('has-image');
+      if (emptyText) emptyText.textContent = 'Paste a YouTube or Vimeo URL to auto-fill a thumbnail';
+      if (emptyHint) emptyHint.textContent = 'Facebook links cannot be auto-thumbnailed — switch to Upload custom';
     }
-    img.src = '';
-    preview.style.display = 'none';
-    empty.style.display = 'flex';
-    uploader.classList.remove('has-image');
-    actions.style.display = 'none';
+    if (actions) actions.style.display = 'none';
     return;
   }
 
-  const src = pendingVideoThumb.existing ? pendingVideoThumb.url : pendingVideoThumb.dataUrl;
-  img.src = src;
-  preview.style.display = 'grid';
-  empty.style.display = 'none';
-  uploader.classList.add('has-image');
-  actions.style.display = 'flex';
-  nameEl.textContent = pendingVideoThumb.existing ? 'Current thumbnail' : (pendingVideoThumb.file?.name || 'thumbnail.jpg');
+  /* Upload mode. */
+  if (pendingVideoThumb) {
+    const src = pendingVideoThumb.existing ? pendingVideoThumb.url : pendingVideoThumb.dataUrl;
+    img.src = src;
+    preview.style.display = 'grid';
+    empty.style.display = 'none';
+    uploader.classList.add('has-image');
+    if (actions) actions.style.display = 'flex';
+    if (nameEl) nameEl.textContent = pendingVideoThumb.existing ? 'Current thumbnail' : (pendingVideoThumb.file?.name || 'thumbnail.jpg');
+    return;
+  }
+
+  img.src = '';
+  preview.style.display = 'none';
+  empty.style.display = 'flex';
+  uploader.classList.remove('has-image');
+  if (actions) actions.style.display = 'none';
+  if (emptyText) emptyText.textContent = 'Click to upload a custom thumbnail';
+  if (emptyHint) emptyHint.textContent = 'JPG, PNG, or WebP';
+}
+
+function setVideoThumbMode(mode) {
+  videoThumbMode = mode === 'upload' ? 'upload' : 'auto';
+  const toggle = document.getElementById('videoThumbModeToggle');
+  if (toggle) {
+    toggle.querySelectorAll('.thumb-mode-opt').forEach(btn => {
+      const on = btn.dataset.mode === videoThumbMode;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  }
+  renderVideoThumbPreview();
 }
 
 function showVideoForm(v) {
@@ -2590,6 +2620,7 @@ function showVideoForm(v) {
     $('#videoSubcategory').value = v.subcategory || 'tvb';
     $('#videoFormTitle').textContent = 'Edit video';
     pendingVideoThumb = v.thumbnail_url ? { existing:true, url: v.thumbnail_url } : null;
+    setVideoThumbMode(v.thumbnail_url ? 'upload' : 'auto');
   } else {
     editingVideoId = null;
     $('#videoForm').reset();
@@ -2601,6 +2632,7 @@ function showVideoForm(v) {
     $('#videoOrientation').value = 'landscape';
     $('#videoFormTitle').textContent = 'New video';
     pendingVideoThumb = null;
+    setVideoThumbMode('auto');
   }
   renderVideoThumbPreview();
   setTimeout(() => $('#videoTitle').focus(), 60);
@@ -2611,6 +2643,7 @@ function hideVideoForm() {
   $('#newVideoBtn').style.display = 'inline-flex';
   editingVideoId = null;
   pendingVideoThumb = null;
+  videoThumbMode = 'auto';
   $('#videoForm').reset();
   $('#videoThumbFile').value = '';
   renderVideoThumbPreview();
@@ -2619,6 +2652,9 @@ function hideVideoForm() {
 document.addEventListener('click', e => {
   if (e.target.closest('#newVideoBtn'))  { showVideoForm(null); return; }
   if (e.target.closest('#videoCancelBtn')) { hideVideoForm(); return; }
+
+  const modeBtn = e.target.closest('#videoThumbModeToggle .thumb-mode-opt');
+  if (modeBtn) { setVideoThumbMode(modeBtn.dataset.mode); return; }
 
   if (e.target.closest('#videoThumbChange')) { $('#videoThumbFile')?.click(); return; }
 
@@ -2631,6 +2667,7 @@ document.addEventListener('click', e => {
 
   const uploader = e.target.closest('#videoThumbUploader');
   if (uploader) {
+    if (videoThumbMode === 'auto') return;          // no-op in auto mode
     if (uploader.classList.contains('has-image') && pendingVideoThumb) return;
     $('#videoThumbFile')?.click();
     return;
@@ -2643,7 +2680,7 @@ document.addEventListener('input', e => {
     if (/youtu/i.test(u)) $('#videoPlatform').value = 'youtube';
     else if (/facebook|fb\.watch/i.test(u)) $('#videoPlatform').value = 'facebook';
     else if (/vimeo/i.test(u)) $('#videoPlatform').value = 'vimeo';
-    if (!pendingVideoThumb) renderVideoThumbPreview();
+    if (videoThumbMode === 'auto') renderVideoThumbPreview();
   }
 });
 
@@ -2676,7 +2713,9 @@ $('#videoForm').addEventListener('submit', async e => {
 
   try {
     let thumbnail_url = null;
-    if (pendingVideoThumb) {
+    /* Auto mode means "let the renderer pick" — persist null so youtubeThumb()
+       fills it back in every time the video list is rebuilt. */
+    if (videoThumbMode === 'upload' && pendingVideoThumb) {
       if (pendingVideoThumb.existing) {
         thumbnail_url = pendingVideoThumb.url;
       } else if (pendingVideoThumb.file) {

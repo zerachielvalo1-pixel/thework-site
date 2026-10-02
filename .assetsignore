@@ -16,3 +16,6 @@ articles_rows.csv
 tasks.js
 # Local before/after screenshots used to review this work. Not part of the site.
 .review
+# Docs and agent context. Never served.
+.dsh
+AGENTS.md
