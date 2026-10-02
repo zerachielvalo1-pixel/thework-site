@@ -180,8 +180,24 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .story-page h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.12;margin-bottom:16px}
 .story-deck{font-size:clamp(1rem,2vw,1.2rem);line-height:1.6;color:var(--ink-2);max-width:68ch;margin-bottom:18px}
 .story-byline{font-family:var(--sans);font-size:.78rem;color:var(--ink-3);margin-bottom:28px}
-.story-hero{margin:0 0 34px;aspect-ratio:16/9;overflow:hidden;border-radius:var(--radius-lg);background:var(--paper-3)}
-.story-hero img{width:100%;height:100%;object-fit:cover}
+.story-hero{
+  margin:0 0 34px;
+  border-radius:var(--radius-lg);
+  background:var(--paper-3);
+  overflow:hidden;
+  /* The image sets its own height — no forced crop. A soft ceiling on very
+     tall portrait uploads stops one from dominating the whole screen. */
+  display:flex;
+  justify-content:center;
+}
+.story-hero img{
+  width:auto;
+  max-width:100%;
+  height:auto;
+  max-height:70vh;
+  display:block;
+  object-fit:contain;
+}
 .story-content{max-width:72ch;font-size:1.04rem;line-height:1.85}
 .story-content p{margin-bottom:1.35em}
 .more-stories-header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:clamp(24px,3vw,36px);flex-wrap:wrap}
@@ -1716,3 +1732,77 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   .tw-slide-title{font-size:1.1rem}
   .tw-slide-excerpt{display:none}
 }
+
+/* ============================================================
+   Image lightbox
+
+   The story hero caps at 70vh and the modal hero at 60vh, so a tall
+   infographic never shows in full in place. Clicking either image opens
+   this overlay: full-size, contained, scrollable for anything taller than
+   the viewport. Clicking the backdrop or pressing Escape closes it.
+   ============================================================ */
+.tw-lightbox{
+  position:fixed;
+  inset:0;
+  z-index:2000;
+  background:rgba(5,3,15,.96);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  overflow:auto;
+  transition:opacity .24s var(--ease), visibility 0s linear .24s;
+}
+.tw-lightbox.open{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  transition:opacity .24s var(--ease), visibility 0s;
+}
+.tw-lightbox-img{
+  display:block;
+  max-width:100vw;
+  max-height:100vh;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  padding:max(52px, 8vh) max(16px, 3vw);
+  box-sizing:border-box;
+}
+@media(min-height:640px){
+  .tw-lightbox-img{max-height:none}
+}
+.tw-lightbox-close{
+  position:fixed;
+  top:max(14px, env(safe-area-inset-top));
+  right:max(14px, env(safe-area-inset-right));
+  width:44px;height:44px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.35);
+  background:rgba(0,0,0,.5);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  color:#fff;
+  cursor:pointer;
+  display:grid;place-items:center;
+  z-index:2001;
+  transition:background .15s var(--ease), transform .15s var(--ease);
+}
+.tw-lightbox-close:hover{background:rgba(0,0,0,.7);transform:scale(1.05)}
+.tw-lightbox-close svg{width:20px;height:20px}
+
+/* Discoverability: pointer cursor on the images that can be enlarged. */
+.story-hero img,
+.modal-hero img{
+  cursor:zoom-in;
+  transition:transform .2s var(--ease), filter .2s var(--ease);
+}
+.story-hero img:hover,
+.modal-hero img:hover{
+  filter:brightness(1.05);
+}
+.story-hero,
+.modal-hero{cursor:zoom-in}

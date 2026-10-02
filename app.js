@@ -2239,6 +2239,71 @@ function twRenderShare(a) {
   });
 }
 
+/* ---------- Image lightbox ----------
+   Opened by clicking a story hero or an article-modal hero. The story hero
+   caps at 70vh and the modal hero caps at 60vh, so this is where the reader
+   can actually see a full-size infographic. */
+let twLightboxOpen = false;
+let twLightboxReturnFocus = null;
+
+function twOpenLightbox(src, alt) {
+  if (!src) return;
+  const overlay = document.getElementById('twLightbox');
+  const img = document.getElementById('twLightboxImg');
+  if (!overlay || !img) return;
+  twLightboxReturnFocus = document.activeElement;
+  img.src = src;
+  img.alt = alt || '';
+  overlay.classList.add('open');
+  twLightboxOpen = true;
+  lockScroll();
+  const closeBtn = document.getElementById('twLightboxClose');
+  if (closeBtn) closeBtn.focus();
+}
+
+function twCloseLightbox() {
+  const overlay = document.getElementById('twLightbox');
+  if (!overlay || !twLightboxOpen) return;
+  overlay.classList.remove('open');
+  const img = document.getElementById('twLightboxImg');
+  if (img) { img.removeAttribute('src'); img.alt = ''; }
+  twLightboxOpen = false;
+  unlockScroll();
+  if (twLightboxReturnFocus && typeof twLightboxReturnFocus.focus === 'function') {
+    try { twLightboxReturnFocus.focus(); } catch (_) {}
+  }
+  twLightboxReturnFocus = null;
+}
+
+document.addEventListener('click', (e) => {
+  if (!twLightboxOpen) return;
+  if (e.target === document.getElementById('twLightbox')) {
+    twCloseLightbox();
+    return;
+  }
+});
+document.getElementById('twLightboxClose')?.addEventListener('click', twCloseLightbox);
+
+/* Delegated listener so the images injected by renderStoryPage() and by the
+   article modal both pick this up without re-wiring on every render. */
+document.addEventListener('click', (e) => {
+  const heroImg = e.target.closest('.story-hero img, .modal-hero img');
+  if (heroImg) {
+    const src = heroImg.currentSrc || heroImg.getAttribute('src');
+    twOpenLightbox(src, heroImg.getAttribute('alt') || '');
+    return;
+  }
+  /* Clicking the padding around a contained image also opens it. */
+  const heroBox = e.target.closest('.story-hero, .modal-hero');
+  if (heroBox && !e.target.closest('a, button')) {
+    const inner = heroBox.querySelector('img');
+    if (inner) {
+      const src = inner.currentSrc || inner.getAttribute('src');
+      twOpenLightbox(src, inner.getAttribute('alt') || '');
+    }
+  }
+});
+
 let articleOpenToken = 0;
 async function openArticle(id) {
   /* The body fetch below is awaited while the modal is already opening. Click
@@ -2403,6 +2468,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key !== 'Escape') return;
+  if (twLightboxOpen) { twCloseLightbox(); return; }
   if ($('#readerOverlay').classList.contains('open')) { closeReader(); return; }
   if ($('#cropOverlay').classList.contains('open')) { closeCropModal(); return; }
   if ($('#memoriamOverlay').classList.contains('open')) { closeMemoriam(); return; }
