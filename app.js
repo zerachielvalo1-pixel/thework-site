@@ -221,6 +221,47 @@ const BOARD = [
   { group:'Adviser', subgroup:null, name:'Gladie Natherine G. Cabanizas', role:'Adviser', program:'Faculty Adviser', initials:'DC' }
 ];
 
+/* ---------- Site credits ----------
+   Who built the website is a fact about the site, not a property of the
+   editorial roster, so it lives here rather than in board_members. That also
+   means it survives a member being renamed, re-grouped or re-sorted in the
+   admin panel.
+
+   Matching is deliberately forgiving: names are compared with case, punctuation
+   and spacing stripped, so "Mark Adrianne M. Capulong" still matches
+   "Mark Adrianne Capulong" or "mark capulong". The row id is accepted as a
+   second key in case the display name is ever edited.
+
+   To credit someone else, add an entry here. */
+const BOARD_CREDITS = [
+  {
+    names: [
+      'Mark Adrianne M. Capulong',
+      'Mark Adrianne Capulong',
+      'Mark Capulong'
+    ],
+    ids: ['c1703be1-8e65-47a7-87fb-38453ee31816'],
+    label: 'Built this website',
+    short: 'Website'
+  }
+];
+
+const normalizePersonName = (s) => String(s == null ? '' : s)
+  .toLowerCase()
+  .replace(/[^a-z0-9 ]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+function boardCreditFor(member) {
+  if (!member) return null;
+  const name = normalizePersonName(member.name);
+  const id = member.id ? String(member.id) : '';
+  return BOARD_CREDITS.find(c =>
+    (id && (c.ids || []).indexOf(id) !== -1) ||
+    (name && (c.names || []).some(n => normalizePersonName(n) === name))
+  ) || null;
+}
+
 let articles = [];
 let releases = [];
 let boardMembers = BOARD.slice();
@@ -1643,7 +1684,15 @@ function renderBoard() {
         el.setAttribute('role','button');
         const photo = boardPhotos[m.name];
         const avatarHtml = photo ? imgTag(photo, [160], '', ' alt="" loading="lazy" decoding="async"') : esc(m.initials);
-        el.innerHTML = `<div class="board-avatar">${avatarHtml}</div><h3>${esc(m.name)}</h3><div class="board-role">${esc(m.role)}</div><div class="board-program" style="font-family:var(--sans);font-size:.68rem;color:var(--ink-4);margin-top:6px;line-height:1.35">${esc(m.program||'')}</div>`;
+        const credit = boardCreditFor(m);
+        // A small marker on the card too, so the credit is discoverable without
+        // having to open the profile first.
+        const creditMark = credit
+          ? `<span class="board-credit-mark" title="${esc(credit.label)}" aria-label="${esc(credit.label)}">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/></svg>
+             </span>`
+          : '';
+        el.innerHTML = `<div class="board-avatar">${avatarHtml}</div><h3>${esc(m.name)}${creditMark}</h3><div class="board-role">${esc(m.role)}</div><div class="board-program" style="font-family:var(--sans);font-size:.68rem;color:var(--ink-4);margin-top:6px;line-height:1.35">${esc(m.program||'')}</div>`;
         el.addEventListener('click', () => openBoardProfile(m.name));
         grid.appendChild(el);
       });
@@ -1720,6 +1769,20 @@ async function openBoardProfile(name) {
     $('#bpGroup').textContent = member.group + ' · ' + member.program;
   } else {
     $('#bpGroup').textContent = member.group;
+  }
+
+  /* Credit badge, shown only for members listed in BOARD_CREDITS. Cleared here
+     rather than on close so switching straight from a credited profile to an
+     uncredited one cannot leave a stale badge behind. */
+  const credit = boardCreditFor(member);
+  const creditEl = $('#bpCredit');
+  if (creditEl) {
+    creditEl.innerHTML = credit
+      ? `<span class="bp-credit-badge" title="${esc(credit.label)}">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/></svg>
+           <span>${esc(credit.label)}</span>
+         </span>`
+      : '';
   }
 
   const sections = [];

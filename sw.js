@@ -29,7 +29,7 @@
  * Bump CACHE_VERSION on a deploy that changes the precache list.
  */
 
-const CACHE_VERSION = 'tw-v1';
+const CACHE_VERSION = 'tw-v2';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -83,15 +83,38 @@ function isStaticAsset(url) {
   return /\.(?:css|js|mjs|png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|webmanifest)$/i.test(url.pathname);
 }
 
-/* Cache-first: answer from cache, otherwise fetch and store a copy. */
-async function cacheFirst(request, cacheName) {
+/* Cache-first: answer from cache, otherwise fetch and store a copy.
+ *
+ * `cors` re-issues the request in CORS mode. That matters for the Storage
+ * images: an <img src> is a no-cors request, so the response comes back opaque
+ * - type "opaque", status 0, body unreadable. An opaque response can be stored,
+ * but nothing about it can be checked, which means a 404 or an error page would
+ * be cached and then served as a broken image until the cache version changed.
+ * Storage answers with Access-Control-Allow-Origin: *, so asking in CORS mode
+ * yields a real status code and a body we can verify. If the CORS fetch is
+ * refused we fall back to the plain request rather than failing outright. */
+async function cacheFirst(request, cacheName, { cors = false } = {}) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(request);
   if (hit) return hit;
-  const response = await fetch(request);
-  // Only store complete, same-origin-or-CORS successes. An opaque response
-  // (no-cors) would be cached as an empty shell, so it is skipped.
-  if (response.ok && response.type !== 'opaque') {
+
+  let response;
+  if (cors) {
+    try {
+      response = await fetch(new Request(request.url, { mode: 'cors', credentials: 'omit' }));
+    } catch (err) {
+      response = await fetch(request);
+    }
+  } else {
+    response = await fetch(request);
+  }
+
+  // Opaque responses carry no status and no readable body, so they are only
+  // stored when nothing better is available, and never for same-origin assets.
+  const storable = cors
+    ? response.ok
+    : (response.ok && response.type !== 'opaque');
+  if (storable) {
     cache.put(request, response.clone()).catch(() => {});
   }
   return response;
@@ -127,7 +150,7 @@ self.addEventListener('fetch', (event) => {
 
   // Storage images are immutable.
   if (isStorageImage(url)) {
-    event.respondWith(cacheFirst(request, IMAGE_CACHE));
+    event.respondWith(cacheFirst(request, IMAGE_CACHE, { cors: true }));
     return;
   }
 

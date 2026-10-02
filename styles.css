@@ -308,6 +308,39 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .board-profile-info h2{font-size:1.3rem;margin-bottom:6px;line-height:1.25;font-weight:900}
 .board-profile-role{font-family:var(--sans);font-size:.72rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
 .board-profile-group{font-family:var(--sans);font-size:.72rem;color:var(--ink-3)}
+
+/* ---------- Site credit (who built this) ---------- */
+/* Sits under the role/group on a credited member's profile. Uses the brand
+   gradient so it reads as a distinction rather than another metadata line. */
+.board-profile-credit:empty{display:none}
+.bp-credit-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  margin-top:12px;
+  padding:6px 13px 6px 11px;
+  border-radius:999px;
+  background:var(--gradient);
+  color:#fff;
+  font-family:var(--sans);font-size:.68rem;font-weight:750;
+  letter-spacing:.06em;text-transform:uppercase;
+  line-height:1.2;
+  box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 34%,transparent);
+}
+.bp-credit-badge svg{width:13px;height:13px;flex:none;opacity:.95}
+@media(max-width:520px){
+  .bp-credit-badge{font-size:.63rem;padding:6px 12px 6px 10px;margin-top:10px}
+}
+
+/* Small marker beside the name on the board card, so the credit is visible
+   before the profile is opened. */
+.board-card h3{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.board-credit-mark{
+  display:inline-grid;place-items:center;
+  width:17px;height:17px;border-radius:50%;
+  background:var(--gradient);color:#fff;
+  flex:none;
+  box-shadow:0 2px 6px color-mix(in srgb,var(--brand-primary) 32%,transparent);
+}
+.board-credit-mark svg{width:10px;height:10px}
 .board-profile-body{padding:24px 32px 32px}
 @media(max-width:520px){.board-profile-body{padding:20px}}
 .bp-section{margin-bottom:26px}
