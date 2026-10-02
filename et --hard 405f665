@@ -1,0 +1,20 @@
+[33mcc3c9f2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix: let carousel byline wrap instead of ellipsis
+[33m8d3c44e[m Feature: image lightbox for story hero + modal hero
+[33m7810e16[m Feat: update hero carousel layout and styles; enhance media handling and responsiveness
+[33m5c4b817[m Feat: enhance hero carousel functionality; improve cache-buster instructions and CSS layout for better mobile responsiveness
+[33m405f665[m Feat: add swipe navigation for carousel on mobile; update styles for better responsiveness
+[33m74cacbf[m Feat: implement hero carousel for featured stories; update styles and HTML structure
+[33m8f2ea09[m Chore: strip debug logs from roster cascade
+[33md37d67e[m Fix: video orientation loss, scheduled publish, roster dupes, orphaned photos, open race
+[33md0ea1de[m Fix: enhance logging in upsertBoardMember and renameMemberReferences functions; update app.js version in index.html
+[33ma035e5d[m Fix: cascade member renames to photos + article bylines
+[33maaea8f0[m Fix script tag syntax in index.html
+[33me06f57e[m Fix board photos re-fetch after DB key rename and update app.js version in index.html
+[33ma84f20e[m Add videoThumbMode variable to manage thumbnail upload mode
+[33m93124b7[m Add AGENTS.md and update .assetsignore to include new documentation files
+[33m216c932[m Add site credit badges and install prompt styles
+[33m8817848[m lmao
+[33m4d292f1[m Add site credits for contributors and enhance board member profiles with credit markers
+[33m2c6eb32[m Implement service worker for offline support and install prompt; add Open Graph locale metadata
+[33m1c90405[m Add image optimization script for brand logo assets
+[33mf05e6e1[m Refactor session management and error handling in authentication functions
