@@ -412,8 +412,11 @@ const Data = {
        'published': the related-articles list in the modal, the view counter,
        and articleModalSeo - the flag that pushes /stories/<slug>/<id> into the
        address bar and updates the og:/canonical tags. */
-    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by';
-    const { data, error } = await sb.from('articles').select(PUBLISHED_COLUMNS).eq('status','published').is('deleted_at', null).order('date',{ascending:false, nullsFirst:false});
+    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by';
+    /* `publish_at` in the past (or null) means the article is live. A future
+       publish_at keeps it out of the public list even though status='published'. */
+    const nowIso = new Date().toISOString();
+    const { data, error } = await sb.from('articles').select(PUBLISHED_COLUMNS).eq('status','published').is('deleted_at', null).or(`publish_at.is.null,publish_at.lte.${nowIso}`).order('date',{ascending:false, nullsFirst:false});
     if (error) { console.error(error); return []; }
     appCache.publishedArticles = data || [];
     return appCache.publishedArticles.slice();
@@ -492,7 +495,14 @@ const Data = {
   async listBoardMembers() {
     if (!sb) return BOARD.slice();
     const { data, error } = await sb.from('board_members').select('*').order('sort_order',{ascending:true});
-    if (error) return BOARD.slice();
+    if (error) {
+      /* Falling back silently to the hardcoded BOARD array loses the row ids,
+         which turns every subsequent edit into an INSERT and duplicates the
+         member. Say so out loud. */
+      console.warn('[The Work] board_members fetch failed', error);
+      toast('Could not load the EB roster — edits may duplicate members.', true);
+      return BOARD.slice();
+    }
     return (data || []).map(r => ({
       id: r.id,
       name: r.name,
@@ -509,15 +519,19 @@ const Data = {
     if (!sb) throw new Error('Offline');
     let oldName = null;
     if (m.id) {
-      const { data: existing, error: lookupErr } = await sb.from('board_members').select('name').eq('id', m.id).maybeSingle();
-      console.log('[MEMBER] lookup result:', existing, lookupErr ? lookupErr.message : 'no error');
+      const { data: existing } = await sb.from('board_members').select('name').eq('id', m.id).maybeSingle();
       if (existing && existing.name && existing.name !== m.name) oldName = existing.name;
-    } else {
-      console.log('[MEMBER] WARNING: m.id is empty — no cascade will run');
     }
-    console.log('[MEMBER] oldName resolved to:', oldName);
+    /* A row loaded from the hardcoded fallback has no id. If a member with the
+       same name already exists in the table, adopt its id instead of inserting
+       a duplicate row. */
+    let resolvedId = m.id || null;
+    if (!resolvedId && m.name) {
+      const { data: byName } = await sb.from('board_members').select('id').eq('name', m.name).maybeSingle();
+      if (byName && byName.id) resolvedId = byName.id;
+    }
     const payload = {
-      id: m.id || undefined,
+      id: resolvedId || undefined,
       name: m.name,
       role: m.role,
       program: m.program || null,
@@ -618,8 +632,15 @@ const Data = {
   },
   async removeBoardMember(id) {
     if (!sb) throw new Error('Offline');
+    /* board_photos is keyed by name, not by member id. Delete the member row
+       first to fetch the name, then drop the photo so a future member with the
+       same name cannot inherit it. */
+    const { data: row } = await sb.from('board_members').select('name').eq('id', id).maybeSingle();
     const { error } = await sb.from('board_members').delete().eq('id', id);
     if (error) throw error;
+    if (row && row.name) {
+      await sb.from('board_photos').delete().eq('name', row.name);
+    }
   },
   async listTrashed() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => a.deleted_at);
@@ -2062,7 +2083,12 @@ function twRenderShare(a) {
   });
 }
 
+let articleOpenToken = 0;
 async function openArticle(id) {
+  /* The body fetch below is awaited while the modal is already opening. Click
+     card A then card B quickly and A's body can land inside B's modal. Each
+     open takes a token; if a newer open has started, bail before writing. */
+  const myToken = ++articleOpenToken;
   const a = articles.find(x => x.id === id);
   if (!a) return;
   // Reading a story is the strongest signal that this is worth installing.
@@ -2072,6 +2098,7 @@ async function openArticle(id) {
   // Fetch body on demand if not already loaded (list query no longer includes it)
   if (!a.body && sb) {
     try { a.body = await Data.fetchBody(a.id); } catch (e) { a.body = ''; }
+    if (myToken !== articleOpenToken) return;
   }
 
   // Fire-and-forget view counter, deduped per browser for 6 hours
@@ -2714,6 +2741,7 @@ function showVideoForm(v) {
     setV('#videoAnimator2', v.animator_2);
     setV('#videoEditor', v.editor);
     $('#videoSubcategory').value = v.subcategory || 'tvb';
+    $('#videoOrientation').value = v.orientation || 'landscape';
     $('#videoFormTitle').textContent = 'Edit video';
     pendingVideoThumb = v.thumbnail_url ? { existing:true, url: v.thumbnail_url } : null;
     setVideoThumbMode(v.thumbnail_url ? 'upload' : 'auto');
