@@ -1176,6 +1176,168 @@ function buildArticleCard(a) {
   `;
 }
 
+/* ---------- Hero carousel ----------
+   Replaces the old lead-story slot. The visible slide advances on a timer;
+   the circular ring inside each thumbnail fills over the same interval so the
+   reader can see how long is left and which story is next. Pauses on hover,
+   on tab-blur, and disables itself entirely under prefers-reduced-motion. */
+const TW_CAROUSEL = {
+  duration: 5500,
+  maxSlides: 5,
+  /* Ring lives in a 64×64 viewBox, r=30, so circumference = 2π·30. */
+  ringCircumference: 2 * Math.PI * 30
+};
+let twCarousel = { index: 0, timer: null, ringAnim: null, items: [], paused: false };
+
+function twCarouselPrefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function twBuildCarousel(items) {
+  const root = document.getElementById('twCarousel');
+  if (!root) return;
+  twCarouselStop();
+  twCarousel.index = 0;
+  twCarousel.paused = false;
+  twCarousel.items = (items || []).slice(0, TW_CAROUSEL.maxSlides);
+  if (!twCarousel.items.length) { root.style.display = 'none'; return; }
+  root.style.display = '';
+
+  const track = root.querySelector('.tw-carousel-track');
+  const thumbs = root.querySelector('.tw-carousel-thumbs');
+
+  track.innerHTML = twCarousel.items.map((a, i) => {
+    const cat = CAT_LABELS[a.cat] || a.cat;
+    const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'The Work');
+    const bg = a.thumbnail ? imgUrl(a.thumbnail, 1200) : '';
+    return `
+      <div class="tw-slide${i === 0 ? ' active' : ''}" data-index="${i}" data-article-id="${esc(a.id)}">
+        ${bg ? `<div class="tw-slide-bg" style="background-image:url('${esc(bg)}')"></div>` : ''}
+        <div class="tw-slide-shade"></div>
+        <div class="tw-slide-content">
+          <span class="tw-slide-cat">${esc(cat)}</span>
+          <h2 class="tw-slide-title"><a data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a></h2>
+          ${a.excerpt ? `<p class="tw-slide-excerpt">${esc(a.excerpt)}</p>` : ''}
+          <div class="tw-slide-meta">By ${esc(byline)} · ${esc(fmtDateLong(a.date))}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  /* pathLength="100" turns the rect's perimeter into a 0-100 scale, so
+     stroke-dasharray/dashoffset are plain percentages and don't need to
+     track the exact geometry. */
+  thumbs.innerHTML = twCarousel.items.map((a, i) => {
+    const thumb = a.thumbnail ? imgUrl(a.thumbnail, 200) : '';
+    const cat = CAT_LABELS[a.cat] || a.cat;
+    return `
+      <button class="tw-thumb${i === 0 ? ' active' : ''}" type="button" data-index="${i}" role="tab" aria-selected="${i === 0}" aria-label="${esc(a.title)}">
+        <span class="tw-thumb-img">
+          ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" decoding="async">` : `<span class="tw-thumb-fallback">${esc((cat||'?').charAt(0))}</span>`}
+        </span>
+        <svg class="tw-thumb-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <rect x="3" y="3" width="94" height="94" rx="18" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="4"/>
+          <rect class="tw-thumb-progress" x="3" y="3" width="94" height="94" rx="18" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+        </svg>
+      </button>`;
+  }).join('');
+
+  if (twCarousel.items.length < 2) {
+    root.querySelectorAll('.tw-carousel-arrow').forEach(b => b.style.display = 'none');
+    thumbs.style.display = 'none';
+  }
+
+  root.querySelectorAll('.tw-carousel-arrow').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dir = btn.classList.contains('next') ? 1 : -1;
+      twCarouselGo(twCarousel.index + dir);
+    });
+  });
+  thumbs.querySelectorAll('.tw-thumb').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      twCarouselGo(parseInt(btn.dataset.index, 10) || 0);
+    });
+  });
+
+  /* Autoplay runs regardless of hover. Reduced-motion only disables the
+     transition animations, not the advance itself. */
+  twCarouselSetActive(0, { animate: false });
+  twCarouselScheduleNext();
+}
+
+function twCarouselClearTimer() {
+  if (twCarousel.timer) { clearTimeout(twCarousel.timer); twCarousel.timer = null; }
+  if (twCarousel.ringAnim) { try { twCarousel.ringAnim.cancel(); } catch (_) {} twCarousel.ringAnim = null; }
+}
+
+function twCarouselScheduleNext() {
+  twCarouselClearTimer();
+  if (twCarousel.paused || document.hidden) return;
+  if (twCarousel.items.length < 2) return;
+  twCarousel.timer = setTimeout(() => {
+    twCarouselGo(twCarousel.index + 1);
+  }, TW_CAROUSEL.duration);
+}
+
+function twCarouselGo(index) {
+  const n = twCarousel.items.length;
+  if (!n) return;
+  const next = ((index % n) + n) % n;
+  twCarouselSetActive(next, { animate: true });
+  twCarouselScheduleNext();
+}
+
+function twCarouselSetActive(index, opts) {
+  opts = opts || {};
+  const root = document.getElementById('twCarousel');
+  if (!root) return;
+  twCarousel.index = index;
+
+  root.querySelectorAll('.tw-slide').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.index, 10) === index);
+  });
+  root.querySelectorAll('.tw-thumb').forEach(el => {
+    const isActive = parseInt(el.dataset.index, 10) === index;
+    el.classList.toggle('active', isActive);
+    el.setAttribute('aria-selected', String(isActive));
+  });
+
+  const activeRing = root.querySelector('.tw-thumb.active .tw-thumb-progress');
+  if (!activeRing) return;
+  /* Every progress rect uses pathLength="100" so dash values are percentages.
+     Cancel any in-flight animation first — fill:'forwards' pins the rect at
+     its end value and would beat the inline style otherwise. */
+  root.querySelectorAll('.tw-thumb-progress').forEach(r => {
+    if (r.getAnimations) {
+      try { r.getAnimations().forEach(a => a.cancel()); } catch (_) {}
+    }
+    r.style.strokeDashoffset = '100';
+  });
+  if (twCarousel.items.length < 2) {
+    activeRing.style.strokeDashoffset = '0';
+    return;
+  }
+  activeRing.style.strokeDashoffset = '0';
+  if (typeof activeRing.animate === 'function') {
+    try {
+      twCarousel.ringAnim = activeRing.animate(
+        [{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }],
+        { duration: TW_CAROUSEL.duration, easing: 'linear', fill: 'forwards' }
+      );
+    } catch (_) {}
+  } else {
+    activeRing.style.transition = 'stroke-dashoffset ' + TW_CAROUSEL.duration + 'ms linear';
+    activeRing.style.strokeDashoffset = '0';
+  }
+}
+
+function twCarouselStop() { twCarouselClearTimer(); }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) twCarouselClearTimer();
+  else twCarouselScheduleNext();
+});
+
 async function renderHome() {
   const fpGrid = $('#frontpageGrid');
   fpGrid.innerHTML = twSkelHome();
@@ -1251,14 +1413,11 @@ async function renderHome() {
     return;
   }
 
-  const lead = list[0];
-  const sidebar = list.slice(1, 5);
-  const gridArticles = list.slice(5);
-
-  const leadThumbHtml = lead.thumbnail
-    ? imgTag(lead.thumbnail, [480, 960], SIZES.lead, ' alt="" loading="eager" fetchpriority="high" decoding="async"')
-    : `<div class="lead-story-thumb-text">${esc((CAT_LABELS[lead.cat]||'?').charAt(0))}</div>`;
-  const leadByline = lead.author2 ? `${lead.author} & ${lead.author2}` : (lead.author || 'The Work');
+  /* Stories 0-4 rotate in the hero carousel; the sidebar shows the next four;
+     the grid shows the rest. */
+  const carouselItems = list.slice(0, 5);
+  const sidebar = list.slice(5, 9);
+  const gridArticles = list.slice(9);
 
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}">
@@ -1274,22 +1433,22 @@ async function renderHome() {
   `).join('');
 
   fpGrid.innerHTML = `
-    <div class="lead-story" data-article-id="${esc(lead.id)}">
-      <div class="lead-story-thumb">${leadThumbHtml}<span class="lead-story-cat">${esc(CAT_LABELS[lead.cat]||lead.cat)}</span></div>
-      <h2 class="lead-story-title"><a data-story-link href="${esc(storyUrl(lead))}">${esc(lead.title)}</a></h2>
-      <p class="lead-story-excerpt">${esc(lead.excerpt || (lead.body||'').split('\n\n')[0] || '')}</p>
-      <div class="lead-story-meta">
-        <span class="lead-story-byline">By ${esc(leadByline)}</span>
-        <span>${esc(fmtDateLong(lead.date))}</span>
-        ${lead.read ? `<span>${esc(lead.read)} read</span>` : ''}
-        ${lead.views ? `<span>${esc(fmtViews(lead.views))}</span>` : ''}
-      </div>
+    <div class="tw-carousel" id="twCarousel" role="region" aria-roledescription="carousel" aria-label="Featured stories">
+      <div class="tw-carousel-track"></div>
+      <button class="tw-carousel-arrow prev" type="button" aria-label="Previous story">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <button class="tw-carousel-arrow next" type="button" aria-label="Next story">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <div class="tw-carousel-thumbs" role="tablist" aria-label="Choose story"></div>
     </div>
     <aside>
       <div class="sidebar-section-title">Latest <span>· ${published.length} total</span></div>
       <div class="sidebar-list">${sidebarHtml || '<p style="color:var(--ink-3);font-family:var(--sans);font-size:.85rem">No other stories yet.</p>'}</div>
     </aside>
   `;
+  twBuildCarousel(carouselItems);
 
   fpGrid.querySelectorAll('[data-article-id]').forEach(el => {
     el.addEventListener('click', e => {

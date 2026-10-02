@@ -11,7 +11,7 @@
   --radius:6px; --radius-lg:12px;
   --serif:"Merriweather",Georgia,serif;
   --sans:"Merriweather Sans",system-ui,sans-serif;
-  --nav-h:64px; --maxw:1180px;
+  --nav-h:64px; --maxw:1400px;
   --shadow:0 1px 3px rgba(26,14,46,.06),0 4px 14px rgba(26,14,46,.05);
   --shadow-lg:0 4px 12px rgba(26,14,46,.09), 0 18px 48px rgba(26,14,46,.13);
   --ease:cubic-bezier(.22,.61,.36,1);
@@ -134,7 +134,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .search-empty{grid-column:1/-1;text-align:center;padding:60px 20px;font-family:var(--sans);color:var(--ink-3);font-size:.9rem}
 .search-empty strong{color:var(--ink-2);display:block;font-family:var(--serif);font-size:1.15rem;margin-bottom:6px;font-weight:600}
 .frontpage{padding:clamp(28px,4vw,44px) 0 clamp(40px,6vw,72px)}
-.frontpage-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(24px,3vw,40px);align-items:start}
+.frontpage-grid{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(0,1fr);
+  gap:clamp(24px,3vw,40px);
+  align-items:start;
+  overflow:hidden;       /* clip any child that tries to escape its column */
+}
+.frontpage-grid > *{min-width:0}
 @media(max-width:900px){.frontpage-grid{grid-template-columns:1fr;gap:32px}}
 .lead-story{cursor:pointer;transition:.22s var(--ease);display:flex;flex-direction:column;padding:8px 8px 0;border-radius:18px}
 .lead-story:hover{transform:translateY(-2px)}
@@ -1435,3 +1442,222 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 28%,transparent);
 }
 @media(max-width:520px){.thumb-mode-toggle{max-width:none}}
+
+/* ============================================================
+   Hero carousel — replaces the old lead-story slot
+   ============================================================ */
+.frontpage-grid{
+  display:grid !important;
+  grid-template-columns:minmax(0,2fr) minmax(0,1fr) !important;
+  gap:clamp(24px,3vw,40px) !important;
+  align-items:start !important;
+}
+.frontpage-grid > *{min-width:0 !important;max-width:100% !important}
+
+.tw-carousel{
+  position:relative !important;
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  height:auto !important;
+  aspect-ratio:3/2 !important;
+  max-height:680px !important;
+  border-radius:var(--radius-lg);
+  overflow:hidden !important;
+  background:var(--paper-3);
+  box-shadow:0 18px 32px rgba(76,29,149,.06);
+  isolation:isolate;
+}
+@media(max-width:900px){
+  .tw-carousel{aspect-ratio:4/3 !important;max-height:560px !important}
+}
+
+.tw-carousel-track{position:absolute;inset:0}
+
+.tw-slide{
+  position:absolute;inset:0;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .7s var(--ease), visibility 0s linear .7s;
+  cursor:pointer;
+}
+.tw-slide.active{opacity:1;visibility:visible;transition:opacity .7s var(--ease), visibility 0s}
+
+.tw-slide-bg{
+  position:absolute;inset:0;
+  background-size:cover;background-position:center;
+  transform:scale(1.06);
+  transition:transform 8s ease-out;
+}
+.tw-slide.active .tw-slide-bg{transform:scale(1)}
+
+.tw-slide-shade{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.05) 30%,rgba(0,0,0,.72) 100%);
+  pointer-events:none;
+}
+.tw-slide-content{
+  position:absolute;
+  left:28px;
+  right:28px;
+  bottom:26px;
+  /* Enough gutter for the ~5×52px thumbnail rail plus its gaps. */
+  padding-right:320px;
+  color:#fff;
+  z-index:1;
+  box-sizing:border-box;
+}
+.tw-slide-meta{
+  /* Keeps a 2-author byline on one line and ellipsises if it can't fit. */
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media(max-width:1100px){
+  .tw-slide-content{padding-right:230px}
+}
+@media(max-width:820px){
+  .tw-slide-content{
+    padding-right:0;
+    bottom:86px;      /* sit above the thumbnail rail */
+  }
+  .tw-slide-meta{white-space:normal}
+}
+.tw-slide-cat{
+  display:inline-block;
+  background:rgba(255,255,255,.22);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.3);
+  color:#fff;
+  font-family:var(--sans);font-size:.66rem;font-weight:750;
+  letter-spacing:.12em;text-transform:uppercase;
+  padding:6px 12px;border-radius:999px;
+  margin-bottom:14px;
+}
+.tw-slide-title{
+  font-family:var(--serif);
+  font-size:clamp(1.6rem,3.6vw,2.8rem);
+  font-weight:900;
+  line-height:1.12;
+  letter-spacing:-.02em;
+  margin:0 0 12px;
+  color:#fff;
+}
+.tw-slide-title a{color:inherit;text-decoration:none}
+.tw-slide-title a:hover{color:#fff}
+.tw-slide-excerpt{
+  font-family:var(--sans);
+  font-size:.95rem;
+  line-height:1.6;
+  color:rgba(255,255,255,.85);
+  margin:0 0 12px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.tw-slide-meta{
+  font-family:var(--sans);
+  font-size:.76rem;
+  color:rgba(255,255,255,.72);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  padding-right:8px;
+}
+.tw-slide.active .tw-slide-content > *{
+  animation:twSlideIn .6s cubic-bezier(.22,.61,.36,1) both;
+}
+.tw-slide.active .tw-slide-content > *:nth-child(2){animation-delay:.05s}
+.tw-slide.active .tw-slide-content > *:nth-child(3){animation-delay:.10s}
+.tw-slide.active .tw-slide-content > *:nth-child(4){animation-delay:.15s}
+@keyframes twSlideIn{
+  from{opacity:0;transform:translateY(14px)}
+  to{opacity:1;transform:none}
+}
+@media (prefers-reduced-motion: reduce){
+  .tw-slide{transition:none}
+  .tw-slide.active .tw-slide-content > *{animation:none}
+  .tw-slide-bg{transition:none;transform:none}
+}
+
+.tw-carousel-arrow{
+  position:absolute;
+  top:50%;
+  transform:translateY(-50%);
+  width:44px;height:44px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.35);
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  color:#fff;
+  cursor:pointer;
+  display:grid;place-items:center;
+  z-index:3;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s var(--ease), background .18s var(--ease), transform .18s var(--ease);
+}
+.tw-carousel:hover .tw-carousel-arrow,
+.tw-carousel:focus-within .tw-carousel-arrow{
+  opacity:1;
+  pointer-events:auto;
+}
+.tw-carousel-arrow:hover{background:rgba(0,0,0,.65);transform:translateY(-50%) scale(1.06)}
+.tw-carousel-arrow.prev{left:14px}
+.tw-carousel-arrow.next{right:14px}
+.tw-carousel-arrow svg{width:20px;height:20px}
+@media(max-width:820px){
+  /* Always show on touch devices — no hover state there. */
+  .tw-carousel-arrow{opacity:1;pointer-events:auto;width:38px;height:38px}
+  .tw-carousel-arrow svg{width:16px;height:16px}
+}
+
+.tw-carousel-thumbs{
+  position:absolute;
+  bottom:clamp(20px,4vw,44px);
+  right:clamp(20px,4vw,44px);
+  display:flex;
+  gap:10px;
+  z-index:3;
+}
+.tw-thumb{
+  position:relative;
+  width:58px;height:58px;
+  padding:0;
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  /* The SVG outline is the visual border, so the button itself stays clean. */
+  overflow:visible;
+}
+.tw-thumb-img{
+  position:absolute;
+  inset:7px;             /* inset so the SVG outline sits clearly outside it */
+  border-radius:9px;
+  overflow:hidden;
+  background:rgba(0,0,0,.5);
+  box-shadow:0 4px 12px rgba(0,0,0,.35);
+  transition:transform .18s var(--ease), box-shadow .18s var(--ease);
+}
+.tw-thumb-img img{width:100%;height:100%;object-fit:cover;display:block}
+.tw-thumb-fallback{
+  position:absolute;inset:0;
+  display:grid;place-items:center;
+  font-family:var(--serif);font-weight:900;color:rgba(255,255,255,.8);font-size:1.05rem;
+}
+.tw-thumb:hover .tw-thumb-img{transform:translateY(-2px)}
+.tw-thumb.active .tw-thumb-img{box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.tw-thumb-ring{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  overflow:visible;
+}
+@media(max-width:640px){
+  .tw-carousel-thumbs{bottom:16px;right:16px;gap:8px}
+  .tw-thumb{width:44px;height:44px}
+  .tw-carousel-arrow{width:36px;height:36px}
+  .tw-carousel-arrow svg{width:16px;height:16px}
+}
