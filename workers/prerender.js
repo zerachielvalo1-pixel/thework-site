@@ -30,6 +30,38 @@ function storyDescription(article) {
   return String(value).replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
+/* ---------- Responsive image delivery (mirrors app.js) ----------
+   Without this, the prerendered page loads the raw full-resolution
+   thumbnail, which a tall infographic blows right past the CSS
+   max-height and gets cropped. Routing through Supabase's render
+   endpoint with `resize=contain` scales it proportionally so the
+   whole image stays visible. */
+const IMG_OBJECT_PATH = '/storage/v1/object/public/';
+const IMG_RENDER_PATH = '/storage/v1/render/image/public/';
+const IMG_QUALITY = 68;
+
+function imgUrl(url, width) {
+  const src = String(url == null ? '' : url);
+  if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
+  const sep = src.indexOf('?') === -1 ? '?' : '&';
+  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+    'width=' + width + '&resize=contain&quality=' + IMG_QUALITY + '&format=webp';
+}
+
+function imgTag(url, widths, sizes, attrs) {
+  const src = String(url == null ? '' : url);
+  const extra = attrs || '';
+  if (!src) return '';
+  if (src.indexOf(IMG_OBJECT_PATH) === -1) {
+    return `<img src="${escapeHtml(src)}"${extra}>`;
+  }
+  const largest = widths[widths.length - 1];
+  const set = widths.map(w => `${imgUrl(src, w)} ${w}w`).join(', ');
+  const sizeAttr = sizes ? ` sizes="${escapeHtml(sizes)}"` : '';
+  return `<img src="${escapeHtml(imgUrl(src, largest))}" srcset="${escapeHtml(set)}"${sizeAttr}${extra}>`;
+}
+
+/* Only used as a fallback for social cards / non-Supabase URLs. */
 function safeImageUrl(value) {
   try {
     const url = new URL(value);
@@ -95,9 +127,19 @@ function storyMarkup(article) {
   const paragraphs = String(article.body || '').split(/\n\s*\n/).filter(part => part.trim());
   const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(article.date)}</time>` : '';
   const readTime = article.read ? ` · ${escapeHtml(article.read)} read` : '';
+
+  /* Multi-width srcset so phones fetch the small variant and wide screens
+     fetch the larger one. The CSS `.story-hero img` caps at 70vh with
+     object-fit:contain, so the full image always shows. */
   const hero = article.thumbnail
-    ? `<figure class="story-hero"><img src="${escapeHtml(safeImageUrl(article.thumbnail))}" alt="" fetchpriority="high" decoding="async"></figure>`
+    ? `<figure class="story-hero">${imgTag(
+        article.thumbnail,
+        [600, 1200],
+        '(max-width: 900px) 100vw, 900px',
+        ' alt="" fetchpriority="high" decoding="async"'
+      )}</figure>`
     : '';
+
   const body = paragraphs.map(part => `<p>${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`).join('')
     || (article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : '');
 
