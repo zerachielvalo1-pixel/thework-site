@@ -369,12 +369,7 @@ function twCollectDraft() {
     id: editingId || 'new',
     title: $('#fTitle').value.trim(),
     cat: $('#fCat').value,
-    author: $('#fAuthor').value.trim(),
-    author2: $('#fAuthor2').value.trim(),
-    photojournalist: $('#fPhoto').value.trim(),
-    layout_by: $('#fLayout').value.trim(),
-    layout_by_2: $('#fLayout2').value.trim(),
-    graphics_by: $('#fGraphics').value.trim(),
+    credits: collectAllCredits(),
     date: $('#fDate').value || todayISO(),
     read: $('#fRead').value.trim() || '1 min',
     publish_at: $('#fPublishAt').value || '',
@@ -413,12 +408,21 @@ function twApplyDraft(draft) {
   $('#fId').value = editingId || '';
   $('#fTitle').value = draft.title || '';
   $('#fCat').value = draft.cat || '';
-  $('#fAuthor').value = draft.author || '';
-  $('#fAuthor2').value = draft.author2 || '';
-  $('#fPhoto').value = draft.photojournalist || '';
-  $('#fLayout').value = draft.layout_by || '';
-  $('#fLayout2').value = draft.layout_by_2 || '';
-  $('#fGraphics').value = draft.graphics_by || '';
+  if (draft.credits && typeof draft.credits === 'object') {
+    setCreditValues('authors', draft.credits.authors || []);
+    setCreditValues('photojournalists', draft.credits.photojournalists || []);
+    setCreditValues('courtesy', draft.credits.courtesy || []);
+    setCreditValues('layout', draft.credits.layout || []);
+    setCreditValues('graphics', draft.credits.graphics || []);
+  } else {
+    /* Old drafts (saved before Phase 3) still carry the flat fields.
+       Fold them into the pickers so nothing is lost. */
+    setCreditValues('authors', [draft.author, draft.author2].filter(Boolean));
+    setCreditValues('photojournalists', [draft.photojournalist, draft.photojournalist_2].filter(Boolean));
+    setCreditValues('courtesy', [draft.photo_courtesy].filter(Boolean));
+    setCreditValues('layout', [draft.layout_by, draft.layout_by_2].filter(Boolean));
+    setCreditValues('graphics', [draft.graphics_by].filter(Boolean));
+  }
   $('#fDate').value = draft.date || todayISO();
   $('#fRead').value = draft.read || '';
   $('#fPublishAt').value = draft.publish_at || '';
@@ -4114,7 +4118,110 @@ function twSkelHome() {
   `;
 }
 
+// ---------- Credit pickers ----------
+/* Multi-slot role inputs on the article form. Each role (authors,
+   photojournalists, courtesy, layout, graphics) gets its own picker: a
+   count selector plus N text inputs. Changing the count preserves the
+   values already typed into the first N slots; anything beyond N is
+   dropped. `min` slots are always rendered even when empty, so the form
+   layout stays stable and the required-authors case is always visible. */
+const CREDIT_ROLE_META = {
+  authors:          { min: 1, max: 10, datalist: 'boardNames' },
+  photojournalists: { min: 0, max: 10, datalist: 'boardNames' },
+  courtesy:         { min: 0, max: 5,  datalist: '' },
+  layout:           { min: 0, max: 10, datalist: 'boardNames' },
+  graphics:         { min: 0, max: 10, datalist: 'boardNames' }
+};
+const CREDIT_ROLE_ORDER = ['authors', 'photojournalists', 'courtesy', 'layout', 'graphics'];
 
+function creditPickerRoot(role) {
+  return document.querySelector('.credit-picker[data-role="' + role + '"]');
+}
+
+function renderCreditFields(role, count) {
+  const root = creditPickerRoot(role);
+  if (!root) return;
+  const meta = CREDIT_ROLE_META[role] || { min: 0, max: 10, datalist: 'boardNames' };
+  const fieldsEl = root.querySelector('.credit-picker-fields');
+  if (!fieldsEl) return;
+
+  const existing = Array.from(fieldsEl.querySelectorAll('.credit-picker-input')).map(i => i.value);
+  const n = Math.max(meta.min, Math.min(meta.max, count));
+  const vals = [];
+  for (let i = 0; i < n; i++) vals.push(existing[i] || '');
+
+  const labelText = root.dataset.label || role;
+  const placeholder = root.dataset.placeholder || 'Start typing a name…';
+  const listAttr = meta.datalist ? ' list="' + meta.datalist + '"' : '';
+
+  fieldsEl.innerHTML = vals.map((v, i) => {
+    const idx = i + 1;
+    return '<input type="text" class="credit-picker-input" data-role="' + esc(role) +
+      '" data-index="' + idx + '"' + listAttr +
+      ' maxlength="120" placeholder="' + esc(placeholder) + '"' +
+      ' value="' + esc(v) + '"' +
+      ' aria-label="' + esc(labelText) + ' ' + idx + '">';
+  }).join('');
+
+  const countSel = root.querySelector('.credit-picker-count');
+  if (countSel) countSel.value = String(n);
+}
+
+function initCreditPicker(role) {
+  const root = creditPickerRoot(role);
+  if (!root) return;
+  const meta = CREDIT_ROLE_META[role] || { min: 0, max: 10, datalist: 'boardNames' };
+  const countSel = root.querySelector('.credit-picker-count');
+  if (countSel) {
+    const opts = [];
+    for (let i = meta.min; i <= meta.max; i++) opts.push('<option value="' + i + '">' + i + '</option>');
+    countSel.innerHTML = opts.join('');
+    countSel.value = String(meta.min);
+    countSel.addEventListener('change', () => {
+      const raw = parseInt(countSel.value, 10);
+      const n = isNaN(raw) ? meta.min : Math.max(meta.min, Math.min(meta.max, raw));
+      renderCreditFields(role, n);
+    });
+  }
+  renderCreditFields(role, meta.min);
+}
+
+function initAllCreditPickers() {
+  CREDIT_ROLE_ORDER.forEach(initCreditPicker);
+}
+
+function setCreditValues(role, values) {
+  const root = creditPickerRoot(role);
+  if (!root) return;
+  const meta = CREDIT_ROLE_META[role] || { min: 0, max: 10 };
+  const arr = (Array.isArray(values) ? values : []).map(v => String(v == null ? '' : v));
+  const target = Math.max(meta.min, Math.min(meta.max, arr.length || meta.min));
+  renderCreditFields(role, target);
+  const fieldsEl = root.querySelector('.credit-picker-fields');
+  if (!fieldsEl) return;
+  const inputs = fieldsEl.querySelectorAll('.credit-picker-input');
+  for (let i = 0; i < inputs.length; i++) inputs[i].value = arr[i] || '';
+}
+
+function collectCreditValues(role) {
+  const root = creditPickerRoot(role);
+  if (!root) return [];
+  return Array.from(root.querySelectorAll('.credit-picker-input'))
+    .map(i => i.value.trim())
+    .filter(Boolean);
+}
+
+function collectAllCredits() {
+  const out = {};
+  CREDIT_ROLE_ORDER.forEach(role => { out[role] = collectCreditValues(role); });
+  return out;
+}
+
+function resetCreditPickers() {
+  CREDIT_ROLE_ORDER.forEach(role => setCreditValues(role, []));
+}
+
+// ---------- form reactivity (sub-category dropdown + author hint) ----------
 // ---------- form reactivity (sub-category dropdown + author hint) ----------
 /* The word-count meter and its min/max validation were removed entirely.
    What remains is just the reactive plumbing that keeps the sub-category
@@ -4164,10 +4271,7 @@ function resetForm() {
   if ($('#fSubcat')) $('#fSubcat').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
-    $('#fPhoto2').value = '';
-  $('#fPhotoCourtesy').value = '';
-  $('#fLayout2').value = '';
-  $('#fGraphics').value = '';
+  resetCreditPickers();
   $('#editorTitle').textContent = 'New article';
   $('#deleteBtn').style.display = 'none';
   setThumbnail(null);
@@ -4186,14 +4290,15 @@ function loadIntoForm(id) {
   $('#fTitle').value = a.title || '';
   $('#fCat').value = a.cat || '';
     if ($('#fSubcat')) $('#fSubcat').value = a.subcat || '';
-  $('#fAuthor').value = a.author || '';
-  $('#fAuthor2').value = a.author2 || '';
-  $('#fPhoto').value = a.photojournalist || '';
-  $('#fPhoto2').value = a.photojournalist_2 || '';
-  $('#fPhotoCourtesy').value = a.photo_courtesy || '';
-  $('#fLayout').value = a.layout_by || '';
-  $('#fLayout2').value = a.layout_by_2 || '';
-  $('#fGraphics').value = a.graphics_by || '';
+  /* Populate the pickers from getCredits(), which normalises the JSONB
+     column and the legacy fixed columns into the same shape. Existing
+     articles load with no change to what the reader sees. */
+  const c = getCredits(a);
+  setCreditValues('authors', c.authors);
+  setCreditValues('photojournalists', c.photojournalists);
+  setCreditValues('courtesy', c.courtesy);
+  setCreditValues('layout', c.layout);
+  setCreditValues('graphics', c.graphics);
   $('#fDate').value = a.date || todayISO();
   $('#fRead').value = a.read || '';
   $('#fPublishAt').value = a.publish_at ? toLocalDateTimeInput(a.publish_at) : '';
@@ -4215,17 +4320,17 @@ $('#articleForm').addEventListener('submit', async e => {
 
   const title = $('#fTitle').value.trim();
   const cat = $('#fCat').value;
-  const author = $('#fAuthor').value.trim();
   const body = $('#fBody').value.trim();
   const excerpt = $('#fExcerpt').value.trim();
   const status = $('#fStatus').value;
+  const credits = collectAllCredits();
   const missing = [];
   const subcat = ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : '';
   const noAuthorRequired = cat === 'news' || (cat === 'opinion' && (subcat === 'editorial' || subcat === 'standpoints'));
 
   if (!title) missing.push('title');
   if (!cat) missing.push('section');
-  if (!author && !noAuthorRequired) missing.push('author');
+  if (!credits.authors.length && !noAuthorRequired) missing.push('author');
   if (!body) missing.push('body');
   if (status === 'published' && !excerpt && !noAuthorRequired) missing.push('excerpt');
 
@@ -4245,15 +4350,21 @@ $('#articleForm').addEventListener('submit', async e => {
     }
     const payload = {
       id: editingId || uid(),
-      title, cat, author,
+      title, cat,
+      /* New JSONB column: the whole set of credits, unlimited length. */
+      credits: credits,
+      /* Legacy mirror: first 1–2 slots per role. Keeps the Worker, the
+         board-profile matcher, and any external consumer that still reads
+         the old columns working while we finish the migration. */
+      author:          credits.authors[0]          || null,
+      author2:         credits.authors[1]          || null,
+      photojournalist: credits.photojournalists[0] || null,
+      photojournalist_2: credits.photojournalists[1] || null,
+      photo_courtesy:  credits.courtesy.join(', ') || null,
+      layout_by:       credits.layout[0]           || null,
+      layout_by_2:     credits.layout[1]           || null,
+      graphics_by:     credits.graphics[0]         || null,
       subcat: ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : null,
-      author2: $('#fAuthor2').value.trim() || null,
-      photojournalist: $('#fPhoto').value.trim() || null,
-      photojournalist_2: $('#fPhoto2').value.trim() || null,
-      photo_courtesy: $('#fPhotoCourtesy').value.trim() || null,
-      layout_by: $('#fLayout').value.trim() || null,
-      layout_by_2: $('#fLayout2').value.trim() || null,
-      graphics_by: $('#fGraphics').value.trim() || null,
       date: $('#fDate').value || todayISO(),
       read: $('#fRead').value.trim() || '1 min',
       publish_at: $('#fPublishAt').value ? new Date($('#fPublishAt').value).toISOString() : null,
@@ -4807,6 +4918,7 @@ async function init() {
   $('#fRead').value = '';
   $('#releaseDate').value = todayISO();
   setReleaseProvider('heyzine', { keepValue: true });
+  initAllCreditPickers();
 
   twInitFade();
   if (document.body) {

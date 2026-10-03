@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=32">
+<link rel="stylesheet" href="styles.css?v=33">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -680,23 +680,66 @@
             <div class="field"><label for="fTitle">Title <span class="hint">*</span></label><input type="text" id="fTitle" required maxlength="160"></div>
             <div class="row-2">
               <div class="field"><label for="fCat">Section <span class="hint">*</span></label><select id="fCat" required><option value="">Choose…</option><option value="news">News</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="entertainment">Entertainment</option></select></div>
-              <div class="field"><label for="fAuthor">Author <span class="hint" id="fAuthorHint">*</span></label><input type="text" id="fAuthor" maxlength="80" list="boardNames"></div>
+              <div class="field" id="fSubcatField" style="display:none">
+                <label for="fSubcat">Sub-category <span class="hint">optional</span></label>
+                <select id="fSubcat"><option value="">—</option></select>
+              </div>
             </div>
-            <div class="field" id="fSubcatField" style="display:none">
-              <label for="fSubcat">Sub-category <span class="hint">optional</span></label>
-              <select id="fSubcat"><option value="">—</option></select>
+
+            <div class="credit-picker" data-role="authors" data-label="Author" data-placeholder="Start typing a name…">
+              <div class="credit-picker-head">
+                <label class="credit-picker-label">Authors <span class="hint" id="fAuthorHint">*</span></label>
+                <div class="credit-picker-count-wrap">
+                  <span>How many?</span>
+                  <select class="credit-picker-count" aria-label="Number of authors"></select>
+                </div>
+              </div>
+              <div class="credit-picker-fields"></div>
             </div>
-            <div class="field"><label for="fAuthor2">Second author <span class="hint">optional</span></label><input type="text" id="fAuthor2" maxlength="80" list="boardNames"></div>
-            <div class="row-2">
-              <div class="field"><label for="fPhoto">Photojournalist <span class="hint">optional</span></label><input type="text" id="fPhoto" maxlength="80" list="boardNames"></div>
-              <div class="field"><label for="fPhoto2">Second photojournalist <span class="hint">optional</span></label><input type="text" id="fPhoto2" maxlength="80" list="boardNames"></div>
+
+            <div class="credit-picker" data-role="photojournalists" data-label="Photojournalist" data-placeholder="Start typing a name…">
+              <div class="credit-picker-head">
+                <label class="credit-picker-label">Photojournalists <span class="hint">optional</span></label>
+                <div class="credit-picker-count-wrap">
+                  <span>How many?</span>
+                  <select class="credit-picker-count" aria-label="Number of photojournalists"></select>
+                </div>
+              </div>
+              <div class="credit-picker-fields"></div>
             </div>
-            <div class="field"><label for="fPhotoCourtesy">Photo courtesy <span class="hint">optional — credit source or courtesy line</span></label><input type="text" id="fPhotoCourtesy" maxlength="120" placeholder="e.g. Photo courtesy of TSU SSC"></div>
-            <div class="row-2">
-              <div class="field"><label for="fLayout">Layout by <span class="hint">optional</span></label><input type="text" id="fLayout" maxlength="80" list="boardNames"></div>
-              <div class="field"><label for="fLayout2">Second layout <span class="hint">optional</span></label><input type="text" id="fLayout2" maxlength="80" list="boardNames"></div>
+
+            <div class="credit-picker" data-role="courtesy" data-label="Courtesy" data-placeholder="e.g. Photo courtesy of TSU SSC">
+              <div class="credit-picker-head">
+                <label class="credit-picker-label">Courtesy <span class="hint">optional — source credits or thank-yous</span></label>
+                <div class="credit-picker-count-wrap">
+                  <span>How many?</span>
+                  <select class="credit-picker-count" aria-label="Number of courtesy lines"></select>
+                </div>
+              </div>
+              <div class="credit-picker-fields"></div>
             </div>
-            <div class="field"><label for="fGraphics">Graphics by <span class="hint">optional</span></label><input type="text" id="fGraphics" maxlength="80" list="boardNames"></div>
+
+            <div class="credit-picker" data-role="layout" data-label="Layout artist" data-placeholder="Start typing a name…">
+              <div class="credit-picker-head">
+                <label class="credit-picker-label">Layout artists <span class="hint">optional</span></label>
+                <div class="credit-picker-count-wrap">
+                  <span>How many?</span>
+                  <select class="credit-picker-count" aria-label="Number of layout artists"></select>
+                </div>
+              </div>
+              <div class="credit-picker-fields"></div>
+            </div>
+
+            <div class="credit-picker" data-role="graphics" data-label="Graphics artist" data-placeholder="Start typing a name…">
+              <div class="credit-picker-head">
+                <label class="credit-picker-label">Graphics artists <span class="hint">optional</span></label>
+                <div class="credit-picker-count-wrap">
+                  <span>How many?</span>
+                  <select class="credit-picker-count" aria-label="Number of graphics artists"></select>
+                </div>
+              </div>
+              <div class="credit-picker-fields"></div>
+            </div>
             <div class="row-2">
               <div class="field"><label for="fDate">Date</label><input type="date" id="fDate"></div>
               <div class="field"><label for="fRead">Read time <span class="hint">auto</span></label><input type="text" id="fRead" maxlength="20" readonly style="opacity:.7;cursor:not-allowed"></div>
@@ -981,7 +1024,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=36" defer></script>
+<script src="app.js?v=37" defer></script>
 
 </body>
 </html>
