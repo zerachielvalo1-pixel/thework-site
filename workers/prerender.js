@@ -103,8 +103,12 @@ function socialCardUrl(url) {
   const src = String(url == null ? '' : url);
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
+  /* Force a JPEG output with an explicit `format` param. Without it, the
+     render endpoint inherits the stored file's format, and Facebook's
+     scraper will not accept a WebP. `format=jpeg` guarantees the bytes
+     Meta's crawler wants. */
   return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
-    'width=1200&height=630&resize=cover&quality=80';
+    'width=1200&height=630&resize=cover&quality=80&format=jpeg';
 }
 
 /* The site is published in the Philippines, so previews get an explicit locale
