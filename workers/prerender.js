@@ -90,8 +90,10 @@ function renderImage(url, params) {
    Nearly every thumbnail in the bucket is a .webp upload, which those crawlers
    do not reliably render, so the card is pulled through the renderer with NO
    `format` argument: that transcodes webp and jpeg to JPEG while leaving PNG as
-   PNG, and both are formats every preview crawler accepts. resize=cover fits it
-   to the 1.91:1 that Facebook, Messenger and X expect.
+   PNG, and both are formats every preview crawler accepts. (`format=jpeg` looks
+   like the obvious way to force that, but the renderer answers HTTP 400 on the
+   param - verified live 2026-10 - so it must never be sent.) resize=cover fits
+   it to the 1.91:1 that Facebook, Messenger and X expect.
 
    og:image:width / og:image:height are deliberately NOT emitted. They used to be
    hardcoded to 1200x630, which matched no image in the bucket (uploads are
@@ -103,12 +105,10 @@ function socialCardUrl(url) {
   const src = String(url == null ? '' : url);
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
-  /* Force a JPEG output with an explicit `format` param. Without it, the
-     render endpoint inherits the stored file's format, and Facebook's
-     scraper will not accept a WebP. `format=jpeg` guarantees the bytes
-     Meta's crawler wants. */
+  /* Must stay byte-for-byte in sync with socialCardUrl() in app.js: no format
+     param (that would 400), no width/height attributes downstream. */
   return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
-    'width=1200&height=630&resize=cover&quality=80&format=jpeg';
+    `width=${OG_CARD.width}&height=${OG_CARD.height}&resize=cover&quality=${OG_CARD.quality}`;
 }
 
 /* The site is published in the Philippines, so previews get an explicit locale
@@ -242,10 +242,12 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   const title = `${article.title} — The Work`;
   const description = storyDescription(article);
   const canonical = `${SITE_ORIGIN}${storyPath(article)}`;
-  const image = socialCardUrl(article.thumbnail) || `${SITE_ORIGIN}/logo-tw.png`;
-  /* Two different jobs: the page itself wants a responsive source, while the
-     link preview needs one fixed, crawler-safe card. */
-  const cardImage = socialCardUrl(image);
+  const image = safeImageUrl(article.thumbnail);
+  /* Two different jobs: the page itself wants a responsive source (renderImage()
+     is applied to the raw object above), while the link preview needs one
+     fixed, crawler-safe card. The card URL is derived exactly once so it cannot
+     be feed back through itself. */
+  const cardImage = socialCardUrl(image) || `${SITE_ORIGIN}/logo-tw.png`;
   const setMeta = (htmlText, pattern, attrs) => htmlText.replace(pattern, `<meta ${attrs}>`);
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);

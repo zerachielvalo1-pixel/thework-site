@@ -95,6 +95,13 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
 - **Never point `og:image` at a `.webp`.** Facebook/Messenger/WhatsApp render it
   unreliably and fall back to a bare link. This was the original "shares show no
   thumbnail" bug.
+- **Never send `format=jpeg` (or any `format`) on the og:image render URL.** The
+  renderer answers HTTP 400 on `format=jpeg` — verified live 2026-10 — and the
+  crawlers fetch a JSON error instead of a picture, so shares show bare links.
+  Omit `format` entirely: the renderer then transcodes matched webp/jpeg uploads
+  to JPEG itself (and leaves PNG as PNG). `socialCardUrl()` in `app.js` and
+  `workers/prerender.js` **must stay byte-for-byte in sync**, including their
+  `&amp;`-free query strings.
 - **Never declare `og:image:width`/`height` unless they are accurate.** They were
   hardcoded to 1200×630, which matched no image in the bucket.
 - Tags must **replace** the generic homepage defaults, not be appended — a
