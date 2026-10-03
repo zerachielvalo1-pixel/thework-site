@@ -1235,9 +1235,9 @@ function renderStoryPage(article) {
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
+        <div id="storyShare" class="modal-share story-page-share"></div>
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
-        <div id="storyShare" class="modal-share"></div>
       </div>
     </article>`;
   const storyShare = main.querySelector('#storyShare');

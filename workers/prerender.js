@@ -168,9 +168,7 @@ function storyMarkup(article) {
         <h1>${escapeHtml(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${escapeHtml(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${escapeHtml(authors)}${dateMarkup ? ` · ${dateMarkup}` : ''}${readTime}</div>
-        ${hero}
-        <div class="story-content">${body}</div>
-        <div id="storyShare" class="modal-share">
+        <div id="storyShare" class="modal-share story-page-share">
           <div class="modal-share-label">Share this story</div>
           <div class="modal-share-buttons">
             <button class="share-btn" data-share="copy" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy link</span></button>
@@ -179,6 +177,8 @@ function storyMarkup(article) {
             <button class="share-btn" data-share="x" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg><span>X</span></button>
           </div>
         </div>
+        ${hero}
+        <div class="story-content">${body}</div>
       </div>
     </article>
   </main>`;
