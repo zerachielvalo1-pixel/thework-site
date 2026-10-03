@@ -750,7 +750,7 @@ const Data = {
     } catch (err) {
       console.error('[The Work] Thumbnail upload failed:', err);
       toast('Image upload failed — using inline image. Try refreshing if this repeats.', true);
-      return await resizeImage(file, 1200, 0.78);
+      return await resizeImage(fileOrDataUrl, 1200, 0.78);
     }
   },
   async loadBoardPhotos() {
