@@ -130,11 +130,11 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
 
 ### Deploy hygiene
 
-- **`.assetsignore` decides what is public.** `articles_rows.csv` (a 1,716-row
-  dump of the articles table including drafts and `deleted_by` metadata) was
-  being served at `/articles_rows.csv`.
-- `worker.js` is a **stale duplicate** of `workers/prerender.js`, not deployed
-  and not the config entry point. Don't edit it, and don't switch `main` to it.
+- **`.assetsignore` decides what is public.** A full dump of the articles
+  table (including drafts and `deleted_by` metadata) was once served at
+  `/articles_rows.csv`. CSV dumps stay gitignored and never belong in the
+  public asset root.
+- Deploy config is `wrangler.jsonc` only (`main` = `workers/prerender.js`).
 
 ---
 
@@ -169,4 +169,3 @@ There are **no automated tests**. Verification during development used:
 2. **No tests.** Two silent bugs shipped this year that a single smoke test
    asserting the Supabase column contract would have caught.
 3. **Manual cache-busting** (see above).
-4. `worker.js` and `tasks.js` are dead files kept only for reference.

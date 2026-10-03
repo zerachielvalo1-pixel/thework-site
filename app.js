@@ -8,8 +8,6 @@ const sb = (window.supabase && SUPABASE_URL.startsWith('https://'))
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
 
-console.log(sb ? '[The Work] Supabase connected' : '[The Work] Demo mode');
-
 const $ = (s,c) => (c||document).querySelector(s);
 const $$ = (s,c) => Array.from((c||document).querySelectorAll(s));
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -40,6 +38,10 @@ function getCredits(article) {
     graphics:         norm(c.graphics).length         ? norm(c.graphics)         : [article.graphics_by].filter(Boolean),
     courtesy:         norm(c.courtesy).length         ? norm(c.courtesy)         : [article.photo_courtesy].filter(Boolean)
   };
+}
+
+function staffByline(article) {
+  return getCredits(article).authors.join(', ') || 'The Work Staff';
 }
 
 /* ---------- Responsive image delivery ----------
@@ -1219,8 +1221,7 @@ function renderStoryPage(article) {
     main.className = 'view';
     $('#view-home').before(main);
   }
-  const c = getCredits(article);
-  const authors = c.authors.join(', ') || 'The Work Staff';
+  const authors = staffByline(article);
   const paragraphs = (article.body || '').split(/\n\s*\n/).filter(p => p.trim());
   main.dataset.serverStory = 'true';
   main.innerHTML = `
@@ -1291,7 +1292,7 @@ function buildArticleCard(a) {
   const subcatBadge = (a.cat === 'news' && a.subcat && SUBCAT_LABELS[a.subcat])
     ? `<span class="article-subcat">${esc(SUBCAT_LABELS[a.subcat])}</span>`
     : '';
-  const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'The Work');
+  const byline = staffByline(a);
   return `
     <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>${subcatBadge}</div>
     <div class="article-body">
@@ -1338,7 +1339,7 @@ function twBuildCarousel(items) {
 
   track.innerHTML = twCarousel.items.map((a, i) => {
     const cat = CAT_LABELS[a.cat] || a.cat;
-    const byline = getCredits(a).authors.join(', ') || 'The Work Staff';
+    const byline = staffByline(a);
     const bg = a.thumbnail ? imgUrl(a.thumbnail, 1200) : '';
     return `
       <div class="tw-slide${i === 0 ? ' active' : ''}" data-index="${i}" data-article-id="${esc(a.id)}">
@@ -1642,17 +1643,25 @@ async function renderHome() {
 
   const previewContainer = $('#sectionPreviews');
   previewContainer.innerHTML = '';
-  if (activeFilter === 'all' && !searchTerm && homeSort === 'recent' && published.length > 3) {
-    SECTION_ORDER.forEach(cat => {
-      const items = published.filter(a => a.cat === cat).slice(0, 4);
+  if (!searchTerm && homeSort === 'recent' && published.length > 0) {
+    const previewCats = (activeFilter === 'all')
+      ? SECTION_ORDER.filter(cat => published.some(a => a.cat === cat))
+      : [activeFilter];
+    previewCats.forEach(cat => {
+      const items = activeFilter === 'all'
+        ? published.filter(a => a.cat === cat).slice(0, 4)
+        : list.slice(0, 4);
       if (!items.length) return;
       const section = document.createElement('section');
       section.className = 'section-preview';
+      const showAllLabel = activeFilter === 'all'
+        ? `See all ${esc(CAT_LABELS[cat])} →`
+        : `More ${esc(CAT_LABELS[cat])} stories`;
       section.innerHTML = `
         <div class="wrap">
           <div class="section-preview-head">
             <h2><span class="cat-dot"></span>${esc(CAT_LABELS[cat])}</h2>
-            <button class="see-all" data-jump="${esc(cat)}">See all ${esc(CAT_LABELS[cat])} →</button>
+            ${activeFilter === 'all' ? `<button class="see-all" data-jump="${esc(cat)}">${showAllLabel}</button>` : `<span class="section-preview-muted">${showAllLabel}</span>`}
           </div>
           <div class="preview-grid"></div>
         </div>
@@ -1673,13 +1682,15 @@ async function renderHome() {
       twWirePrefetch(section);
       previewContainer.appendChild(section);
     });
-    previewContainer.querySelectorAll('.see-all').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const cat = btn.dataset.jump;
-        const tab = document.querySelector(`.section-tab[data-filter="${cat}"]`);
-        if (tab) { tab.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    if (activeFilter === 'all') {
+      previewContainer.querySelectorAll('.see-all').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cat = btn.dataset.jump;
+          const tab = document.querySelector(`.section-tab[data-filter="${cat}"]`);
+          if (tab) { tab.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        });
       });
-    });
+    }
   }
 }
 

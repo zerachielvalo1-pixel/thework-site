@@ -130,7 +130,8 @@ function isoDateTime(value) {
 
 function storyMarkup(article) {
   /* Mirror getCredits() from app.js. Prefer the JSONB array; fall back to
-     the legacy two-slot columns for articles written before the migration. */
+     the legacy two-slot columns for articles written before the migration.
+     Separator is ", " to match the card and modal on the client side. */
   const creds = (article.credits && typeof article.credits === 'object') ? article.credits : {};
   const authorsArr = Array.isArray(creds.authors) && creds.authors.length
     ? creds.authors.map(String).filter(Boolean)

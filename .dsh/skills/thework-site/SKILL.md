@@ -104,8 +104,7 @@ A full database dump once leaked this way.
 
 - `PUBLISHED_COLUMNS` in `app.js` must include `status`, or three features fail
   silently (view counter, related articles, share URL).
-- `worker.js` is a stale duplicate of `workers/prerender.js` and is **not**
-  deployed. Do not edit it or switch `wrangler.jsonc`'s `main` to it.
+- Deploy config is `wrangler.jsonc` only. `main` is `workers/prerender.js`.
 - There are no tests. For data-layer changes, at minimum confirm the fields the
   UI reads are actually present in the query result.
 - On Windows PowerShell 5.1: `$home` collides with `$HOME`, `??` is unsupported,

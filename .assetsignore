@@ -3,19 +3,12 @@
 .wrangler
 node_modules
 *.md
-tanginangwebsite.html
 workers
 migrations
-worker.js
 scripts
-# A full dump of the articles table (1716 rows, incl. status / deleted_at /
-# publish_at / edited_by). It was being served publicly at /articles_rows.csv.
-articles_rows.csv
 *.csv
-# No longer referenced by index.html or app.js, but still publicly served.
-tasks.js
-# Local before/after screenshots used to review this work. Not part of the site.
 .review
-# Docs and agent context. Never served.
 .dsh
 AGENTS.md
+.vscode
+wrangler.jsonc
