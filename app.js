@@ -2349,6 +2349,7 @@ async function openArticle(id) {
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
   $('#modalTitle').dataset.articleId = String(a.id);
+  document.querySelector('[data-current-story-id]')?.setAttribute('data-current-story-id', String(a.id));
   const excerptEl = document.getElementById('modalExcerpt');
   if (excerptEl) {
     const exc = String(a.excerpt || '').trim();
@@ -2454,12 +2455,22 @@ function closeArticle(syncUrl = true) {
   if (lastFocused) lastFocused.focus();
 }
 $('#modalClose').addEventListener('click', closeArticle);
-$('#modalGoArticle').addEventListener('click', () => {
-  const id = $('#modalTitle').dataset.articleId;
-  const story = articles.find(x => String(x.id) === String(id));
-  if (!story) return;
-  window.location.assign(storyUrl(story));
-});
+const modalGoArticleBtn = document.getElementById('modalGoArticle');
+if (modalGoArticleBtn) {
+  modalGoArticleBtn.addEventListener('click', () => {
+    const id = document.getElementById('modalTitle')?.dataset.articleId || '';
+    const story = articles.find(x => String(x.id) === String(id));
+    if (story) {
+      window.location.assign(storyUrl(story));
+      return;
+    }
+    const fallback = document.querySelector('[data-current-story-id]')?.dataset.currentStoryId;
+    if (fallback) {
+      const alt = articles.find(x => String(x.id) === String(fallback));
+      if (alt) window.location.assign(storyUrl(alt));
+    }
+  });
+}
 $('#modalOverlay').addEventListener('click', e => { if (e.target === $('#modalOverlay')) closeArticle(); });
 
 document.addEventListener('keydown', e => {

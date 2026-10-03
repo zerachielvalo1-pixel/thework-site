@@ -420,7 +420,9 @@ footer ul a:hover{color:var(--accent)}
 .modal-hero-text{font-family:var(--serif);font-size:3.5rem;font-weight:900;color:rgba(255,255,255,.4);letter-spacing:-.05em;position:relative;z-index:2}
 .modal-body{padding:clamp(22px,4vw,36px)}
 .modal-cat{font-family:var(--sans);font-size:.65rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
-.modal-body h2{font-size:clamp(1.3rem,2.8vw,1.75rem);margin-bottom:12px;letter-spacing:-.015em;font-weight:900}
+.modal-header-row{display:grid;grid-template-columns:1fr auto;align-items:start;gap:8px 12px;margin-bottom:12px}
+.modal-title{font-size:clamp(1.3rem,2.8vw,1.75rem);margin:0;letter-spacing:-.015em;font-weight:900;grid-column:1/2;align-self:end}
+.modal-go-article{grid-column:2/3;grid-row:1;justify-self:end;white-space:nowrap}
 .modal-meta{font-family:var(--sans);font-size:.76rem;color:var(--ink-4);margin-bottom:20px;display:flex;flex-direction:column;gap:8px;padding-bottom:16px;border-bottom:1px solid var(--line)}
 .modal-credits{display:flex;flex-direction:column;gap:6px;width:100%}
 .modal-credit-row{display:flex;gap:14px;align-items:baseline}
@@ -465,11 +467,11 @@ footer ul a:hover{color:var(--accent)}
 @media(max-width:900px){.admin-shell{grid-template-columns:minmax(0,1fr)}}
 .admin-main{min-width:0}
 .admin-side{background:var(--paper-2);border-right:1px solid var(--line);padding:24px 14px;position:sticky;top:var(--nav-h);height:calc(100vh - var(--nav-h));overflow-y:auto}
-@media(max-width:900px){.admin-side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:14px;display:flex;gap:6px;overflow-x:auto}}
+@media(max-width:900px){.admin-side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:14px;display:flex;gap:6px;overflow-x:auto;align-items:center;flex-wrap:nowrap}} 
 .admin-side h4{font-family:var(--sans);font-size:.62rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-4);margin:0 0 12px;padding:0 10px}
 @media(max-width:900px){.admin-side h4{display:none}}
 .admin-nav{display:grid;gap:2px}
-@media(max-width:900px){.admin-nav{display:flex;gap:6px}}
+@media(max-width:900px){.admin-nav{display:flex;gap:6px;flex:1;min-width:max-content}}
 .admin-nav button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:none;background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:.82rem;font-weight:600;border-radius:var(--radius);cursor:pointer;text-align:left;transition:.15s var(--ease);white-space:nowrap}
 .admin-nav button:hover{background:var(--paper-3);color:var(--ink)}
 .admin-nav button.active{background:var(--gradient);color:#fff;box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 28%,transparent)}
@@ -1355,6 +1357,9 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   }
   .modal-overlay.open .modal{transform:none}
   .modal-body{padding:22px 18px calc(22px + env(safe-area-inset-bottom))}
+  .modal-header-row{grid-template-columns:1fr;gap:8px}
+  .modal-go-article{grid-column:1;grid-row:1;justify-self:end}
+  .modal-title{grid-column:1;grid-row:2}
   .modal-close{top:10px;right:10px}
   .modal-hero{min-height:150px}
   .crop-modal{max-width:100%;border-radius:16px 16px 0 0}
