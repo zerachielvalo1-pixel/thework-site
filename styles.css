@@ -1871,3 +1871,38 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 .sidebar-list::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Edge */
 }
+/* ============================================================
+   OVERRIDE: Show full title in hero carousel (remove 3-line limit)
+   ============================================================ */
+.tw-slide-title {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    -webkit-box-orient: unset !important;
+    overflow: visible !important;
+}
+/* ============================================================
+   OVERRIDE: Maximize hero title horizontal space
+   ============================================================ */
+.tw-slide-content {
+    max-width: 100% !important;
+    /* Reserve horizontal room for the thumbnail rail so the title never
+       runs underneath the first thumbnail. The rail is roughly
+       5 thumbs x 58px + 4 gaps x 10px + the 44px right offset
+       = ~374px from the carousel's right edge. */
+    padding-right: 360px !important;
+    padding-bottom: 40px !important;
+    right: 24px !important;
+    left: 24px !important;
+}
+
+.tw-slide-title {
+    font-size: clamp(1.3rem, 2.8vw, 2.2rem) !important;
+}
+
+/* On phones the thumbnail rail moves to the bottom-centre, so the title
+   can safely reclaim the full width. */
+@media (max-width: 820px) {
+    .tw-slide-content {
+        padding-right: 0 !important;
+    }
+}
