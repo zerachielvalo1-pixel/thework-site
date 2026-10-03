@@ -491,7 +491,18 @@ footer ul a:hover{color:var(--accent)}
   /* flex:0 0 auto so each nav takes only its natural width - the strip
      scrolls sideways instead of squishing buttons. */
   .admin-nav{display:flex;gap:6px;flex:0 0 auto;min-width:0}
-  .admin-nav button{flex:0 0 auto;padding:9px 13px;font-size:.78rem}
+  /* `width:auto` is the important bit — the base .admin-nav button rule
+     sets width:100%, which was forcing every button to fill the whole
+     row even inside a flex container. Overriding it here lets each
+     button shrink to its natural size and the strip scroll sideways,
+     matching the .section-tab strip on the public site. */
+  .admin-nav button{
+    flex:0 0 auto;
+    width:auto;
+    padding:9px 14px;
+    font-size:.78rem;
+    border-radius:999px;
+  }
   /* Visual break before the "Back to site" block. */
   .admin-side > .admin-nav:last-child{
     margin-left:6px;
@@ -1885,10 +1896,30 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
     overflow: hidden;
 }
 
-/* 2. Adjust for mobile (where the carousel shrinks) */
-@media(max-width: 900px) {
+/* 2. Adjust for mobile — stack the grid, un-stretch the carousel, and
+   let the sidebar grow naturally below it.
+
+   The two `.frontpage-grid` rules further up this file use `!important`
+   on `grid-template-columns`, and a later override sets
+   `align-items:stretch !important`. Those win against a plain
+   media query, which is why the earlier mobile attempt kept the
+   carousel and sidebar side-by-side (and squished both). Every rule
+   here uses `!important` so it actually takes effect. */
+@media (max-width: 900px) {
+    .frontpage-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 24px !important;
+        align-items: start !important;
+    }
     .frontpage-grid aside {
-        max-height: 560px; /* Matches the mobile carousel height */
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    .sidebar-list {
+        overflow-y: visible !important;
+    }
+    .tw-carousel {
+        align-self: start !important;
     }
 }
 
@@ -1940,31 +1971,65 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 }
 
 /* ============================================================
-   MOBILE FIX: stack the frontpage grid, un-stretch the carousel
+   ADMIN PANEL MOBILE NAV - final override, sits last in the file
+   so it wins on source order.
    ============================================================
-   The base `.frontpage-grid` rule near the top of this file uses
-   `!important` on `grid-template-columns`, and a later override sets
-   `align-items:stretch !important`. Both beat the original 900px
-   media query, which left the carousel and sidebar side-by-side on
-   phones - the carousel got squeezed to a narrow column and then
-   stretched vertically to match the sidebar's height.
+   The base rule `.admin-nav button{width:100%}` was stretching
+   every button to the full width of the sidebar, which is why
+   the mobile strip showed a single button spanning the screen.
+   `!important` here beats that rule regardless of where it
+   appears in the file. */
 
-   These rules sit last in the file so they win on source order. */
 @media (max-width: 900px) {
-  .frontpage-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 24px !important;
-    align-items: start !important;
+  /* Turn the whole sidebar into a horizontal scroll strip, same
+     pattern as .section-strip-inner on the public site. */
+  .admin-side {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    position: static !important;
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--line) !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
-  .frontpage-grid aside {
-    max-height: none !important;
-    overflow: visible !important;
+  .admin-side::-webkit-scrollbar { display: none; }
+  .admin-side h4 { display: none !important; }
+  .admin-side-sep { display: none !important; }
+
+  /* Each nav block is just a row of pills that scrolls with the strip. */
+  .admin-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 6px !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    grid-template-columns: none !important;
   }
-  .sidebar-list {
-    overflow-y: visible !important;
+
+  /* The killer fix: kill width:100% on the buttons so they size
+     to their own label instead of filling the row. */
+  .admin-nav button {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+    padding: 9px 14px !important;
+    font-size: .78rem !important;
+    border-radius: 999px !important;
   }
-  /* Stop the carousel from being stretched to whatever the row is. */
-  .tw-carousel {
-    align-self: start !important;
+
+  /* Visual separator before the "Back to site" strip. */
+  .admin-side > .admin-nav:last-child {
+    margin-left: 6px;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
   }
 }
+
