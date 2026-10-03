@@ -301,6 +301,9 @@ let pendingMemoriamPhoto = null;
 let draftTimer = null;
 let selectedIds = new Set();
 
+window.__allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+window.__pendingThumbFile = window.__pendingThumbFile || null;
+
 function twDraftKey(id = 'new') {
   return `tw_article_draft_${String(id || 'new')}`;
 }
@@ -3432,11 +3435,11 @@ document.getElementById('resetColorsBtn')?.addEventListener('click', () => {
 
 async function renderAdmin() {
   const all = await Data.listAll();
-  window.__allArticles = all;
-  const total = all.length;
-  const published = all.filter(a => a.status === 'published').length;
+  window.__allArticles = Array.isArray(all) ? all : [];
+  const total = window.__allArticles.length;
+  const published = window.__allArticles.filter(a => a.status === 'published').length;
   const drafts = total - published;
-  const sections = new Set(all.map(a => a.cat)).size;
+  const sections = new Set(window.__allArticles.map(a => a.cat)).size;
   $('#statTotal').textContent = total;
   $('#statPublished').textContent = published;
   $('#statDrafts').textContent = drafts;
@@ -4054,12 +4057,13 @@ document.addEventListener('change', e => {
 function resetForm() {
   editingId = null;
   window.__pendingThumbFile = null;
+  window.__allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
   $('#articleForm').reset();
   $('#fId').value = '';
   $('#fDate').value = todayISO();
   $('#fRead').value = '';
   $('#fPublishAt').value = '';
-    if ($('#fSubcat')) $('#fSubcat').value = '';
+  if ($('#fSubcat')) $('#fSubcat').value = '';
   $('#fStatus').value = 'published';
   $('#fFeatured').checked = false;
     $('#fPhoto2').value = '';
@@ -4075,7 +4079,8 @@ function resetForm() {
 }
 
 function loadIntoForm(id) {
-  const a = (window.__allArticles || []).find(x => x.id === id);
+  const allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+  const a = allArticles.find(x => x.id === id);
   if (!a) return;
   editingId = id;
   window.__pendingThumbFile = null;
@@ -4161,7 +4166,8 @@ $('#articleForm').addEventListener('submit', async e => {
       updated: new Date().toISOString()
     };
     if (payload.featured) {
-      const others = (window.__allArticles || []).filter(a => a.id !== payload.id && a.featured);
+      const allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+      const others = allArticles.filter(a => a.id !== payload.id && a.featured);
       for (const o of others) {
         try { await Data.upsert({ ...o, featured: false }); } catch(e) { console.warn(e); }
       }
@@ -4183,7 +4189,8 @@ $('#articleForm').addEventListener('submit', async e => {
 
 $('#deleteBtn').addEventListener('click', () => {
   if (!editingId) return;
-  const a = (window.__allArticles || []).find(x => x.id === editingId);
+  const allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+  const a = allArticles.find(x => x.id === editingId);
   openConfirm('Move to trash?', `"${a ? a.title : 'This'}" will be moved to trash. You can restore it within 30 days.`, async () => {
     try {
       await Data.remove(editingId);
