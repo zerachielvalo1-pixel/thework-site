@@ -851,7 +851,18 @@
   <div class="modal">
     <button class="modal-close" id="modalClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="modal-hero" id="modalHero"><span class="modal-hero-text" id="modalHeroText">W</span></div>
-    <div class="modal-body"><div class="modal-cat" id="modalCat"></div><h2 id="modalTitle"></h2><p id="modalExcerpt" class="modal-excerpt"></p><div class="modal-meta" id="modalMeta"></div><div id="modalContent"></div><div id="modalRelated" class="modal-related"></div><div id="modalShare" class="modal-share"></div></div>
+    <div class="modal-body">
+      <div class="modal-cat" id="modalCat"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <h2 id="modalTitle" style="margin:0"></h2>
+        <button class="btn btn-primary" id="modalGoArticle" type="button">Go to article</button>
+      </div>
+      <p id="modalExcerpt" class="modal-excerpt"></p>
+      <div class="modal-meta" id="modalMeta"></div>
+      <div id="modalContent"></div>
+      <div id="modalRelated" class="modal-related"></div>
+      <div id="modalShare" class="modal-share"></div>
+    </div>
   </div>
 </div>
 

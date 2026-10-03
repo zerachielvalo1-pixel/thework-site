@@ -1101,8 +1101,10 @@ function renderStoryPage(article) {
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
-        ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
-        <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
+        <div class="story-content">
+          ${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}
+          ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
+        </div>
       </div>
     </article>`;
 }
@@ -2346,6 +2348,7 @@ async function openArticle(id) {
   }
   $('#modalCat').textContent = CAT_LABELS[a.cat] || a.cat;
   $('#modalTitle').textContent = a.title;
+  $('#modalTitle').dataset.articleId = String(a.id);
   const excerptEl = document.getElementById('modalExcerpt');
   if (excerptEl) {
     const exc = String(a.excerpt || '').trim();
@@ -2451,6 +2454,12 @@ function closeArticle(syncUrl = true) {
   if (lastFocused) lastFocused.focus();
 }
 $('#modalClose').addEventListener('click', closeArticle);
+$('#modalGoArticle').addEventListener('click', () => {
+  const id = $('#modalTitle').dataset.articleId;
+  const story = articles.find(x => String(x.id) === String(id));
+  if (!story) return;
+  window.location.assign(storyUrl(story));
+});
 $('#modalOverlay').addEventListener('click', e => { if (e.target === $('#modalOverlay')) closeArticle(); });
 
 document.addEventListener('keydown', e => {
