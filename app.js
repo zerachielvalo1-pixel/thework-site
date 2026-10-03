@@ -4014,36 +4014,12 @@ function twSkelHome() {
 }
 
 
-// ---------- word count meter ----------
-const WORD_TARGETS = {
-  news:          { min: 50,  max: 600,  label: 'News: 50–600 words' },
-  editorial:     { min: 300, max: 800,  label: 'Editorial: 300–800 words' },
-  opinion:       { min: 300, max: 900,  label: 'Opinion: 300–900 words' },
-  features:      { min: 150, max: 1500, label: 'Features: 150–1,500 words' },
-  literary:      { min: 10,  max: 2000, label: 'Literary: 10+ words' },
-  sports:        { min: 200, max: 700,  label: 'Sports: 200–700 words' },
-  devcom:        { min: 250, max: 1000, label: 'DevCom: 250–1,000 words' },
-  standpoints:   { min: 200, max: 800,  label: 'Standpoints: 200–800 words' },
-  entertainment: { min: 50,  max: 500,  label: 'Entertainment: 50–500 words' }
-};
+// ---------- form reactivity (sub-category dropdown + author hint) ----------
+/* The word-count meter and its min/max validation were removed entirely.
+   What remains is just the reactive plumbing that keeps the sub-category
+   dropdown and the Author "optional/*" hint in sync with the Section field. */
 function updateBodyMeter() {
-  const bodyEl  = document.getElementById('fBody');
-  const catEl   = document.getElementById('fCat');
-  const wrap    = document.getElementById('fBodyMeter');
-  const countEl = document.getElementById('fBodyCount');
-  const targEl  = document.getElementById('fBodyTarget');
-  if (!bodyEl || !wrap || !countEl || !targEl) return;
-  const text  = bodyEl.value.trim();
-  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
-  countEl.textContent = words + (words === 1 ? ' word' : ' words');
-  const t = catEl ? WORD_TARGETS[catEl.value] : null;
-  wrap.classList.remove('under','over','ok');
-  if (!t) { targEl.textContent = ''; return; }
-  targEl.textContent = '· ' + t.label;
-  if (words === 0) return;
-  if (words < t.min)       wrap.classList.add('under');
-  else if (words > t.max)  wrap.classList.add('over');
-  else                     wrap.classList.add('ok');
+  const catEl = document.getElementById('fCat');
 
   const subcatField = document.getElementById('fSubcatField');
   const subcatSel = document.getElementById('fSubcat');
@@ -4070,11 +4046,9 @@ function updateBodyMeter() {
     authorHint.textContent = opt ? 'optional' : '*';
   }
 }
-document.addEventListener('input', e => {
-  if (e.target && e.target.id === 'fBody') updateBodyMeter();
-});
 document.addEventListener('change', e => {
   if (e.target && e.target.id === 'fCat') updateBodyMeter();
+  if (e.target && e.target.id === 'fSubcat') updateBodyMeter();
 });
 
 function resetForm() {
@@ -4154,13 +4128,6 @@ $('#articleForm').addEventListener('submit', async e => {
 
   if (missing.length) {
     toast('Missing required fields: ' + missing.join(', '), true);
-    return;
-  }
-
-  const wordCount = body ? body.split(/\s+/).filter(Boolean).length : 0;
-  const target = cat && WORD_TARGETS[cat];
-  if (status === 'published' && target && wordCount < target.min) {
-    toast(`Minimum ${target.min} words required for ${CAT_LABELS[cat] || cat} before publishing.`, true);
     return;
   }
 
