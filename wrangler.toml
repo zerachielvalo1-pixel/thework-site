@@ -1,0 +1,7 @@
+name = "thework"
+main = "workers/prerender.js"
+compatibility_date = "2024-10-01"
+
+[assets]
+directory = "C:\Users\Administrator\Desktop\thework-site"
+binding = "ASSETS"
