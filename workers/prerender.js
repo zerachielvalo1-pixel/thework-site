@@ -120,14 +120,6 @@ const OG_LOCALE = 'en_PH';
    so a bare date is anchored to midnight Philippine time (UTC+8) rather than
    left to the crawler to interpret - which would otherwise shift the published
    date by a day for anyone reading it west of Manila. */
-function isoDateTime(value) {
-  const raw = String(value == null ? '' : value).trim();
-  if (!raw) return '';
-  if (raw.indexOf('T') !== -1) return raw;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
-  return `${raw}T00:00:00+08:00`;
-}
-
 function storyMarkup(article) {
   /* Mirror getCredits() from app.js. Prefer the JSONB array; fall back to
      the legacy two-slot columns for articles written before the migration.
@@ -160,7 +152,10 @@ function storyMarkup(article) {
   return `<main id="view-story" class="view active" data-server-story="true">
     <article class="story-page">
       <div class="wrap story-page-inner">
-        <a class="story-back" href="/#/">← All stories</a>
+        <div class="story-back-row">
+          <a class="story-back" href="/#/">← All stories</a>
+          <a class="story-back story-back-site" href="/">Back to site →</a>
+        </div>
         <div class="story-category">${escapeHtml(category)}</div>
         <h1>${escapeHtml(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${escapeHtml(article.excerpt)}</p>` : ''}

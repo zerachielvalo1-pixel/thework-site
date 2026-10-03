@@ -1227,7 +1227,10 @@ function renderStoryPage(article) {
   main.innerHTML = `
     <article class="story-page">
       <div class="wrap story-page-inner">
-        <a class="story-back" href="/#/">← All stories</a>
+        <div class="story-back-row">
+          <a class="story-back" href="/#/">← All stories</a>
+          <a class="story-back story-back-site" href="/">Back to site →</a>
+        </div>
         <div class="story-category">${esc(CAT_LABELS[article.cat] || article.cat || 'Story')}</div>
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}

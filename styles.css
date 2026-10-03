@@ -175,7 +175,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 .more-stories{padding:clamp(32px,5vw,56px) 0 clamp(48px,7vw,84px);border-top:1px solid var(--line);background:var(--paper-2)}
 .story-page{padding:clamp(32px,5vw,56px) 0 84px}
 .story-page-inner{max-width:860px}
-.story-back{display:inline-flex;align-items:center;margin-bottom:28px;font-family:var(--sans);font-size:.8rem;font-weight:700;color:var(--ink-3)}
+.story-back-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px}
+.story-back{display:inline-flex;align-items:center;font-family:var(--sans);font-size:.8rem;font-weight:700;color:var(--ink-3);text-decoration:none}
+.story-back:hover{color:var(--accent)}
+.story-back-site{margin-left:auto}
 .story-category{font-family:var(--sans);font-size:.68rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
 .story-page h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.12;margin-bottom:16px}
 .story-deck{font-size:clamp(1rem,2vw,1.2rem);line-height:1.6;color:var(--ink-2);max-width:68ch;margin-bottom:18px}
