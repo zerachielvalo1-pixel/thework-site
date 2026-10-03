@@ -1971,6 +1971,129 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 }
 
 /* ============================================================
+   MOBILE HERO CAROUSEL - full-bleed layout
+   ============================================================
+   Restructures the hero on phones so the image runs edge-to-edge
+   (like a typical mobile news app) and the thumbnail rail sits
+   BELOW the image instead of overlaying it. The progress ring on
+   the active thumbnail animates over the slide duration, and the
+   active thumb gets an accent-colored border so the reader can
+   see both which slide is showing and how long is left.
+
+   Uses `html body` prefix and `!important` to out-specify the
+   earlier mobile rules in this file regardless of source order. */
+
+@media (max-width: 760px) {
+  /* Keep the carousel inside the .wrap gutter with rounded corners, but
+     switch to a column layout so the thumbnail rail can sit BELOW the
+     image instead of overlaying it. */
+  html body .frontpage-grid .tw-carousel {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+
+    margin: 0 !important;
+
+    aspect-ratio: auto !important;
+    max-height: none !important;
+    border-radius: var(--radius-lg) !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  /* The track holds the visible slide with its own aspect ratio.
+     Slides are absolute inside it (unchanged from desktop). */
+  html body .frontpage-grid .tw-carousel-track {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    aspect-ratio: 4 / 3 !important;
+    max-height: 72vh;
+    overflow: hidden !important;
+    background: var(--paper-3);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 18px 32px rgba(76,29,149,.06);
+  }
+
+  /* Slightly stronger gradient so headlines stay readable over any image. */
+  html body .frontpage-grid .tw-slide-shade {
+    background: linear-gradient(180deg, rgba(0,0,0,0) 42%, rgba(0,0,0,.82) 100%) !important;
+  }
+
+  /* Title sits inside the image at the bottom - no room needed for thumbs
+     anymore since they've moved below. */
+  html body .frontpage-grid .tw-slide-content {
+    left: 18px !important;
+    right: 18px !important;
+    bottom: 16px !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* The thumbnail rail: static flow below the image, centered. */
+  html body .frontpage-grid .tw-carousel-thumbs {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    top: auto !important;
+    transform: none !important;
+
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 16px !important;
+
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Bigger, bolder thumbnails matching the reference. */
+  html body .frontpage-grid .tw-thumb {
+    width: 58px !important;
+    height: 58px !important;
+  }
+  html body .frontpage-grid .tw-thumb-img {
+    inset: 4px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18) !important;
+  }
+
+  /* Thicker ring so the loading progress is actually visible. */
+  html body .frontpage-grid .tw-thumb-ring rect {
+    stroke-width: 6;
+  }
+
+  /* Active thumbnail: accent border + soft glow, like the reference. */
+  html body .frontpage-grid .tw-thumb.active .tw-thumb-img {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 4px var(--paper-2),
+      0 6px 16px rgba(124,58,237,.42) !important;
+  }
+
+  /* The inactive thumbs get a subtle outline so they read as buttons. */
+  html body .frontpage-grid .tw-thumb:not(.active) .tw-thumb-img {
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 2px 6px rgba(0,0,0,.12) !important;
+  }
+
+  /* Explicitly hide the arrows on phones - swipe is the navigation. */
+  html body .frontpage-grid .tw-carousel-arrow {
+    display: none !important;
+  }
+}
+
+/* ============================================================
    ADMIN MOBILE NAV - definitive fix (last rule in file)
    ============================================================
    Uses `html body` to boost specificity above every other
