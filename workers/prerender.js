@@ -61,6 +61,21 @@ function imgTag(url, widths, sizes, attrs) {
   return `<img src="${escapeHtml(imgUrl(src, largest))}" srcset="${escapeHtml(set)}"${sizeAttr}${extra}>`;
 }
 
+/* Facebook / Messenger / Twitter link-preview image.
+   Must be:
+     - 1200×630 (the OG standard; anything else gets letter-boxed or dropped)
+     - resize=cover so it crops to that exact ratio instead of stretching
+     - served WITHOUT format=webp, because social crawlers prefer JPEG
+       and will silently refuse a WebP they can't decode.
+   Non-Supabase URLs (external embeds) pass through unchanged. */
+function socialCardUrl(url) {
+  const src = String(url == null ? '' : url);
+  if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
+  const sep = src.indexOf('?') === -1 ? '?' : '&';
+  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+    'width=1200&height=630&resize=cover&quality=80';
+}
+
 /* Only used as a fallback for social cards / non-Supabase URLs. */
 function safeImageUrl(value) {
   try {
@@ -235,7 +250,7 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   const title = `${article.title} — The Work`;
   const description = storyDescription(article);
   const canonical = `${SITE_ORIGIN}${storyPath(article)}`;
-  const image = safeImageUrl(article.thumbnail);
+  const image = socialCardUrl(article.thumbnail) || `${SITE_ORIGIN}/logo-tw.png`;
   /* Two different jobs: the page itself wants a responsive source, while the
      link preview needs one fixed, crawler-safe card. */
   const cardImage = socialCardUrl(image);
