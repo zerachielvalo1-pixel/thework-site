@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=35">
+<link rel="stylesheet" href="styles.css?v=36">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -754,8 +754,19 @@
               <textarea id="fExcerpt" maxlength="280" style="min-height:70px"></textarea>
             </div>
             <div class="field">
-              <label for="fBody">Body <span class="hint">blank line between paragraphs</span></label>
-              <textarea id="fBody" style="min-height:260px"></textarea>
+              <label for="fBody">Body <span class="hint">blank line between paragraphs · use the toolbar or markdown</span></label>
+              <div class="rt-editor">
+                <div class="rt-toolbar" role="toolbar" aria-label="Text formatting">
+                  <button type="button" class="rt-btn rt-btn-bold" data-format="bold" title="Bold (Ctrl+B)">B</button>
+                  <button type="button" class="rt-btn rt-btn-italic" data-format="italic" title="Italic (Ctrl+I)">I</button>
+                  <button type="button" class="rt-btn" data-format="link" title="Link (Ctrl+K)" aria-label="Insert link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  </button>
+                  <button type="button" class="rt-btn" data-format="quote" title="Blockquote" aria-label="Insert blockquote">“</button>
+                  <button type="button" class="rt-btn rt-btn-heading" data-format="heading" title="Heading" aria-label="Insert heading">H</button>
+                </div>
+                <textarea id="fBody" style="min-height:260px"></textarea>
+              </div>
             </div>
             <div class="field">
               <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;background:var(--paper-3);border-radius:var(--radius);border:1.5px solid var(--line);cursor:pointer;margin:0">
@@ -1017,7 +1028,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=49" defer></script>
+<script src="app.js?v=51" defer></script>
 
 </body>
 </html>

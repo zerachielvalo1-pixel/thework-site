@@ -3,10 +3,11 @@ const SUPABASE_URL = 'https://fgojhhgqpvnwtcqkornz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_UiH_F3V2tFE1doecIb337w__hYVQIQf';
 const CACHE_TTL = 600; // 10 minutes
 const STALE_WHILE_REVALIDATE_SECONDS = 172800; // revalidate up to 2 days stale
-const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,author,author2,photojournalist,graphics_by,layout_by,layout_by_2,read,credits';
+const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,subcat,author,author2,photojournalist,photojournalist_2,photo_courtesy,graphics_by,layout_by,layout_by_2,read,credits';
 const CATEGORY_LABELS = {
   news: 'News', editorial: 'Editorial', opinion: 'Opinion',
-  features: 'Features', literary: 'Literary', sports: 'Sports'
+  features: 'Features', literary: 'Literary', sports: 'Sports',
+  devcom: 'DevCom', entertainment: 'Entertainment'
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -124,6 +125,40 @@ function isoDateTime(value) {
   return `${raw}T00:00:00+08:00`;
 }
 
+/* ---------- Article body renderer (mirror of app.js) ----------
+   Must stay byte-for-byte in sync with renderArticleBody() in app.js, or
+   the SPA modal and the prerendered story page will render the same
+   article differently. Same esc-first-then-regex order, same rules. */
+function renderInlineFormatting(escaped) {
+  let out = escaped;
+  out = out.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+  );
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|\s)\*([^*\n\s][^*\n]*?)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+  return out;
+}
+
+function renderArticleBody(text) {
+  const raw = String(text || '');
+  const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
+  if (!parts.length) return '';
+  return parts.map(part => {
+    const trimmed = part.trim();
+    if (/^>\s?/.test(trimmed)) {
+      const inner = trimmed.replace(/^>\s?/gm, '');
+      return `<blockquote>${renderInlineFormatting(escapeHtml(inner)).replace(/\n/g, '<br>')}</blockquote>`;
+    }
+    const hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      const level = Math.min(4, hm[1].length + 1);
+      return `<h${level}>${renderInlineFormatting(escapeHtml(hm[2]))}</h${level}>`;
+    }
+    return `<p>${renderInlineFormatting(escapeHtml(trimmed)).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
 /* The `articles.date` column is a plain YYYY-MM-DD while `updated` is already a
    full timestamp. The Open Graph article namespace expects ISO 8601 datetimes,
    so a bare date is anchored to midnight Philippine time (UTC+8) rather than
@@ -139,7 +174,6 @@ function storyMarkup(article) {
     : [article.author, article.author2].filter(Boolean);
   const authors = authorsArr.join(', ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
-  const paragraphs = String(article.body || '').split(/\n\s*\n/).filter(part => part.trim());
   const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(article.date)}</time>` : '';
   const readTime = article.read ? ` · ${escapeHtml(article.read)} read` : '';
 
@@ -155,7 +189,7 @@ function storyMarkup(article) {
       )}</figure>`
     : '';
 
-  const body = paragraphs.map(part => `<p>${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`).join('')
+  const body = renderArticleBody(article.body)
     || (article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : '');
 
   return `<main id="view-story" class="view active" data-server-story="true">

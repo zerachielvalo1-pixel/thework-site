@@ -44,6 +44,61 @@ function staffByline(article) {
   return getCredits(article).authors.join(', ') || 'The Work Staff';
 }
 
+/* ---------- Article body renderer ----------
+   Converts the plain-text body column into HTML. Storage stays plain
+   text (with light markdown syntax); this function is the only place
+   that turns it into tags. Order matters:
+
+     1. esc() the whole paragraph first — this makes XSS impossible,
+        because no raw user character ever reaches the innerHTML sink.
+     2. Apply markdown replacements on the *escaped* string.
+     3. Split remaining newlines into <br>.
+
+   The regexes are deliberately conservative so articles written before
+   markdown existed render exactly as they did before:
+     - **bold** requires two asterisks on both sides.
+     - *italic* only fires when the opening * is preceded by start-of-
+       line or whitespace, so "3*5=15" and "word*word" stay literal.
+     - [text](https://...) requires an explicit http(s) scheme.
+     - > blockquote and ## Heading are line-prefix only (start of
+       paragraph), never inline.
+
+   workers/prerender.js has a mirror of this function — keep them in
+   sync or the SPA and the prerendered page will disagree. */
+function renderInlineFormatting(escaped) {
+  let out = escaped;
+  /* Links first: their label may legitimately contain ** or *, and
+     we don't want the later regexes to rewrite inside an href. */
+  out = out.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+  );
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|\s)\*([^*\n\s][^*\n]*?)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+  return out;
+}
+
+function renderArticleBody(text) {
+  const raw = String(text || '');
+  const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
+  if (!parts.length) return '';
+  return parts.map(part => {
+    const trimmed = part.trim();
+    /* Blockquote — every line starts with "> ". */
+    if (/^>\s?/.test(trimmed)) {
+      const inner = trimmed.replace(/^>\s?/gm, '');
+      return `<blockquote>${renderInlineFormatting(esc(inner)).replace(/\n/g, '<br>')}</blockquote>`;
+    }
+    /* Heading — "## Title", one to three hashes. */
+    const hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      const level = Math.min(4, hm[1].length + 1);
+      return `<h${level}>${renderInlineFormatting(esc(hm[2]))}</h${level}>`;
+    }
+    return `<p>${renderInlineFormatting(esc(trimmed)).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
 /* ---------- Responsive image delivery ----------
    Thumbnails in the Storage bucket are full-resolution uploads. Served from
    /storage/v1/object/public/ they are both huge (measured: one JPEG at 4.5 MB,
@@ -635,9 +690,12 @@ const Data = {
       }
     } catch (e) { console.warn('[The Work] Photo rename failed', e); }
 
-    /* --- articles --- */
+    /* --- articles: legacy columns --- */
     const articleFields = ['author', 'author2', 'photojournalist', 'photojournalist_2', 'layout_by', 'layout_by_2', 'graphics_by'];
     for (const field of articleFields) await Data._cascadeName('articles', field, oldName, newName);
+
+    /* --- articles: JSONB credits (newer articles store the full list here) --- */
+    await Data._cascadeCredits(oldName, newName);
 
     /* --- videos (some fields may hold comma-separated names) --- */
     const videoFields = ['broadcasters', 'broadcaster_2', 'technicians',
@@ -671,6 +729,46 @@ const Data = {
         }
       }
     } catch (e) { console.warn('[The Work] Cascade failed for ' + table + '.' + field, e); }
+  },
+  async _cascadeCredits(oldName, newName) {
+    if (!sb) return;
+    /* The JSONB column holds arrays: authors, photojournalists, layout,
+       graphics, courtesy. Postgres/Supabase has no REST primitive for
+       "replace this element inside a nested array", so we pull every row
+       that has credits, rewrite matching entries in JS, and write the
+       whole credits object back. At the site's scale (dozens to low
+       hundreds of articles) this is a single query plus a handful of
+       updates — no batching needed. */
+    const CREDIT_KEYS = ['authors', 'photojournalists', 'layout', 'graphics', 'courtesy'];
+    try {
+      const { data: rows, error } = await sb
+        .from('articles')
+        .select('id,credits')
+        .not('credits', 'is', null);
+      if (error || !rows || !rows.length) return;
+      for (const row of rows) {
+        const creds = row.credits;
+        if (!creds || typeof creds !== 'object') continue;
+        let changed = false;
+        const updated = { ...creds };
+        for (const key of CREDIT_KEYS) {
+          if (!Array.isArray(updated[key])) continue;
+          updated[key] = updated[key].map(v => {
+            if (String(v) === oldName) { changed = true; return newName; }
+            return v;
+          });
+        }
+        if (changed) {
+          const { error: upErr } = await sb
+            .from('articles')
+            .update({ credits: updated })
+            .eq('id', row.id);
+          if (upErr) console.warn('[The Work] JSONB credits cascade failed for article', row.id, upErr.message);
+        }
+      }
+    } catch (e) {
+      console.warn('[The Work] JSONB credits cascade failed', e);
+    }
   },
   async removeBoardMember(id) {
     if (!sb) throw new Error('Offline');
@@ -1228,7 +1326,6 @@ function renderStoryPage(article) {
     $('#view-home').before(main);
   }
   const authors = staffByline(article);
-  const paragraphs = (article.body || '').split(/\n\s*\n/).filter(p => p.trim());
   main.dataset.serverStory = 'true';
   main.innerHTML = `
     <article class="story-page">
@@ -1243,7 +1340,7 @@ function renderStoryPage(article) {
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
         <div id="storyShare" class="modal-share story-page-share"></div>
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
-        <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
+        <div class="story-content">${renderArticleBody(article.body) || `<p>${esc(article.excerpt || '')}</p>`}</div>
       </div>
     </article>`;
   const storyShare = main.querySelector('#storyShare');
@@ -2553,9 +2650,7 @@ async function openArticle(id) {
   $('#modalHero').innerHTML = a.thumbnail
     ? `<div class="modal-hero-bg" style="background-image:url('${esc(imgUrl(a.thumbnail, 100))}')"></div>${imgTag(a.thumbnail, [400, 800], SIZES.modal, ' alt="" loading="lazy" decoding="async"')}`
     : `<span class="modal-hero-text">${letter}</span>`;
-  const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
-  const content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
-  $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
+  $('#modalContent').innerHTML = renderArticleBody(a.body) || `<p>${esc(a.excerpt||'')}</p>`;
   twRenderRelated(a);
   twRenderShare(a);
 
@@ -4295,6 +4390,84 @@ function resetCreditPickers() {
 /* The word-count meter and its min/max validation were removed entirely.
    What remains is just the reactive plumbing that keeps the sub-category
    dropdown and the Author "optional/*" hint in sync with the Section field. */
+/* ---------- Rich-text toolbar wiring ----------
+   Inserts markdown syntax into the plain <textarea>. No DOM
+   manipulation beyond setting .value, .selectionStart and
+   .selectionEnd — that keeps undo/redo in the browser's native
+   textarea history intact (contenteditable-based editors throw
+   that away). Each insertion dispatches an "input" event so the
+   existing draft autosave timer picks it up. */
+(function initRichTextToolbar() {
+  const body = document.getElementById('fBody');
+  const toolbar = document.querySelector('.rt-toolbar');
+  if (!body || !toolbar) return;
+
+  function dispatchInput() {
+    body.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function wrapSelection(open, close, cursorOffset) {
+    const start = body.selectionStart;
+    const end = body.selectionEnd;
+    const value = body.value;
+    const before = value.slice(0, start);
+    const selected = value.slice(start, end);
+    const after = value.slice(end);
+    body.value = before + open + selected + close + after;
+    if (typeof cursorOffset === 'number') {
+      body.selectionStart = body.selectionEnd = start + open.length + selected.length + cursorOffset;
+    } else {
+      body.selectionStart = start + open.length;
+      body.selectionEnd = start + open.length + selected.length;
+    }
+    body.focus();
+    dispatchInput();
+  }
+
+  function prefixLine(prefix) {
+    const start = body.selectionStart;
+    const value = body.value;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    body.value = value.slice(0, lineStart) + prefix + value.slice(lineStart);
+    body.selectionStart = body.selectionEnd = start + prefix.length;
+    body.focus();
+    dispatchInput();
+  }
+
+  toolbar.addEventListener('click', e => {
+    const btn = e.target.closest('.rt-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const fmt = btn.dataset.format;
+    if (fmt === 'bold') {
+      wrapSelection('**', '**');
+    } else if (fmt === 'italic') {
+      wrapSelection('*', '*');
+    } else if (fmt === 'link') {
+      /* [selected text](https://) with the cursor placed after https://
+         so the writer can paste the URL right away. */
+      const start = body.selectionStart;
+      const end = body.selectionEnd;
+      const selected = body.value.slice(start, end) || 'text';
+      wrapSelection('[', '](https://)', 8);
+      void selected; /* silence linter — value already used above */
+    } else if (fmt === 'quote') {
+      prefixLine('> ');
+    } else if (fmt === 'heading') {
+      prefixLine('## ');
+    }
+  });
+
+  /* Keyboard shortcuts matching every editor writers already use. */
+  body.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === 'b') { e.preventDefault(); wrapSelection('**', '**'); }
+    else if (key === 'i') { e.preventDefault(); wrapSelection('*', '*'); }
+    else if (key === 'k') { e.preventDefault(); wrapSelection('[', '](https://)', 8); }
+  });
+})();
+
 function updateBodyMeter() {
   const catEl = document.getElementById('fCat');
 
