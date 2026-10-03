@@ -301,8 +301,35 @@ let pendingMemoriamPhoto = null;
 let draftTimer = null;
 let selectedIds = new Set();
 
-window.__allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
-window.__pendingThumbFile = window.__pendingThumbFile || null;
+async function refreshPublicArticleState() {
+  try {
+    const published = await Data.listPublished();
+    articles = Array.isArray(published) ? published : [];
+  } catch (err) {
+    console.warn('[The Work] Could not refresh published articles', err);
+  }
+  try {
+    const all = await Data.listAll();
+    window.__allArticles = Array.isArray(all) ? all : [];
+  } catch (err) {
+    console.warn('[The Work] Could not refresh all articles', err);
+  }
+}
+
+function safeAllArticles() {
+  if (!Array.isArray(window.__allArticles)) window.__allArticles = [];
+  return window.__allArticles;
+}
+
+function safePendingThumbFile() {
+  if (window.__pendingThumbFile instanceof File) return window.__pendingThumbFile;
+  if (window.__pendingThumbFile && typeof window.__pendingThumbFile === 'object' && typeof window.__pendingThumbFile.name === 'string') return window.__pendingThumbFile;
+  window.__pendingThumbFile = null;
+  return null;
+}
+
+window.__allArticles = safeAllArticles();
+window.__pendingThumbFile = safePendingThumbFile();
 
 function twDraftKey(id = 'new') {
   return `tw_article_draft_${String(id || 'new')}`;
@@ -878,6 +905,20 @@ function applyRoleUI() {
   // Role badge in settings
   const roleEl = document.getElementById('acRole');
   if (roleEl) roleEl.textContent = ROLE_LABELS[r] || r || '—';
+}
+
+function safeErrorText(err) {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const direct = err.message || err.error?.message || err.target?.error?.message;
+    if (typeof direct === 'string' && direct.trim() && direct !== '[object ProgressEvent]' && direct !== '[object Event]') return direct;
+    if (typeof err.type === 'string' && err.type.trim()) return err.type;
+    const stringVal = String(err);
+    if (stringVal && stringVal !== '[object Object]' && stringVal !== '[object ProgressEvent]' && stringVal !== '[object Event]') return stringVal;
+    if (err.name) return err.name;
+  }
+  return 'Request failed';
 }
 
 function toast(msg, isError) {
@@ -2614,7 +2655,7 @@ async function saveCrop() {
     boardPhotos[name] = url;
     renderBoardAdmin(); renderBoard();
     toast('Photo saved');
-  } catch (err) { toast('Upload failed: ' + (err.message || err), true); }
+  } catch (err) { toast('Upload failed: ' + safeErrorText(err), true); }
 }
 
 document.getElementById('cropCancel').addEventListener('click', closeCropModal);
@@ -2836,7 +2877,7 @@ $('#releaseForm').addEventListener('submit', async e => {
     await renderReleasesPage();
   } catch (err) {
     console.error(err);
-    toast('Save failed: ' + (err.message || err), true);
+    toast('Save failed: ' + safeErrorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'Save release';
   }
@@ -2859,7 +2900,7 @@ document.addEventListener('click', async e => {
         await renderReleasesPreview();
         await renderReleasesPage();
         toast('Release deleted');
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   }
 });
@@ -3133,7 +3174,7 @@ $('#videoForm').addEventListener('submit', async e => {
     await renderVideosPage();
   } catch (err) {
     console.error(err);
-    toast('Save failed: ' + (err.message || err), true);
+    toast('Save failed: ' + safeErrorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'Save video';
   }
@@ -3155,7 +3196,7 @@ document.addEventListener('click', async e => {
         await renderVideosAdmin();
         await renderVideosPage();
         toast('Video deleted');
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   }
 });
@@ -3317,7 +3358,7 @@ $('#memoriamForm').addEventListener('submit', async e => {
     await renderMemoriamPage();
   } catch (err) {
     console.error(err);
-    toast('Save failed: ' + (err.message || err), true);
+    toast('Save failed: ' + safeErrorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'Save entry';
   }
@@ -3339,7 +3380,7 @@ document.addEventListener('click', async e => {
         await renderMemoriamAdmin();
         await renderMemoriamPage();
         toast('Entry deleted');
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   }
 });
@@ -3545,7 +3586,7 @@ async function bulkUpdate(status) {
     await renderAdmin();
     toast(`${count} article${count > 1 ? 's' : ''} marked ${status}`);
   } catch (err) {
-    toast('Bulk update failed: ' + (err.message || err), true);
+    toast('Bulk update failed: ' + safeErrorText(err), true);
   }
 }
 
@@ -3569,7 +3610,7 @@ async function bulkDelete() {
       await renderAdmin();
       toast(`${count} article${count > 1 ? 's' : ''} moved to trash`);
     } catch (err) {
-      toast('Bulk delete failed: ' + (err.message || err), true);
+      toast('Bulk delete failed: ' + safeErrorText(err), true);
     }
   });
 }
@@ -4057,7 +4098,7 @@ document.addEventListener('change', e => {
 function resetForm() {
   editingId = null;
   window.__pendingThumbFile = null;
-  window.__allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+  safeAllArticles();
   $('#articleForm').reset();
   $('#fId').value = '';
   $('#fDate').value = todayISO();
@@ -4079,7 +4120,7 @@ function resetForm() {
 }
 
 function loadIntoForm(id) {
-  const allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+  const allArticles = safeAllArticles();
   const a = allArticles.find(x => x.id === id);
   if (!a) return;
   editingId = id;
@@ -4140,8 +4181,9 @@ $('#articleForm').addEventListener('submit', async e => {
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     let thumbnail = pendingThumbnail;
-    if (window.__pendingThumbFile) {
-      thumbnail = await Data.uploadThumb(window.__pendingThumbFile);
+    const pendingFile = safePendingThumbFile();
+    if (pendingFile) {
+      thumbnail = await Data.uploadThumb(pendingFile);
       window.__pendingThumbFile = null;
     }
     const payload = {
@@ -4166,22 +4208,27 @@ $('#articleForm').addEventListener('submit', async e => {
       updated: new Date().toISOString()
     };
     if (payload.featured) {
-      const allArticles = Array.isArray(window.__allArticles) ? window.__allArticles : [];
+      const allArticles = safeAllArticles();
       const others = allArticles.filter(a => a.id !== payload.id && a.featured);
       for (const o of others) {
         try { await Data.upsert({ ...o, featured: false }); } catch(e) { console.warn(e); }
       }
     }
     await Data.upsert(payload);
+    await refreshPublicArticleState();
     twClearDraft(payload.id);
     twStopDraftTimer();
     toast(editingId ? 'Updated' : 'Created');
     resetForm();
+    const currentRoute = (location.hash || '#/').toLowerCase();
+    if (currentRoute === '#/' || currentRoute === '#/home' || currentRoute === '#/saved') {
+      await renderHome();
+    }
     location.hash = '#/admin';
     setTimeout(() => setPanel('articles'), 60);
     await renderAdmin();
   } catch (err) {
-    toast('Save failed: ' + (err.message || err), true);
+    toast('Save failed: ' + safeErrorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'Save article';
   }
@@ -4198,7 +4245,7 @@ $('#deleteBtn').addEventListener('click', () => {
       await renderAdmin();
       setPanel('articles');
       toast('Moved to trash');
-    } catch (err) { toast('Failed: ' + (err.message || err), true); }
+    } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
   });
 });
 
@@ -4239,7 +4286,7 @@ async function renderTrashAdmin() {
         toast('Article restored');
         await renderTrashAdmin();
         await renderAdmin();
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   });
   el.querySelectorAll('[data-trash-purge]').forEach(btn => {
@@ -4249,7 +4296,7 @@ async function renderTrashAdmin() {
           await Data.hardRemove(btn.dataset.trashPurge);
           toast('Permanently deleted');
           await renderTrashAdmin();
-        } catch (err) { toast('Failed: ' + (err.message || err), true); }
+        } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
       });
     });
   });
@@ -4363,7 +4410,7 @@ document.addEventListener('click', e => {
         boardMembers = boardMembers.filter(x => String(x.id) !== String(dl.dataset.bmDel));
         renderRosterAdmin(); renderBoard(); populateBoardNames();
         toast('Member removed');
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   }
 });
@@ -4398,7 +4445,7 @@ $('#boardMemberForm').addEventListener('submit', async e => {
     renderRosterAdmin(); renderBoard(); populateBoardNames();
     toast(payload.id ? 'Member updated' : 'Member added');
   } catch (err) {
-    toast('Save failed: ' + (err.message || err), true);
+    toast('Save failed: ' + safeErrorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'Save member';
   }
@@ -4453,7 +4500,7 @@ document.addEventListener('click', e => {
         delete boardPhotos[name];
         renderBoardAdmin(); renderBoard();
         toast('Removed');
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   }
 });
@@ -4484,7 +4531,7 @@ $('#tableContainer').addEventListener('click', async e => {
         await Data.remove(dl.dataset.del);
         await renderAdmin();
         toast('Moved to trash');
-      } catch (err) { toast('Failed: ' + (err.message || err), true); }
+      } catch (err) { toast('Failed: ' + safeErrorText(err), true); }
     });
   }
 });

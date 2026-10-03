@@ -377,6 +377,19 @@ export default {
       return renderStory(request, env, ctx, id);
     }
 
-    return env.ASSETS.fetch(request);
+    const response = await env.ASSETS.fetch(request);
+    const assetPath = url.pathname.toLowerCase();
+    const isStaticAsset = /\.(css|js|png|jpe?g|gif|svg|webp|ico|json|xml|txt|map|woff2?|ttf|otf|mjs)(?:\?.*)?$/.test(assetPath);
+    if (isStaticAsset && response && request.method === 'GET') {
+      const headers = new Headers(response.headers);
+      headers.set('cache-control', 'public, max-age=0, must-revalidate, stale-while-revalidate=86400');
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      });
+    }
+
+    return response;
   }
 };
