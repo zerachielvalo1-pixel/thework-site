@@ -38,14 +38,15 @@ function storyDescription(article) {
    whole image stays visible. */
 const IMG_OBJECT_PATH = '/storage/v1/object/public/';
 const IMG_RENDER_PATH = '/storage/v1/render/image/public/';
-const IMG_QUALITY = 68;
+const IMG_QUALITY = 55;
 
 function imgUrl(url, width) {
   const src = String(url == null ? '' : url);
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
-  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+  const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
     'width=' + width + '&resize=contain&quality=' + IMG_QUALITY + '&format=webp';
+  return '/api/image-proxy?url=' + encodeURIComponent(supabaseUrl);
 }
 
 function imgTag(url, widths, sizes, attrs) {
@@ -148,7 +149,7 @@ function storyMarkup(article) {
   const hero = article.thumbnail
     ? `<figure class="story-hero">${imgTag(
         article.thumbnail,
-        [600, 1200],
+        [800, 1200],
         '(max-width: 900px) 100vw, 900px',
         ' alt="" fetchpriority="high" decoding="async"'
       )}</figure>`
@@ -168,7 +169,9 @@ function storyMarkup(article) {
         <h1>${escapeHtml(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${escapeHtml(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${escapeHtml(authors)}${dateMarkup ? ` · ${dateMarkup}` : ''}${readTime}</div>
-        <div id="storyShare" class="modal-share story-page-share">
+        ${hero}
+        <div class="story-content">${body}</div>
+        <div id="storyShare" class="modal-share">
           <div class="modal-share-label">Share this story</div>
           <div class="modal-share-buttons">
             <button class="share-btn" data-share="copy" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy link</span></button>
@@ -177,8 +180,6 @@ function storyMarkup(article) {
             <button class="share-btn" data-share="x" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg><span>X</span></button>
           </div>
         </div>
-        ${hero}
-        <div class="story-content">${body}</div>
       </div>
     </article>
   </main>`;
@@ -309,7 +310,7 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
      bucket object, which is a multi-megabyte upload, so the "optimisation" was
      fetching megabytes before first paint. */
   if (image && image !== `${SITE_ORIGIN}/logo-tw.png`) {
-    const srcset = [600, 1200].map(w => `${renderImage(image, `width=${w}&resize=contain&quality=68&format=webp`)} ${w}w`).join(', ');
+    const srcset = [800, 1200].map(w => `${renderImage(image, `width=${w}&resize=contain&quality=68&format=webp`)} ${w}w`).join(', ');
     html = html.replace('</head>',
       `<link rel="preload" as="image" href="${escapeHtml(renderImage(image, 'width=1200&resize=contain&quality=68&format=webp'))}"` +
       ` imagesrcset="${escapeHtml(srcset)}" imagesizes="(max-width: 900px) 100vw, 900px" fetchpriority="high">\n</head>`);
@@ -415,7 +416,9 @@ async function handleThumbUpload(request) {
         'apikey': SUPABASE_KEY,
         'Content-Type': contentType,
         'x-upsert': 'false',
-        'cache-control': 'max-age=31536000'
+        /* Supabase prefixes `max-age=` a second time if you send it, producing
+           a malformed header. Send the value only, with immutable appended. */
+        'cache-control': '31536000, immutable'
       },
       body: request.body
     }
@@ -427,12 +430,47 @@ async function handleThumbUpload(request) {
   });
 }
 
+/* Image cache proxy — Cloudflare edge caches every render URL so repeat
+   views never touch Supabase. This is the single biggest egress saver. */
+async function handleImageProxy(request, ctx) {
+  const url = new URL(request.url);
+  const target = url.searchParams.get('url');
+  const PREFIX = SUPABASE_URL + '/storage/v1/render/';
+
+  if (!target || !target.startsWith(PREFIX)) {
+    return new Response('Bad target', { status: 400 });
+  }
+
+  const cache = caches.default;
+  const cacheKey = new Request(target, { method: 'GET' });
+
+  let response = await cache.match(cacheKey);
+  if (response) return response;
+
+  response = await fetch(target, { cf: { cacheEverything: true } });
+  if (!response.ok) return response;
+
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'public, max-age=2592000, immutable');
+
+  const cached = new Response(response.body, { status: response.status, headers });
+  /* Without this, cache.match() above always misses and every image still hits
+     Supabase. This is the line that actually saves the egress. */
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(cache.put(cacheKey, cached.clone()));
+  } else {
+    await cache.put(cacheKey, cached.clone());
+  }
+  return cached;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
 
     if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
+    if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
 
     const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
     if (match && (request.method === 'GET' || request.method === 'HEAD')) {

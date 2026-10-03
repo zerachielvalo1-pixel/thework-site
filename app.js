@@ -59,7 +59,7 @@ function staffByline(article) {
    Non-Supabase URLs - external embeds and pasted links - pass through as-is. */
 const IMG_OBJECT_PATH = '/storage/v1/object/public/';
 const IMG_RENDER_PATH = '/storage/v1/render/image/public/';
-const IMG_QUALITY = 68;
+const IMG_QUALITY = 55;
 
 function imgUrl(url, width) {
   const src = String(url == null ? '' : url);
@@ -68,9 +68,15 @@ function imgUrl(url, width) {
   /* resize=contain is required, not cosmetic. With only `width` and no resize
      mode the renderer *stretches* the image to that width and leaves the height
      alone - a 1400x1400 upload came back as 640x1400. `contain` scales
-     proportionally, which is what object-fit:cover in the CSS then crops. */
-  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+     proportionally, which is what object-fit:cover in the CSS then crops.
+
+     Routed through /api/image-proxy (same-origin Worker) so Cloudflare's edge
+     cache absorbs repeat requests instead of every page view hitting Supabase
+     Storage. This is what makes the egress fix actually count for the SPA -
+     without it, only prerendered /stories/ pages benefit from the cache. */
+  const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
     'width=' + width + '&resize=contain&quality=' + IMG_QUALITY + '&format=webp';
+  return '/api/image-proxy?url=' + encodeURIComponent(supabaseUrl);
 }
 
 /* Emits <img> with srcset so phones fetch the small variant and wide screens
@@ -105,11 +111,11 @@ function socialCardUrl(url) {
 /* Common `sizes` hints, kept in one place so layouts stay in sync. */
 const SIZES = {
   lead:    '(max-width: 900px) 100vw, 700px',
-  card:    '(max-width: 580px) 100vw, (max-width: 900px) 50vw, 380px',
-  video:   '(max-width: 560px) 100vw, (max-width: 900px) 50vw, 380px',
-  preview: '(max-width: 480px) 100vw, (max-width: 900px) 50vw, 380px',
-  hero:    '(max-width: 900px) 100vw, 900px',
-  modal:   '(max-width: 780px) 100vw, 720px'
+  card:    '(max-width: 580px) 100vw, 400px',
+  video:   '(max-width: 560px) 100vw, 400px',
+  preview: '(max-width: 480px) 100vw, 400px',
+  hero:    '(max-width: 900px) 100vw, 1200px',
+  modal:   '(max-width: 780px) 100vw, 800px'
 };
 
 /* ---------- Overlay scroll lock ----------
@@ -1292,7 +1298,7 @@ function fmtViews(n) {
 
 function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
-    ? imgTag(a.thumbnail, [320, 640], SIZES.card, ' alt="" loading="lazy" decoding="async"')
+    ? imgTag(a.thumbnail, [200, 400], SIZES.card, ' alt="" loading="lazy" decoding="async"')
     : `<div class="article-thumb-text">${esc((CAT_LABELS[a.cat]||'?').charAt(0))}</div>`;
   const SUBCAT_LABELS = { university:'University', local:'Local', national:'National', politics:'Politics' };
   const subcatBadge = (a.cat === 'news' && a.subcat && SUBCAT_LABELS[a.subcat])
@@ -1587,7 +1593,7 @@ async function renderHome() {
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}">
       <div class="sidebar-item-thumb">
-        ${a.thumbnail ? imgTag(a.thumbnail, [240], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[a.cat]||'?').charAt(0))}
+        ${a.thumbnail ? imgTag(a.thumbnail, [160], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[a.cat]||'?').charAt(0))}
       </div>
       <div class="sidebar-item-content">
         <span class="sidebar-item-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>
@@ -2302,7 +2308,7 @@ function twRenderRelated(a) {
     <div class="related-list">
       ${related.map(r => `
         <div class="related-item" data-related-id="${esc(r.id)}" role="button" tabindex="0">
-          <div class="related-thumb">${r.thumbnail ? imgTag(r.thumbnail, [160], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[r.cat]||'?').charAt(0))}</div>
+          <div class="related-thumb">${r.thumbnail ? imgTag(r.thumbnail, [100], '', ' alt="" loading="lazy" decoding="async"') : esc((CAT_LABELS[r.cat]||'?').charAt(0))}</div>
           <div class="related-info">
             <div class="related-title">${esc(r.title)}</div>
             <div class="related-meta">${esc(r.author || 'Staff')} · ${esc(fmtDate(r.date))}</div>
@@ -2545,7 +2551,7 @@ async function openArticle(id) {
 
   const letter = esc((CAT_LABELS[a.cat]||'?').charAt(0));
   $('#modalHero').innerHTML = a.thumbnail
-    ? `<div class="modal-hero-bg" style="background-image:url('${esc(imgUrl(a.thumbnail, 160))}')"></div>${imgTag(a.thumbnail, [480, 1080], SIZES.modal, ' alt="" loading="lazy" decoding="async"')}`
+    ? `<div class="modal-hero-bg" style="background-image:url('${esc(imgUrl(a.thumbnail, 100))}')"></div>${imgTag(a.thumbnail, [400, 800], SIZES.modal, ' alt="" loading="lazy" decoding="async"')}`
     : `<span class="modal-hero-text">${letter}</span>`;
   const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
   const content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');

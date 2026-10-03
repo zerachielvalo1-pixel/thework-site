@@ -18,4 +18,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Smoke checks passed');
+// Smoke checks passed (silenced in CI)
