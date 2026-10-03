@@ -115,6 +115,14 @@ function socialCardUrl(url) {
    rather than being guessed from the crawler's own region. */
 const OG_LOCALE = 'en_PH';
 
+function isoDateTime(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  if (raw.indexOf('T') !== -1) return raw;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  return `${raw}T00:00:00+08:00`;
+}
+
 /* The `articles.date` column is a plain YYYY-MM-DD while `updated` is already a
    full timestamp. The Open Graph article namespace expects ISO 8601 datetimes,
    so a bare date is anchored to midnight Philippine time (UTC+8) rather than
@@ -162,6 +170,15 @@ function storyMarkup(article) {
         <div class="story-byline">By ${escapeHtml(authors)}${dateMarkup ? ` · ${dateMarkup}` : ''}${readTime}</div>
         ${hero}
         <div class="story-content">${body}</div>
+        <div id="storyShare" class="modal-share">
+          <div class="modal-share-label">Share this story</div>
+          <div class="modal-share-buttons">
+            <button class="share-btn" data-share="copy" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy link</span></button>
+            <button class="share-btn" data-share="messenger" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.1 2 11.2c0 2.9 1.4 5.5 3.7 7.2V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4.1 10-9.2S17.5 2 12 2zm1 12.4l-2.6-2.7-5 2.7L8.2 11l2.6 2.7 4.9-2.7-2.7 3.4z"></path></svg><span>Messenger</span></button>
+            <button class="share-btn" data-share="facebook" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"></path></svg><span>Facebook</span></button>
+            <button class="share-btn" data-share="x" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg><span>X</span></button>
+          </div>
+        </div>
       </div>
     </article>
   </main>`;

@@ -1237,8 +1237,11 @@ function renderStoryPage(article) {
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
+        <div id="storyShare" class="modal-share"></div>
       </div>
     </article>`;
+  const storyShare = main.querySelector('#storyShare');
+  if (storyShare) twRenderShareTo(storyShare, article);
 }
 
 function updateArticleMeta(article) {
@@ -2315,9 +2318,7 @@ function twRenderRelated(a) {
     });
   });
 }
-function twRenderShare(a) {
-  const el = document.getElementById('modalShare');
-  if (!el) return;
+function twRenderShareTo(el, a) {
   const url = twGetShareUrl(a);
   const enc = encodeURIComponent(url);
   const encTitle = encodeURIComponent(a.title || 'The Work');
@@ -2390,6 +2391,12 @@ function twRenderShare(a) {
       }
     });
   });
+}
+
+function twRenderShare(a) {
+  const el = document.getElementById('modalShare');
+  if (!el) return;
+  twRenderShareTo(el, a);
 }
 
 /* ---------- Image lightbox ----------
@@ -4893,6 +4900,15 @@ async function route() {
         return;
       }
       renderStoryPage(story);
+    }
+    const storyShare = document.querySelector('#storyShare');
+    if (storyShare) {
+      twRenderShareTo(storyShare, {
+        id: directStoryId,
+        title: document.querySelector('#view-story h1')?.textContent || 'The Work',
+        excerpt: document.querySelector('#view-story .story-deck')?.textContent || '',
+        thumbnail: document.querySelector('#view-story .story-hero img')?.src || ''
+      });
     }
     setView('story');
     updateArticleMeta({
