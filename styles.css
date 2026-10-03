@@ -1938,3 +1938,33 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
         padding-right: 0 !important;
     }
 }
+
+/* ============================================================
+   MOBILE FIX: stack the frontpage grid, un-stretch the carousel
+   ============================================================
+   The base `.frontpage-grid` rule near the top of this file uses
+   `!important` on `grid-template-columns`, and a later override sets
+   `align-items:stretch !important`. Both beat the original 900px
+   media query, which left the carousel and sidebar side-by-side on
+   phones - the carousel got squeezed to a narrow column and then
+   stretched vertically to match the sidebar's height.
+
+   These rules sit last in the file so they win on source order. */
+@media (max-width: 900px) {
+  .frontpage-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 24px !important;
+    align-items: start !important;
+  }
+  .frontpage-grid aside {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .sidebar-list {
+    overflow-y: visible !important;
+  }
+  /* Stop the carousel from being stretched to whatever the row is. */
+  .tw-carousel {
+    align-self: start !important;
+  }
+}
