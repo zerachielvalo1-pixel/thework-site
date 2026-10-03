@@ -1219,7 +1219,8 @@ function renderStoryPage(article) {
     main.className = 'view';
     $('#view-home').before(main);
   }
-  const authors = [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff';
+  const c = getCredits(article);
+  const authors = c.authors.join(', ') || 'The Work Staff';
   const paragraphs = (article.body || '').split(/\n\s*\n/).filter(p => p.trim());
   main.dataset.serverStory = 'true';
   main.innerHTML = `
@@ -1337,7 +1338,7 @@ function twBuildCarousel(items) {
 
   track.innerHTML = twCarousel.items.map((a, i) => {
     const cat = CAT_LABELS[a.cat] || a.cat;
-    const byline = getCredits(a).authors.join(', ') || 'The Work';
+    const byline = getCredits(a).authors.join(', ') || 'The Work Staff';
     const bg = a.thumbnail ? imgUrl(a.thumbnail, 1200) : '';
     return `
       <div class="tw-slide${i === 0 ? ' active' : ''}" data-index="${i}" data-article-id="${esc(a.id)}">
@@ -2498,7 +2499,12 @@ async function openArticle(id) {
 
   const c = getCredits(a);
   const creditLines = [];
-  if (c.authors.length)          creditLines.push({ label: 'Writer',   value: c.authors.join(' & '),          names: c.authors });
+  /* A missing byline is normal for staff-written pieces (news, editorial,
+     standpoints), so fall back to the publication rather than dropping the
+     Writer row entirely - readers expect to see *someone* attributed. */
+  const authorValue = c.authors.length ? c.authors.join(' & ') : 'The Work Staff';
+  const authorNames = c.authors.length ? c.authors : [];
+  creditLines.push({ label: 'Writer', value: authorValue, names: authorNames });
   if (c.photojournalists.length) creditLines.push({ label: 'Photos',   value: c.photojournalists.join(' & '), names: c.photojournalists });
   if (c.courtesy.length)         creditLines.push({ label: 'Courtesy', value: c.courtesy.join(', '),          names: [] });
   if (c.graphics.length)         creditLines.push({ label: 'Graphics', value: c.graphics.join(' & '),         names: c.graphics });
@@ -4390,17 +4396,18 @@ $('#articleForm').addEventListener('submit', async e => {
       title, cat,
       /* New JSONB column: the whole set of credits, unlimited length. */
       credits: credits,
-      /* Legacy mirror: first 1–2 slots per role. Keeps the Worker, the
-         board-profile matcher, and any external consumer that still reads
-         the old columns working while we finish the migration. */
-      author:          credits.authors[0]          || null,
-      author2:         credits.authors[1]          || null,
-      photojournalist: credits.photojournalists[0] || null,
-      photojournalist_2: credits.photojournalists[1] || null,
-      photo_courtesy:  credits.courtesy.join(', ') || null,
-      layout_by:       credits.layout[0]           || null,
-      layout_by_2:     credits.layout[1]           || null,
-      graphics_by:     credits.graphics[0]         || null,
+      /* Legacy mirror: first 1–2 slots per role. Empty string rather
+         than null keeps older NOT NULL constraints happy and matches the
+         shape of the pre-JSONB rows, while the credits JSONB column
+         above carries the real, complete list. */
+      author:            credits.authors[0]          || '',
+      author2:           credits.authors[1]          || '',
+      photojournalist:   credits.photojournalists[0] || '',
+      photojournalist_2: credits.photojournalists[1] || '',
+      photo_courtesy:    credits.courtesy.join(', ') || '',
+      layout_by:         credits.layout[0]           || '',
+      layout_by_2:       credits.layout[1]           || '',
+      graphics_by:       credits.graphics[0]         || '',
       subcat: ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : null,
       date: $('#fDate').value || todayISO(),
       read: $('#fRead').value.trim() || '1 min',
