@@ -1971,6 +1971,64 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 }
 
 /* ============================================================
+   ADMIN MOBILE NAV - definitive fix (last rule in file)
+   ============================================================
+   Uses `html body` to boost specificity above every other
+   `.admin-nav button` rule in the stylesheet, so it wins
+   regardless of source order. `min-width: max-content` forces
+   the button to be at least as wide as its own label, and
+   `width: auto` lets it stop there instead of filling the row. */
+
+@media (max-width: 900px) {
+  html body .admin-shell .admin-side {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    position: static !important;
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--line) !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  html body .admin-shell .admin-side::-webkit-scrollbar { display: none; }
+  html body .admin-shell .admin-side h4 { display: none !important; }
+  html body .admin-shell .admin-side-sep { display: none !important; }
+
+  html body .admin-shell .admin-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 6px !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+  }
+
+  /* This is the money selector. It out-specifies
+     `.admin-nav button { width: 100% }` by a mile. */
+  html body .admin-shell .admin-side .admin-nav button[data-panel] {
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    padding: 9px 14px !important;
+    font-size: .78rem !important;
+    border-radius: 999px !important;
+  }
+
+  html body .admin-shell .admin-side > .admin-nav:last-child {
+    margin-left: 6px;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* ============================================================
    ADMIN PANEL MOBILE NAV - final override, sits last in the file
    so it wins on source order.
    ============================================================
