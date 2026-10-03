@@ -666,14 +666,43 @@ const Data = {
     const blob = await resizeImageToBlob(file, 1400, 0.85);
     const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
     const path = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
-    const { error } = await sb.storage.from('thumbnails').upload(path, blob, {
-      contentType: blob.type,
-      upsert: false,
-      cacheControl: '31536000'
-    });
-    if (error) throw error;
-    const { data } = sb.storage.from('thumbnails').getPublicUrl(path);
-    return data.publicUrl;
+
+    /* Storage uploads attach whatever JWT is in memory. If the tab has been
+       open for a while, that token expires silently and the upload is
+       rejected - but the rejection surfaces as an opaque ProgressEvent with
+       no message, which looks like CORS or RLS. A page refresh mints a new
+       token, which is why "refresh then save" appears to fix it.
+
+       Force a session refresh before each attempt, retry a few times, and
+       fall back to an inline data URL so the article can still be saved if
+       the storage layer is genuinely down. */
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        try { await sb.auth.getSession(); } catch (_) { /* non-fatal */ }
+
+        const { error } = await sb.storage.from('thumbnails').upload(path, blob, {
+          contentType: blob.type,
+          upsert: false,
+          cacheControl: '31536000'
+        });
+        if (error) throw error;
+        const { data } = sb.storage.from('thumbnails').getPublicUrl(path);
+        if (data && data.publicUrl) return data.publicUrl;
+        throw new Error('Upload succeeded but no public URL was returned.');
+      } catch (err) {
+        lastErr = err;
+        console.warn('[The Work] Thumbnail upload attempt ' + attempt + '/3 failed:', err);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 400 * attempt));
+      }
+    }
+
+    /* All three attempts failed. Log the underlying error, warn the user,
+       and inline the image so the save can still complete. The data URL is
+       bigger than a hosted upload, but it keeps the article usable. */
+    console.error('[The Work] Thumbnail upload failed after 3 attempts:', lastErr);
+    toast('Image upload failed — using inline image. Try refreshing if this repeats.', true);
+    return await resizeImage(file, 1200, 0.78);
   },
   async loadBoardPhotos() {
     if (!sb) { try { return JSON.parse(localStorage.getItem('tw_board_photos') || '{}'); } catch(e) { return {}; } }
