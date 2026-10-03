@@ -667,42 +667,45 @@ const Data = {
     const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
     const path = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
 
-    /* Storage uploads attach whatever JWT is in memory. If the tab has been
-       open for a while, that token expires silently and the upload is
-       rejected - but the rejection surfaces as an opaque ProgressEvent with
-       no message, which looks like CORS or RLS. A page refresh mints a new
-       token, which is why "refresh then save" appears to fix it.
+    /* Upload via our own Worker (same origin as the site) rather than hitting
+       Supabase Storage directly. Browsers with strict privacy defaults -
+       Brave Shields, Firefox ETP Strict, Safari ITP - classify a direct
+       request to *.supabase.co as third-party and strip the Authorization
+       header, which surfaces as an opaque ProgressEvent with no status.
+       Proxying through the Worker makes the request same-origin, so the auth
+       header arrives intact.
 
-       Force a session refresh before each attempt, retry a few times, and
-       fall back to an inline data URL so the article can still be saved if
-       the storage layer is genuinely down. */
-    let lastErr = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        try { await sb.auth.getSession(); } catch (_) { /* non-fatal */ }
+       Falls back to an inline data URL if the proxy is unavailable, so an
+       article can still be saved. */
+    try {
+      /* Force a fresh session first - a stale JWT is a second, unrelated
+         reason uploads can 401. */
+      try { await sb.auth.getSession(); } catch (_) { /* non-fatal */ }
+      const { data: { session } } = await sb.auth.getSession();
+      const token = (session && session.access_token) || '';
 
-        const { error } = await sb.storage.from('thumbnails').upload(path, blob, {
-          contentType: blob.type,
-          upsert: false,
-          cacheControl: '31536000'
-        });
-        if (error) throw error;
-        const { data } = sb.storage.from('thumbnails').getPublicUrl(path);
-        if (data && data.publicUrl) return data.publicUrl;
-        throw new Error('Upload succeeded but no public URL was returned.');
-      } catch (err) {
-        lastErr = err;
-        console.warn('[The Work] Thumbnail upload attempt ' + attempt + '/3 failed:', err);
-        if (attempt < 3) await new Promise(r => setTimeout(r, 400 * attempt));
+      const res = await fetch('/api/upload-thumb?path=' + encodeURIComponent(path), {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': blob.type
+        },
+        body: blob
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error('Upload ' + res.status + (body ? ': ' + body.slice(0, 200) : ''));
       }
-    }
 
-    /* All three attempts failed. Log the underlying error, warn the user,
-       and inline the image so the save can still complete. The data URL is
-       bigger than a hosted upload, but it keeps the article usable. */
-    console.error('[The Work] Thumbnail upload failed after 3 attempts:', lastErr);
-    toast('Image upload failed — using inline image. Try refreshing if this repeats.', true);
-    return await resizeImage(file, 1200, 0.78);
+      const { data } = sb.storage.from('thumbnails').getPublicUrl(path);
+      if (data && data.publicUrl) return data.publicUrl;
+      throw new Error('Upload returned no public URL.');
+    } catch (err) {
+      console.error('[The Work] Thumbnail upload failed:', err);
+      toast('Image upload failed — using inline image. Try refreshing if this repeats.', true);
+      return await resizeImage(file, 1200, 0.78);
+    }
   },
   async loadBoardPhotos() {
     if (!sb) { try { return JSON.parse(localStorage.getItem('tw_board_photos') || '{}'); } catch(e) { return {}; } }

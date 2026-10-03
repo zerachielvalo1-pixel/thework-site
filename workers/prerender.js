@@ -365,10 +365,55 @@ async function renderSitemap(env, ctx) {
   });
 }
 
+/* Same-origin upload proxy.
+   Supabase Storage lives on a different origin from the site, so browsers
+   with strict privacy defaults (Brave Shields, Firefox ETP Strict, Safari ITP)
+   classify the upload as third-party and drop the Authorization header - the
+   request dies as an opaque ProgressEvent with no status. Proxying the PUT
+   through this Worker makes it same-origin as far as the browser is
+   concerned, so the auth header rides along normally.
+
+   Only POST is accepted, the body is streamed straight through, and the
+   response is returned unmodified. Auth is enforced by Supabase on the
+   other side, so this is not an open proxy. */
+async function handleThumbUpload(request) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 });
+  }
+  const path = new URL(request.url).searchParams.get('path');
+  if (!path || !/^[A-Za-z0-9._-]+$/.test(path)) {
+    return new Response('Bad path', { status: 400 });
+  }
+  const auth = request.headers.get('authorization') || '';
+  const contentType = request.headers.get('content-type') || 'application/octet-stream';
+
+  const upstream = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/thumbnails/${encodeURIComponent(path)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': auth,
+        'apikey': SUPABASE_KEY,
+        'Content-Type': contentType,
+        'x-upsert': 'false',
+        'cache-control': 'max-age=31536000'
+      },
+      body: request.body
+    }
+  );
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') || 'application/json' }
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
+
+    if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
 
     const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
     if (match && (request.method === 'GET' || request.method === 'HEAD')) {
