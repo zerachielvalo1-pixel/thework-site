@@ -1613,7 +1613,8 @@ async function renderHome() {
     el.addEventListener('click', e => {
       if (e.target.closest('a[data-story-link]')) e.preventDefault();
       if (e.target.closest('.tw-save-btn')) return;
-      openArticle(el.dataset.articleId);
+      const article = articles.find(x => String(x.id) === String(el.dataset.articleId));
+      if (article) window.location.assign(storyUrl(article));
     });
   });
   twWireSaveButtons(fpGrid);
@@ -1631,7 +1632,7 @@ async function renderHome() {
       el.addEventListener('click', e => {
         if (e.target.closest('a[data-story-link]')) e.preventDefault();
         if (e.target.closest('.tw-save-btn')) return;
-        openArticle(a.id);
+        window.location.assign(storyUrl(a));
       });
       grid.appendChild(el);
     });
@@ -1674,7 +1675,7 @@ async function renderHome() {
         el.addEventListener('click', e => {
           if (e.target.closest('a[data-story-link]')) e.preventDefault();
           if (e.target.closest('.tw-save-btn')) return;
-          openArticle(a.id);
+          window.location.assign(storyUrl(a));
         });
         pGrid.appendChild(el);
       });
