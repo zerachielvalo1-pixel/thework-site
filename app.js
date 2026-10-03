@@ -692,9 +692,24 @@ const Data = {
     if (error) return '';
     return data ? (data.body || '') : '';
   },
-  async uploadThumb(file) {
-    if (!sb) return await resizeImage(file, 900, 0.82);
-    const blob = await resizeImageToBlob(file, 1400, 0.85);
+  async uploadThumb(fileOrDataUrl) {
+    if (!sb) {
+      /* Demo mode: if it is already a data URL, just hand it back. */
+      if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
+        return fileOrDataUrl;
+      }
+      return await resizeImage(fileOrDataUrl, 900, 0.82);
+    }
+    /* Accepts either a File (freshly selected) or a data URL (cached from
+       an earlier read). A data URL goes straight to a Blob with no
+       FileReader pass, so the stale-file NotReadableError cannot recur. */
+    let blob;
+    if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
+      const res = await fetch(fileOrDataUrl);
+      blob = await res.blob();
+    } else {
+      blob = await resizeImageToBlob(fileOrDataUrl, 1400, 0.85);
+    }
     const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
     const path = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
 
@@ -3701,13 +3716,26 @@ $('#thumbUploader').addEventListener('click', e => {
 });
 $('#changeThumbBtn').addEventListener('click', e => { e.stopPropagation(); $('#fThumb').click(); });
 $('#removeThumbBtn').addEventListener('click', e => { e.stopPropagation(); $('#fThumb').value=''; setThumbnail(null); window.__pendingThumbFile = null; });
-$('#fThumb').addEventListener('change', e => {
+$('#fThumb').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
-  const r = new FileReader();
-  r.onload = ev => setThumbnail(ev.target.result, file.name);
-  r.readAsDataURL(file);
-  window.__pendingThumbFile = file;
+  try {
+    /* Read the file ONCE, right now, while the handle is definitely
+       valid. Store the resulting data URL and stop keeping a File
+       reference around: File objects can become unreadable between
+       selection and save (cloud drives, SD cards, aggressive privacy
+       settings), and a second FileReader.readAsDataURL on a stale
+       handle throws NotReadableError. The data URL lives in memory
+       and cannot go stale. */
+    const dataUrl = await resizeImage(file, 1200, 0.82);
+    setThumbnail(dataUrl, file.name);
+    /* No File reference is kept. The save path will upload the data URL. */
+    window.__pendingThumbFile = null;
+  } catch (err) {
+    console.error('[The Work] Could not read thumbnail file:', err);
+    toast('Could not read that image. Try re-selecting the file.', true);
+    e.target.value = '';
+  }
 });
 
 
@@ -4342,11 +4370,13 @@ $('#articleForm').addEventListener('submit', async e => {
   const btn = $('#saveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
+    /* The data URL was captured at selection time and has been sitting in
+       `pendingThumbnail` ever since. Uploading it now cannot fail with a
+       stale-file error because it does not touch the original file at
+       all. `uploadThumb` accepts either a File or a data URL. */
     let thumbnail = pendingThumbnail;
-    const pendingFile = safePendingThumbFile();
-    if (pendingFile) {
-      thumbnail = await Data.uploadThumb(pendingFile);
-      window.__pendingThumbFile = null;
+    if (thumbnail && thumbnail.startsWith('data:')) {
+      thumbnail = await Data.uploadThumb(thumbnail);
     }
     const payload = {
       id: editingId || uid(),

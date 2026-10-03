@@ -2275,10 +2275,7 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 
 .credit-picker-fields{display:grid;gap:8px}
 .credit-picker-input{width:100%}
-git add .
-git commit -m "Phase 3: dynamic credit pickers on the article form"
-git push origin main
-npx wrangler deploy
+
 @media(max-width:520px){
   .credit-picker-head{flex-direction:column;align-items:flex-start}
   .credit-picker-count-wrap{width:100%;justify-content:space-between}
