@@ -1499,11 +1499,17 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 }
 .tw-slide.active{opacity:1;visibility:visible;transition:opacity .7s var(--ease), visibility 0s}
 
+/* Image element, not a background-image div. An <img> survives a missing
+   stylesheet, shows up in DevTools Network, and doesn't need background-size
+   gymnastics to cover the frame. */
 .tw-slide-bg{
   position:absolute;inset:0;
-  background-size:cover;background-position:center;
+  width:100%;height:100%;
+  object-fit:cover;
+  object-position:center;
   transform:scale(1.06);
   transition:transform 8s ease-out;
+  display:block;
 }
 .tw-slide.active .tw-slide-bg{transform:scale(1)}
 
@@ -1514,14 +1520,15 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 }
 .tw-slide-content{
   position:absolute;
-  left:28px;
-  right:28px;
-  bottom:26px;
-  /* Enough gutter for the ~5×52px thumbnail rail plus its gaps. */
-  padding-right:320px;
+  left:22px;
+  right:22px;
+  bottom:20px;
+  /* Gutter for the ~5×52px thumbnail rail plus its gaps. */
+  padding-right:300px;
   color:#fff;
   z-index:1;
   box-sizing:border-box;
+  max-width:min(720px, 70%);
 }
 .tw-slide-meta{
   /* Keeps a 2-author byline on one line and ellipsises if it can't fit. */
@@ -1546,38 +1553,42 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   -webkit-backdrop-filter:blur(8px);
   border:1px solid rgba(255,255,255,.3);
   color:#fff;
-  font-family:var(--sans);font-size:.66rem;font-weight:750;
+  font-family:var(--sans);font-size:.56rem;font-weight:750;
   letter-spacing:.12em;text-transform:uppercase;
-  padding:6px 12px;border-radius:999px;
-  margin-bottom:14px;
+  padding:4px 10px;border-radius:999px;
+  margin-bottom:8px;
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
 }
 .tw-slide-title{
   font-family:var(--serif);
-  font-size:clamp(1.6rem,3.6vw,2.8rem);
+  font-size:clamp(1.15rem,2.2vw,1.85rem);
   font-weight:900;
-  line-height:1.12;
+  line-height:1.18;
   letter-spacing:-.02em;
-  margin:0 0 12px;
+  margin:0 0 8px;
   color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.55);
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
 }
 .tw-slide-title a{color:inherit;text-decoration:none}
 .tw-slide-title a:hover{color:#fff}
 .tw-slide-excerpt{
-  font-family:var(--sans);
-  font-size:.95rem;
-  line-height:1.6;
-  color:rgba(255,255,255,.85);
-  margin:0 0 12px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  /* Hidden — the headline and byline carry the slide on their own, and every
+     extra line of text sits on top of the artwork. */
+  display:none;
 }
 .tw-slide-meta{
   font-family:var(--sans);
-  font-size:.76rem;
-  color:rgba(255,255,255,.72);
+  font-size:.66rem;
+  color:rgba(255,255,255,.78);
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
   padding-right:8px;
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
 }
 .tw-slide.active .tw-slide-content > *{
   animation:twSlideIn .6s cubic-bezier(.22,.61,.36,1) both;
@@ -1806,3 +1817,57 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
 }
 .story-hero,
 .modal-hero{cursor:zoom-in}
+/* 1. Stretch the grid items so the sidebar matches the carousel's height */
+.frontpage-grid {
+    align-items: stretch !important; 
+}
+
+/* 2. Force the sidebar to never be taller than the carousel */
+.frontpage-grid aside {
+    min-height: 0; /* Critical for grid children to allow shrinking */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* 3. Allow the list to scroll inside the sidebar if it has too many items */
+.sidebar-list {
+    flex: 1;
+    overflow-y: auto;
+    /* Hide the scrollbar for a clean look */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+.sidebar-list::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge */
+}
+/* ============================================================
+   FORCE SIDEBAR TO MATCH CAROUSEL HEIGHT
+   ============================================================ */
+
+/* 1. Constrain the sidebar to the carousel's max-height */
+.frontpage-grid aside {
+    max-height: 680px; /* Matches the desktop carousel height */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* 2. Adjust for mobile (where the carousel shrinks) */
+@media(max-width: 900px) {
+    .frontpage-grid aside {
+        max-height: 560px; /* Matches the mobile carousel height */
+    }
+}
+
+/* 3. Allow the list to scroll internally if there are too many items */
+.sidebar-list {
+    flex: 1;
+    overflow-y: auto;
+    /* Hide the scrollbar for a clean, seamless look */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+.sidebar-list::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge */
+}

@@ -1212,7 +1212,7 @@ function twBuildCarousel(items) {
     const bg = a.thumbnail ? imgUrl(a.thumbnail, 1200) : '';
     return `
       <div class="tw-slide${i === 0 ? ' active' : ''}" data-index="${i}" data-article-id="${esc(a.id)}">
-        ${bg ? `<div class="tw-slide-bg" style="background-image:url('${esc(bg)}')"></div>` : ''}
+        ${bg ? `<img class="tw-slide-bg" src="${esc(bg)}" alt="" loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async"${i === 0 ? ' fetchpriority="high"' : ''}>` : ''}
         <div class="tw-slide-shade"></div>
         <div class="tw-slide-content">
           <span class="tw-slide-cat">${esc(cat)}</span>
@@ -1437,11 +1437,11 @@ async function renderHome() {
     return;
   }
 
-  /* Stories 0-4 rotate in the hero carousel; the sidebar shows the next four;
+  /* Stories 0-4 rotate in the hero carousel; the sidebar shows the next six;
      the grid shows the rest. */
   const carouselItems = list.slice(0, 5);
-  const sidebar = list.slice(5, 9);
-  const gridArticles = list.slice(9);
+  const sidebar = list.slice(5, 11); // This gives exactly 6 items
+  const gridArticles = list.slice(11); 
 
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}">
@@ -2304,63 +2304,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-let twLightboxOpen = false;
-let twLightboxReturnFocus = null;
-
-function twOpenLightbox(src, alt) {
-  if (!src) return;
-  const overlay = document.getElementById('twLightbox');
-  const img = document.getElementById('twLightboxImg');
-  if (!overlay || !img) return;
-  twLightboxReturnFocus = document.activeElement;
-  img.src = src;
-  img.alt = alt || '';
-  overlay.classList.add('open');
-  twLightboxOpen = true;
-  lockScroll();
-  const closeBtn = document.getElementById('twLightboxClose');
-  if (closeBtn) closeBtn.focus();
-}
-
-function twCloseLightbox() {
-  const overlay = document.getElementById('twLightbox');
-  if (!overlay || !twLightboxOpen) return;
-  overlay.classList.remove('open');
-  const img = document.getElementById('twLightboxImg');
-  if (img) { img.removeAttribute('src'); img.alt = ''; }
-  twLightboxOpen = false;
-  unlockScroll();
-  if (twLightboxReturnFocus && typeof twLightboxReturnFocus.focus === 'function') {
-    try { twLightboxReturnFocus.focus(); } catch (_) {}
-  }
-  twLightboxReturnFocus = null;
-}
-
-document.addEventListener('click', (e) => {
-  if (!twLightboxOpen) return;
-  if (e.target === document.getElementById('twLightbox')) {
-    twCloseLightbox();
-    return;
-  }
-});
-document.getElementById('twLightboxClose')?.addEventListener('click', twCloseLightbox);
-
-document.addEventListener('click', (e) => {
-  const heroImg = e.target.closest('.story-hero img, .modal-hero img');
-  if (heroImg) {
-    const src = heroImg.currentSrc || heroImg.getAttribute('src');
-    twOpenLightbox(src, heroImg.getAttribute('alt') || '');
-    return;
-  }
-  const heroBox = e.target.closest('.story-hero, .modal-hero');
-  if (heroBox && !e.target.closest('a, button')) {
-    const inner = heroBox.querySelector('img');
-    if (inner) {
-      const src = inner.currentSrc || inner.getAttribute('src');
-      twOpenLightbox(src, inner.getAttribute('alt') || '');
-    }
-  }
-});
 
 let articleOpenToken = 0;
 async function openArticle(id) {
