@@ -1101,10 +1101,8 @@ function renderStoryPage(article) {
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
-        <div class="story-content">
-          ${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}
-          ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
-        </div>
+        ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
+        <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
       </div>
     </article>`;
 }
@@ -2458,17 +2456,20 @@ $('#modalClose').addEventListener('click', closeArticle);
 const modalGoArticleBtn = document.getElementById('modalGoArticle');
 if (modalGoArticleBtn) {
   modalGoArticleBtn.addEventListener('click', () => {
-    const id = document.getElementById('modalTitle')?.dataset.articleId || '';
-    const story = articles.find(x => String(x.id) === String(id));
-    if (story) {
-      window.location.assign(storyUrl(story));
-      return;
-    }
-    const fallback = document.querySelector('[data-current-story-id]')?.dataset.currentStoryId;
-    if (fallback) {
-      const alt = articles.find(x => String(x.id) === String(fallback));
-      if (alt) window.location.assign(storyUrl(alt));
-    }
+    const titleEl = document.getElementById('modalTitle');
+    const id = (titleEl && titleEl.dataset && titleEl.dataset.articleId)
+      ? String(titleEl.dataset.articleId)
+      : '';
+    if (!id) return;
+    /* Look up the full story so the slug in the URL matches the title.
+       Fall back to a generic slug if the list is out of sync - the worker
+       only uses the id portion of the path to fetch the article, so the
+       slug is purely cosmetic. */
+    const story = Array.isArray(articles)
+      ? articles.find(x => String(x.id) === String(id))
+      : null;
+    const slug = story ? slugifyStoryTitle(story.title) : 'story';
+    window.location.assign(`/stories/${slug}/${encodeURIComponent(id)}`);
   });
 }
 $('#modalOverlay').addEventListener('click', e => { if (e.target === $('#modalOverlay')) closeArticle(); });
@@ -3683,6 +3684,9 @@ async function renderSavedPage() {
   let all = [];
   try { all = await Data.listPublished(); }
   catch (err) { twShowError(grid, 'Could not load saved stories.', () => renderSavedPage()); return; }
+  /* Keep the global list in sync so the "Go to article" button (and
+     openArticle) can find these stories by id. */
+  articles = all;
   const saved = all.filter(a => ids.indexOf(a.id) !== -1);
   if (!saved.length) {
     grid.innerHTML = '<div class="tw-error" style="grid-column:1/-1"><strong>Nothing saved here anymore</strong>Those articles may have been removed.</div>';

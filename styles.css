@@ -467,11 +467,38 @@ footer ul a:hover{color:var(--accent)}
 @media(max-width:900px){.admin-shell{grid-template-columns:minmax(0,1fr)}}
 .admin-main{min-width:0}
 .admin-side{background:var(--paper-2);border-right:1px solid var(--line);padding:24px 14px;position:sticky;top:var(--nav-h);height:calc(100vh - var(--nav-h));overflow-y:auto}
-@media(max-width:900px){.admin-side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:14px;display:flex;gap:6px;overflow-x:auto;align-items:center;flex-wrap:nowrap}} 
 .admin-side h4{font-family:var(--sans);font-size:.62rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-4);margin:0 0 12px;padding:0 10px}
-@media(max-width:900px){.admin-side h4{display:none}}
 .admin-nav{display:grid;gap:2px}
-@media(max-width:900px){.admin-nav{display:flex;gap:6px;flex:1;min-width:max-content}}
+
+@media(max-width:900px){
+  .admin-side{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:10px 12px;
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    align-items:center;
+    flex-wrap:nowrap;
+    background:var(--paper-2);
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .admin-side::-webkit-scrollbar{display:none}
+  .admin-side h4{display:none}
+  /* flex:0 0 auto so each nav takes only its natural width - the strip
+     scrolls sideways instead of squishing buttons. */
+  .admin-nav{display:flex;gap:6px;flex:0 0 auto;min-width:0}
+  .admin-nav button{flex:0 0 auto;padding:9px 13px;font-size:.78rem}
+  /* Visual break before the "Back to site" block. */
+  .admin-side > .admin-nav:last-child{
+    margin-left:6px;
+    padding-left:12px;
+    border-left:1px solid var(--line);
+  }
+}
 .admin-nav button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:none;background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:.82rem;font-weight:600;border-radius:var(--radius);cursor:pointer;text-align:left;transition:.15s var(--ease);white-space:nowrap}
 .admin-nav button:hover{background:var(--paper-3);color:var(--ink)}
 .admin-nav button.active{background:var(--gradient);color:#fff;box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 28%,transparent)}
@@ -1357,9 +1384,9 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   }
   .modal-overlay.open .modal{transform:none}
   .modal-body{padding:22px 18px calc(22px + env(safe-area-inset-bottom))}
-  .modal-header-row{grid-template-columns:1fr;gap:8px}
-  .modal-go-article{grid-column:1;grid-row:1;justify-self:end}
-  .modal-title{grid-column:1;grid-row:2}
+  .modal-header-row{grid-template-columns:minmax(0,1fr) auto;gap:8px 10px}
+  .modal-go-article{grid-column:2;grid-row:1;justify-self:end;font-size:.72rem;padding:8px 12px}
+  .modal-title{grid-column:1;grid-row:1}
   .modal-close{top:10px;right:10px}
   .modal-hero{min-height:150px}
   .crop-modal{max-width:100%;border-radius:16px 16px 0 0}

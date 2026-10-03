@@ -158,7 +158,8 @@ function storyMarkup(article) {
         <h1>${escapeHtml(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${escapeHtml(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${escapeHtml(authors)}${dateMarkup ? ` · ${dateMarkup}` : ''}${readTime}</div>
-        <div class="story-content">${body}${hero}</div>
+        ${hero}
+        <div class="story-content">${body}</div>
       </div>
     </article>
   </main>`;
