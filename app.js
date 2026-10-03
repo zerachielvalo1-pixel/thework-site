@@ -15,6 +15,33 @@ const $$ = (s,c) => Array.from((c||document).querySelectorAll(s));
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,10));
 
+/* ---------- Credits normalizer ----------
+   Articles can carry credits in two places:
+     - The new `credits` JSONB column, which supports unlimited writers,
+       photographers, layout artists, etc.
+     - The legacy fixed columns (author, author2, photojournalist,
+       photojournalist_2, layout_by, layout_by_2, graphics_by, photo_courtesy)
+       used by articles created before the JSONB column existed.
+
+   Every read site calls this helper instead of touching either directly, so
+   old and new articles render through the exact same code path. If the JSONB
+   column is missing or empty for an article, the legacy columns fill in.
+   Arrays are always returned, never null, so callers can iterate freely. */
+function getCredits(article) {
+  if (!article) {
+    return { authors: [], photojournalists: [], layout: [], graphics: [], courtesy: [] };
+  }
+  const c = (article.credits && typeof article.credits === 'object') ? article.credits : {};
+  const norm = (v) => Array.isArray(v) ? v.map(String).filter(Boolean) : [];
+  return {
+    authors:          norm(c.authors).length          ? norm(c.authors)          : [article.author, article.author2].filter(Boolean),
+    photojournalists: norm(c.photojournalists).length ? norm(c.photojournalists) : [article.photojournalist, article.photojournalist_2].filter(Boolean),
+    layout:           norm(c.layout).length           ? norm(c.layout)           : [article.layout_by, article.layout_by_2].filter(Boolean),
+    graphics:         norm(c.graphics).length         ? norm(c.graphics)         : [article.graphics_by].filter(Boolean),
+    courtesy:         norm(c.courtesy).length         ? norm(c.courtesy)         : [article.photo_courtesy].filter(Boolean)
+  };
+}
+
 /* ---------- Responsive image delivery ----------
    Thumbnails in the Storage bucket are full-resolution uploads. Served from
    /storage/v1/object/public/ they are both huge (measured: one JPEG at 4.5 MB,
@@ -442,7 +469,7 @@ const Data = {
        'published': the related-articles list in the modal, the view counter,
        and articleModalSeo - the flag that pushes /stories/<slug>/<id> into the
        address bar and updates the og:/canonical tags. */
-    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by';
+    const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by,credits';
     /* `publish_at` in the past (or null) means the article is live. A future
        publish_at keeps it out of the public list even though status='published'. */
     const nowIso = new Date().toISOString();
@@ -1284,7 +1311,7 @@ function twBuildCarousel(items) {
 
   track.innerHTML = twCarousel.items.map((a, i) => {
     const cat = CAT_LABELS[a.cat] || a.cat;
-    const byline = a.author2 ? `${a.author} & ${a.author2}` : (a.author || 'The Work');
+    const byline = getCredits(a).authors.join(', ') || 'The Work';
     const bg = a.thumbnail ? imgUrl(a.thumbnail, 1200) : '';
     return `
       <div class="tw-slide${i === 0 ? ' active' : ''}" data-index="${i}" data-article-id="${esc(a.id)}">
@@ -1484,7 +1511,11 @@ async function renderHome() {
   }
   if (searchTerm) {
     list = list.filter(a => {
-      const hay = ((a.title||'')+' '+(a.excerpt||'')+' '+(a.author||'')+' '+(a.author2||'')+' '+(a.photojournalist||'')+' '+(a.photojournalist_2||'')+' '+(a.photo_courtesy||'')+' '+(a.layout_by||'')+' '+(a.layout_by_2||'')+' '+(a.graphics_by||'')+' '+(CAT_LABELS[a.cat]||'')).toLowerCase();
+      const c = getCredits(a);
+      const hay = [
+        a.title, a.excerpt, CAT_LABELS[a.cat] || a.cat,
+        ...c.authors, ...c.photojournalists, ...c.layout, ...c.graphics, ...c.courtesy
+      ].filter(Boolean).join(' ').toLowerCase();
       return hay.includes(searchTerm);
     });
   }
@@ -2089,10 +2120,14 @@ async function openBoardProfile(name) {
   });
   articles = published;
 
-  const byAuthor = published.filter(a => a.author === name || a.author2 === name);
-  const byPhoto = published.filter(a => a.photojournalist === name || a.photojournalist_2 === name);
-  const byLayout = published.filter(a => a.layout_by === name || a.layout_by_2 === name);
-  const byGraphics = published.filter(a => a.graphics_by === name);
+  /* Credits live in the JSONB column for new articles and in the legacy
+     fixed columns for old ones. getCredits() normalises both, so a board
+     member sees every piece they are credited on regardless of when the
+     article was published. */
+  const byAuthor   = published.filter(a => getCredits(a).authors.includes(name));
+  const byPhoto    = published.filter(a => getCredits(a).photojournalists.includes(name));
+  const byLayout   = published.filter(a => getCredits(a).layout.includes(name));
+  const byGraphics = published.filter(a => getCredits(a).graphics.includes(name));
 
   let allVideos = [];
   try { allVideos = await Data.listVideos(); } catch (e) { allVideos = []; }
@@ -2435,23 +2470,13 @@ async function openArticle(id) {
     else { excerptEl.textContent = ''; excerptEl.style.display = 'none'; }
   }
 
-  const authorLine = a.author2 ? `${a.author} & ${a.author2}` : a.author;
+  const c = getCredits(a);
   const creditLines = [];
-  if (authorLine) {
-    creditLines.push({ label: 'Writer', value: authorLine, names: [a.author, a.author2].filter(Boolean) });
-  }
-  const photoArr = [a.photojournalist, a.photojournalist_2].filter(Boolean);
-  if (photoArr.length) {
-    creditLines.push({ label: 'Photos', value: photoArr.join(' & '), names: photoArr });
-  } else if (a.photo_courtesy) {
-    creditLines.push({ label: 'Photos', value: a.photo_courtesy, names: [] });
-  }
-  if (photoArr.length && a.photo_courtesy) {
-    creditLines.push({ label: 'Courtesy', value: a.photo_courtesy, names: [] });
-  }
-  if (a.graphics_by) creditLines.push({ label: 'Graphics', value: a.graphics_by, names: [a.graphics_by] });
-  const layoutArr = [a.layout_by, a.layout_by_2].filter(Boolean);
-  if (layoutArr.length) creditLines.push({ label: 'Layout', value: layoutArr.join(' & '), names: layoutArr });
+  if (c.authors.length)          creditLines.push({ label: 'Writer',   value: c.authors.join(' & '),          names: c.authors });
+  if (c.photojournalists.length) creditLines.push({ label: 'Photos',   value: c.photojournalists.join(' & '), names: c.photojournalists });
+  if (c.courtesy.length)         creditLines.push({ label: 'Courtesy', value: c.courtesy.join(', '),          names: [] });
+  if (c.graphics.length)         creditLines.push({ label: 'Graphics', value: c.graphics.join(' & '),         names: c.graphics });
+  if (c.layout.length)           creditLines.push({ label: 'Layout',   value: c.layout.join(' & '),           names: c.layout });
 
   const metaBits = [];
   if (a.date) metaBits.push(fmtDate(a.date));

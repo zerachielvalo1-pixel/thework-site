@@ -3,7 +3,7 @@ const SUPABASE_URL = 'https://fgojhhgqpvnwtcqkornz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_UiH_F3V2tFE1doecIb337w__hYVQIQf';
 const CACHE_TTL = 600; // 10 minutes
 const STALE_WHILE_REVALIDATE_SECONDS = 172800; // revalidate up to 2 days stale
-const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,author,author2,photojournalist,graphics_by,layout_by,layout_by_2,read';
+const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,author,author2,photojournalist,graphics_by,layout_by,layout_by_2,read,credits';
 const CATEGORY_LABELS = {
   news: 'News', editorial: 'Editorial', opinion: 'Opinion',
   features: 'Features', literary: 'Literary', sports: 'Sports'
@@ -129,7 +129,13 @@ function isoDateTime(value) {
 }
 
 function storyMarkup(article) {
-  const authors = [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff';
+  /* Mirror getCredits() from app.js. Prefer the JSONB array; fall back to
+     the legacy two-slot columns for articles written before the migration. */
+  const creds = (article.credits && typeof article.credits === 'object') ? article.credits : {};
+  const authorsArr = Array.isArray(creds.authors) && creds.authors.length
+    ? creds.authors.map(String).filter(Boolean)
+    : [article.author, article.author2].filter(Boolean);
+  const authors = authorsArr.join(', ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
   const paragraphs = String(article.body || '').split(/\n\s*\n/).filter(part => part.trim());
   const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(article.date)}</time>` : '';
