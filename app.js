@@ -1275,6 +1275,24 @@ function storyUrl(article) {
   return `/stories/${slugifyStoryTitle(article.title)}/${encodeURIComponent(article.id)}`;
 }
 
+/* Mirrors the credit block shown in the article modal (openArticle), but
+   for the dedicated story page. Authors live in .story-byline; this helper
+   handles the rest: Photos, Courtesy, Graphics, Layout. Returns empty
+   string if none are present, so articles with only a byline don't get an
+   empty box. */
+function renderStoryCredits(article) {
+  const c = getCredits(article);
+  const lines = [];
+  if (c.photojournalists.length) lines.push({ label: 'Photos',   value: c.photojournalists.join(' & ') });
+  if (c.courtesy.length)         lines.push({ label: 'Courtesy', value: c.courtesy.join(', ') });
+  if (c.graphics.length)         lines.push({ label: 'Graphics', value: c.graphics.join(' & ') });
+  if (c.layout.length)           lines.push({ label: 'Layout',   value: c.layout.join(' & ') });
+  if (!lines.length) return '';
+  return `<div class="article-credits">${lines.map(l =>
+    `<div class="credit-row"><span class="credit-label">${esc(l.label)}</span><span>${esc(l.value)}</span></div>`
+  ).join('')}</div>`;
+}
+
 function storyRouteId() {
   const match = location.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
   if (!match) return null;
@@ -1299,6 +1317,7 @@ function renderStoryPage(article) {
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
+        ${renderStoryCredits(article)}
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${renderArticleBody(article.body) || `<p>${esc(article.excerpt || '')}</p>`}</div>
         <div id="storyShare" class="modal-share story-page-share"></div>
