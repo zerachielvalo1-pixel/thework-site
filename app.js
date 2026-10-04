@@ -44,6 +44,41 @@ function staffByline(article) {
   return getCredits(article).authors.join(', ') || 'The Work Staff';
 }
 
+/* ---------- Article body renderer (mirror of workers/prerender.js) ----------
+   Converts the plain-text body column into HTML. Storage stays plain text
+   with light markdown syntax; this is the only place that turns it into
+   tags. Order matters: esc() first (XSS impossible), then regex. Must
+   stay in sync with renderArticleBody() in workers/prerender.js. */
+function renderInlineFormatting(escaped) {
+  let out = escaped;
+  out = out.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+  );
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|\s)\*([^*\n\s][^*\n]*?)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+  return out;
+}
+
+function renderArticleBody(text) {
+  const raw = String(text || '');
+  const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
+  if (!parts.length) return '';
+  return parts.map(part => {
+    const trimmed = part.trim();
+    if (/^>\s?/.test(trimmed)) {
+      const inner = trimmed.replace(/^>\s?/gm, '');
+      return `<blockquote>${renderInlineFormatting(esc(inner)).replace(/\n/g, '<br>')}</blockquote>`;
+    }
+    const hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      const level = Math.min(4, hm[1].length + 1);
+      return `<h${level}>${renderInlineFormatting(esc(hm[2]))}</h${level}>`;
+    }
+    return `<p>${renderInlineFormatting(esc(trimmed)).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
 /* ---------- Responsive image delivery ----------
    Thumbnails in the Storage bucket are full-resolution uploads. Served from
    /storage/v1/object/public/ they are both huge (measured: one JPEG at 4.5 MB,
@@ -1228,7 +1263,6 @@ function renderStoryPage(article) {
     $('#view-home').before(main);
   }
   const authors = staffByline(article);
-  const paragraphs = (article.body || '').split(/\n\s*\n/).filter(p => p.trim());
   main.dataset.serverStory = 'true';
   main.innerHTML = `
     <article class="story-page">
@@ -1239,7 +1273,7 @@ function renderStoryPage(article) {
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
-        <div class="story-content">${paragraphs.map(p => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('') || `<p>${esc(article.excerpt || '')}</p>`}</div>
+        <div class="story-content">${renderArticleBody(article.body) || `<p>${esc(article.excerpt || '')}</p>`}</div>
       </div>
     </article>`;
 }
@@ -2543,9 +2577,7 @@ async function openArticle(id) {
   $('#modalHero').innerHTML = a.thumbnail
     ? `<div class="modal-hero-bg" style="background-image:url('${esc(imgUrl(a.thumbnail, 160))}')"></div>${imgTag(a.thumbnail, [480, 1080], SIZES.modal, ' alt="" loading="lazy" decoding="async"')}`
     : `<span class="modal-hero-text">${letter}</span>`;
-  const paras = (a.body||'').split(/\n\s*\n/).filter(p => p.trim());
-  const content = paras.map(p => `<p>${esc(p.trim()).replace(/\n/g,'<br>')}</p>`).join('');
-  $('#modalContent').innerHTML = content || `<p>${esc(a.excerpt||'')}</p>`;
+  $('#modalContent').innerHTML = renderArticleBody(a.body) || `<p>${esc(a.excerpt||'')}</p>`;
   twRenderRelated(a);
   twRenderShare(a);
 
@@ -4285,6 +4317,68 @@ function resetCreditPickers() {
 /* The word-count meter and its min/max validation were removed entirely.
    What remains is just the reactive plumbing that keeps the sub-category
    dropdown and the Author "optional/*" hint in sync with the Section field. */
+/* ---------- Rich-text toolbar wiring ----------
+   Inserts markdown syntax into the plain <textarea>. Uses .value,
+   .selectionStart, .selectionEnd so native undo/redo stays intact. Each
+   insertion dispatches "input" so the existing draft autosave picks it up. */
+(function initRichTextToolbar() {
+  const body = document.getElementById('fBody');
+  const toolbar = document.querySelector('.rt-toolbar');
+  if (!body || !toolbar) return;
+
+  function dispatchInput() {
+    body.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function wrapSelection(open, close, cursorOffset) {
+    const start = body.selectionStart;
+    const end = body.selectionEnd;
+    const value = body.value;
+    const before = value.slice(0, start);
+    const selected = value.slice(start, end);
+    const after = value.slice(end);
+    body.value = before + open + selected + close + after;
+    if (typeof cursorOffset === 'number') {
+      body.selectionStart = body.selectionEnd = start + open.length + selected.length + cursorOffset;
+    } else {
+      body.selectionStart = start + open.length;
+      body.selectionEnd = start + open.length + selected.length;
+    }
+    body.focus();
+    dispatchInput();
+  }
+
+  function prefixLine(prefix) {
+    const start = body.selectionStart;
+    const value = body.value;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    body.value = value.slice(0, lineStart) + prefix + value.slice(lineStart);
+    body.selectionStart = body.selectionEnd = start + prefix.length;
+    body.focus();
+    dispatchInput();
+  }
+
+  toolbar.addEventListener('click', e => {
+    const btn = e.target.closest('.rt-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const fmt = btn.dataset.format;
+    if (fmt === 'bold') wrapSelection('**', '**');
+    else if (fmt === 'italic') wrapSelection('*', '*');
+    else if (fmt === 'link') wrapSelection('[', '](https://)', 8);
+    else if (fmt === 'quote') prefixLine('> ');
+    else if (fmt === 'heading') prefixLine('## ');
+  });
+
+  body.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === 'b') { e.preventDefault(); wrapSelection('**', '**'); }
+    else if (key === 'i') { e.preventDefault(); wrapSelection('*', '*'); }
+    else if (key === 'k') { e.preventDefault(); wrapSelection('[', '](https://)', 8); }
+  });
+})();
+
 function updateBodyMeter() {
   const catEl = document.getElementById('fCat');
 

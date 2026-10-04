@@ -2280,3 +2280,46 @@ html.tw-locked,html.tw-locked body{overflow:hidden}
   .credit-picker-head{flex-direction:column;align-items:flex-start}
   .credit-picker-count-wrap{width:100%;justify-content:space-between}
 }
+
+/* ============================================================
+   Rich-text toolbar for the article Body field
+   ============================================================ */
+.rt-editor{position:relative}
+.rt-toolbar{
+  display:flex;
+  gap:4px;
+  padding:6px 8px;
+  border:1.5px solid var(--line);
+  border-bottom:none;
+  border-radius:var(--radius) var(--radius) 0 0;
+  background:var(--paper-3);
+}
+.rt-btn{
+  min-width:32px;
+  height:32px;
+  padding:0 8px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--ink-2);
+  font-family:var(--sans);
+  font-size:.8rem;
+  border-radius:4px;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition:.15s var(--ease);
+}
+.rt-btn svg{width:15px;height:15px}
+.rt-btn:hover{background:var(--paper-2);border-color:var(--line);color:var(--ink)}
+.rt-btn:active{transform:scale(.94)}
+.rt-btn-bold{font-weight:800;font-family:var(--serif)}
+.rt-btn-italic{font-style:italic;font-family:var(--serif);font-weight:600}
+.rt-btn-heading{font-weight:800;font-size:.72rem;letter-spacing:.04em}
+.rt-editor textarea{
+  border-top-left-radius:0;
+  border-top-right-radius:0;
+}
+@media (max-width:900px){
+  .rt-btn{min-width:40px;height:40px;padding:0 10px}
+}
