@@ -108,9 +108,13 @@ function socialCardUrl(url) {
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
   /* Must stay byte-for-byte in sync with socialCardUrl() in app.js: no format
-     param (that would 400), no width/height attributes downstream. */
-  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+     param (that would 400), no width/height attributes downstream.
+     Routed through the same-origin Worker proxy so social crawlers hit
+     Cloudflare's edge cache instead of Supabase. Absolute URL is required
+     because crawlers don't honour <base href="/">. */
+  const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
     `width=${OG_CARD.width}&height=${OG_CARD.height}&resize=cover&quality=${OG_CARD.quality}`;
+  return SITE_ORIGIN + '/api/image-proxy?url=' + encodeURIComponent(supabaseUrl);
 }
 
 /* The site is published in the Philippines, so previews get an explicit locale

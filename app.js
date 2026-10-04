@@ -169,8 +169,15 @@ function socialCardUrl(url) {
   const src = String(url == null ? '' : url);
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
-  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+  /* Route through the same-origin Worker proxy so Facebook, Messenger,
+     X, Google, LinkedIn, Discord, Slack and WhatsApp all fetch the card
+     from Cloudflare's edge cache - never from Supabase. Before this, every
+     social share triggered a fresh Supabase render request (cached egress
+     counted even on Supabase's own CDN HIT). This is the last remaining
+     image leak after twWirePrefetch() was fixed. */
+  const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
     'width=1200&height=630&resize=cover&quality=80';
+  return location.origin + '/api/image-proxy?url=' + encodeURIComponent(supabaseUrl);
 }
 
 /* Common `sizes` hints, kept in one place so layouts stay in sync. */
