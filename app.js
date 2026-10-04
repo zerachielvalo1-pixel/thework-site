@@ -1358,9 +1358,14 @@ function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
     ? imgTag(a.thumbnail, [320, 640], SIZES.card, ' alt="" loading="lazy" decoding="async"')
     : `<div class="article-thumb-text">${esc((CAT_LABELS[a.cat]||'?').charAt(0))}</div>`;
-  const SUBCAT_LABELS = { university:'University', local:'Local', national:'National', politics:'Politics' };
-  const subcatBadge = (a.cat === 'news' && a.subcat && SUBCAT_LABELS[a.subcat])
-    ? `<span class="article-subcat">${esc(SUBCAT_LABELS[a.subcat])}</span>`
+  /* Use the global SUBCAT_LABELS map (built from SUBCAT_OPTIONS) instead of
+     a locally-declared news-only copy. This makes opinion sub-categories
+     (Editorial, Column, Standpoints) render the same top-right badge as
+     news sub-categories (University, Local, National, Politics). The badge
+     fires for any article whose subcat has a known label. */
+  const subcatLabel = a.subcat ? SUBCAT_LABELS[a.subcat] : '';
+  const subcatBadge = subcatLabel
+    ? `<span class="article-subcat">${esc(subcatLabel)}</span>`
     : '';
   const byline = staffByline(a);
   return `
