@@ -597,8 +597,8 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
 .danger-zone h3{font-size:1rem;color:#8F1D17;margin-bottom:6px;font-weight:700}
 [data-theme="dark"] .danger-zone h3{color:#F0A5A0}
 .danger-zone p{font-family:var(--sans);font-size:.8rem;color:var(--ink-2);margin-bottom:16px}
-.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,140%);background:var(--ink);color:var(--paper);font-family:var(--sans);font-size:.83rem;font-weight:600;padding:12px 20px;border-radius:999px;box-shadow:var(--shadow-lg);z-index:600;transition:transform .34s cubic-bezier(.2,.9,.3,1.2);display:flex;align-items:center;gap:9px;max-width:calc(100vw - 32px)}
-.toast.show{transform:translate(-50%,0)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,140%);background:var(--ink);color:var(--paper);font-family:var(--sans);font-size:.83rem;font-weight:600;padding:12px 20px;border-radius:999px;box-shadow:var(--shadow-lg);z-index:600;transition:transform .34s cubic-bezier(.2,.9,.3,1.2), opacity .2s var(--ease), visibility 0s linear .34s;display:flex;align-items:center;gap:9px;max-width:calc(100vw - 32px);opacity:0;visibility:hidden;pointer-events:none}
+.toast.show{transform:translate(-50%,0);opacity:1;visibility:visible;pointer-events:auto;transition:transform .34s cubic-bezier(.2,.9,.3,1.2), opacity .2s var(--ease), visibility 0s}
 .toast svg{width:16px;height:16px;color:#5FD08C;flex:none}
 .toast.error svg{color:#FF8B84}
 .office-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:22px}
