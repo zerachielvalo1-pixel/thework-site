@@ -124,6 +124,9 @@ const OG_LOCALE = 'en_PH';
 function storyCreditsMarkup(article) {
   const creds = (article.credits && typeof article.credits === 'object') ? article.credits : {};
   const norm = (v) => Array.isArray(v) ? v.map(String).filter(Boolean) : [];
+  const authors = norm(creds.authors).length
+    ? norm(creds.authors)
+    : [article.author, article.author2].filter(Boolean);
   const photographers = norm(creds.photojournalists).length
     ? norm(creds.photojournalists)
     : [article.photojournalist, article.photojournalist_2].filter(Boolean);
@@ -138,11 +141,11 @@ function storyCreditsMarkup(article) {
     : [article.layout_by, article.layout_by_2].filter(Boolean);
 
   const lines = [];
+  lines.push({ label: 'Writer', value: authors.length ? authors.join(', ') : 'The Work Staff' });
   if (photographers.length) lines.push({ label: 'Photos',   value: photographers.join(' & ') });
   if (courtesy.length)      lines.push({ label: 'Courtesy', value: courtesy.join(', ') });
   if (graphics.length)      lines.push({ label: 'Graphics', value: graphics.join(' & ') });
   if (layout.length)        lines.push({ label: 'Layout',   value: layout.join(' & ') });
-  if (!lines.length) return '';
   return `<div class="article-credits">${lines.map(l =>
     `<div class="credit-row"><span class="credit-label">${escapeHtml(l.label)}</span><span>${escapeHtml(l.value)}</span></div>`
   ).join('')}</div>`;
@@ -233,7 +236,7 @@ function storyMarkup(article) {
         <div class="story-category">${escapeHtml(category)}</div>
         <h1>${escapeHtml(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${escapeHtml(article.excerpt)}</p>` : ''}
-        <div class="story-byline">By ${escapeHtml(authors)}${dateMarkup ? ` · ${dateMarkup}` : ''}${readTime}</div>
+        <div class="story-byline">${dateMarkup}${dateMarkup && readTime ? ' · ' : ''}${readTime.replace(/^ · /, '')}</div>
         ${storyCreditsMarkup(article)}
         ${hero}
         <div class="story-content">${body}</div>

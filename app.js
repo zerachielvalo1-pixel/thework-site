@@ -1283,11 +1283,15 @@ function storyUrl(article) {
 function renderStoryCredits(article) {
   const c = getCredits(article);
   const lines = [];
+  /* Author is always rendered, even when the article has no byline in the
+     legacy columns - we fall back to "The Work Staff" so the box is never
+     empty. This is the same fallback used in the modal, so both paths show
+     the same Writer row. */
+  lines.push({ label: 'Writer', value: c.authors.length ? c.authors.join(', ') : 'The Work Staff' });
   if (c.photojournalists.length) lines.push({ label: 'Photos',   value: c.photojournalists.join(' & ') });
   if (c.courtesy.length)         lines.push({ label: 'Courtesy', value: c.courtesy.join(', ') });
   if (c.graphics.length)         lines.push({ label: 'Graphics', value: c.graphics.join(' & ') });
   if (c.layout.length)           lines.push({ label: 'Layout',   value: c.layout.join(' & ') });
-  if (!lines.length) return '';
   return `<div class="article-credits">${lines.map(l =>
     `<div class="credit-row"><span class="credit-label">${esc(l.label)}</span><span>${esc(l.value)}</span></div>`
   ).join('')}</div>`;
@@ -1307,7 +1311,6 @@ function renderStoryPage(article) {
     main.className = 'view';
     $('#view-home').before(main);
   }
-  const authors = staffByline(article);
   main.dataset.serverStory = 'true';
   main.innerHTML = `
     <article class="story-page">
@@ -1316,7 +1319,7 @@ function renderStoryPage(article) {
         <div class="story-category">${esc(CAT_LABELS[article.cat] || article.cat || 'Story')}</div>
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
-        <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
+        <div class="story-byline">${article.date ? esc(fmtDateLong(article.date)) : ''}${article.date && article.read ? ' · ' : ''}${article.read ? esc(article.read) + ' read' : ''}</div>
         ${renderStoryCredits(article)}
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${renderArticleBody(article.body) || `<p>${esc(article.excerpt || '')}</p>`}</div>
