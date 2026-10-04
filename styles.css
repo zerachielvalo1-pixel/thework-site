@@ -64,7 +64,7 @@ input[type=text],input[type=email],input[type=password],input[type=date],input[t
 textarea{resize:vertical;min-height:90px;line-height:1.6}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);outline:none}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.article-credits{display:grid;gap:7px;padding:14px 16px;margin:0 0 22px;background:var(--paper-3);border-radius:var(--radius);font-family:var(--sans);font-size:.8rem;color:var(--ink-3)}
+.article-credits{display:grid;gap:2px;margin:0 0 28px;font-family:var(--sans);font-size:.8rem;color:var(--ink-3);line-height:1.5}
 .article-credits .credit-row{display:flex;gap:12px;align-items:baseline;color:var(--ink-3)}
 .article-credits .credit-label{font-size:.66rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);min-width:80px;flex:none}
 @media(max-width:520px){.row-2{grid-template-columns:1fr}}
