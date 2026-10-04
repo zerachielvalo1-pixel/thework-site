@@ -44,6 +44,36 @@ function staffByline(article) {
   return getCredits(article).authors.join(', ') || 'The Work Staff';
 }
 
+function renderInlineFormatting(escaped) {
+  let out = escaped;
+  out = out.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+  );
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|\s)\*([^*\n\s][^*\n]*?)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+  return out;
+}
+
+function renderArticleBody(text) {
+  const raw = String(text || '');
+  const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
+  if (!parts.length) return '';
+  return parts.map(part => {
+    const trimmed = part.trim();
+    if (/^>\s?/.test(trimmed)) {
+      const inner = trimmed.replace(/^>\s?/gm, '');
+      return `<blockquote>${renderInlineFormatting(esc(inner)).replace(/\n/g, '<br>')}</blockquote>`;
+    }
+    const hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      const level = Math.min(4, hm[1].length + 1);
+      return `<h${level}>${renderInlineFormatting(esc(hm[2]))}</h${level}>`;
+    }
+    return `<p>${renderInlineFormatting(esc(trimmed)).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
 /* ---------- Article body renderer (mirror of workers/prerender.js) ----------
    Converts the plain-text body column into HTML. Storage stays plain text
    with light markdown syntax; this is the only place that turns it into
@@ -792,14 +822,11 @@ const Data = {
       throw new Error('Upload returned no public URL.');
     } catch (err) {
       console.error('[The Work] Thumbnail upload failed:', err);
-      if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
-        return fileOrDataUrl;
-      }
-      if (fileOrDataUrl && typeof fileOrDataUrl !== 'string') {
-        toast('Image upload failed — using inline image. Try refreshing if this repeats.', true);
-        return await resizeImage(fileOrDataUrl, 1200, 0.78);
-      }
-      toast('Image upload failed. Please try again after refreshing the page.', true);
+      /* Never fall back to a base64 data URL — social crawlers cannot fetch
+         `data:` URLs, so any article saved that way silently loses its link
+         preview on Facebook, X, and Messenger. Fail loudly so the editor
+         retries instead of publishing a broken preview. */
+      toast('Image upload failed. Check your connection and try again.', true);
       return '';
     }
   },
@@ -1274,8 +1301,11 @@ function renderStoryPage(article) {
         <div class="story-byline">By ${esc(authors)}${article.date ? ` · ${esc(fmtDateLong(article.date))}` : ''}${article.read ? ` · ${esc(article.read)} read` : ''}</div>
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${renderArticleBody(article.body) || `<p>${esc(article.excerpt || '')}</p>`}</div>
+        <div id="storyShare" class="modal-share story-page-share"></div>
       </div>
     </article>`;
+  const storyShare = main.querySelector('#storyShare');
+  if (storyShare) twRenderShareTo(storyShare, article);
 }
 
 function updateArticleMeta(article) {
@@ -2352,8 +2382,21 @@ function twRenderRelated(a) {
     });
   });
 }
+/* Wrapper for the article-modal path. Delegates to twRenderShareTo so the
+   modal and the story page share one implementation and one button order. */
 function twRenderShare(a) {
   const el = document.getElementById('modalShare');
+  if (!el) return;
+  twRenderShareTo(el, a);
+}
+
+/* Canonical share-section renderer. Used by:
+     - the article modal (via twRenderShare)
+     - the SPA-rendered story page (via renderStoryPage)
+     - the client-side re-render of worker-prerendered story pages (via route())
+   Order is fixed here so all three paths produce identical markup:
+     [Share (mobile)] · Messenger · Facebook · X · Copy link */
+function twRenderShareTo(el, a) {
   if (!el) return;
   const url = twGetShareUrl(a);
   const enc = encodeURIComponent(url);
@@ -3820,8 +3863,14 @@ function twWirePrefetch(container) {
       if (!id) return;
       const list = el.classList.contains('video-card') ? (window.__videosCache || []) : articles;
       const item = Array.isArray(list) ? list.find(x => String(x.id) === String(id)) : null;
-      if (item && item.thumbnail) twPrefetchImage(item.thumbnail);
-      if (item && item.thumbnail_url) twPrefetchImage(item.thumbnail_url);
+      /* Route the prefetch through imgUrl() so it hits the same-origin
+         /api/image-proxy (Cloudflare-cached) instead of going straight
+         to Supabase Storage. Before this fix, hovering a card fetched
+         the raw full-resolution upload from Supabase - measured 91 to
+         284 kB per hover, versus ~15-30 kB through the proxy. This was
+         the biggest single source of leaked cached egress. */
+      if (item && item.thumbnail) twPrefetchImage(imgUrl(item.thumbnail, 400));
+      if (item && item.thumbnail_url) twPrefetchImage(imgUrl(item.thumbnail_url, 400));
     }, { passive: true });
   });
 }
@@ -4990,6 +5039,24 @@ async function route() {
         return;
       }
       renderStoryPage(story);
+    } else {
+      /* The Worker already rendered this page (data-server-story="true").
+         Its share buttons are static HTML with no click handlers attached,
+         because the Worker cannot run client-side JavaScript. That path is
+         hit whenever a reader opens a /stories/... URL directly - from a
+         shared Facebook/Messenger link, a Google result, or a new tab.
+         Result: buttons that look right but do nothing when tapped.
+
+         Fetch the article, then re-render #storyShare through twRenderShareTo()
+         - the exact same function the SPA uses when it renders a story page.
+         This wires up the handlers and also normalises the button order
+         (native share / Messenger / Facebook / X / Copy link) so both paths
+         look and behave identically. */
+      const published = await Data.listPublished();
+      articles = published;
+      const story = published.find(a => String(a.id) === directStoryId);
+      const storyShare = document.querySelector('#storyShare');
+      if (story && storyShare) twRenderShareTo(storyShare, story);
     }
     setView('story');
     updateArticleMeta({
