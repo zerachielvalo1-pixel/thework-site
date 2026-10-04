@@ -540,6 +540,27 @@ function twStopDraftTimer() {
   }
 }
 
+/* Same-origin REST proxy helper. Every Supabase REST query for the
+   articles table goes through /api/articles so Cloudflare's edge cache
+   can absorb the repeats. Without this, every SPA page load triggered
+   a fresh Supabase query - measured 127 MB/day PostgREST egress on
+   Oct 4, which was 89% of total usage. */
+async function rest(query) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query || {})) {
+    if (v == null) continue;
+    params.set(k, String(v));
+  }
+  const res = await fetch('/api/articles?' + params.toString(), {
+    headers: { Accept: 'application/json' }
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error('Articles API ' + res.status + (body ? ': ' + body.slice(0, 200) : ''));
+  }
+  return res.json();
+}
+
 const Data = {
   async listPublished() {
     if (appCache.publishedArticles) return appCache.publishedArticles.slice();
@@ -553,13 +574,23 @@ const Data = {
        'published': the related-articles list in the modal, the view counter,
        and articleModalSeo - the flag that pushes /stories/<slug>/<id> into the
        address bar and updates the og:/canonical tags. */
+    /* `select` is deliberately the same column list the direct query used.
+       `status`, `deleted_at` and `publish_at` are passed as PostgREST
+       filter operators (`eq.`, `is.`, `lte.`) in the query string, so the
+       Worker can pass them straight through to Supabase without parsing. */
     const PUBLISHED_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by,credits';
-    /* `publish_at` in the past (or null) means the article is live. A future
-       publish_at keeps it out of the public list even though status='published'. */
     const nowIso = new Date().toISOString();
-    const { data, error } = await sb.from('articles').select(PUBLISHED_COLUMNS).eq('status','published').is('deleted_at', null).or(`publish_at.is.null,publish_at.lte.${nowIso}`).order('date',{ascending:false, nullsFirst:false});
-    if (error) { console.error(error); return []; }
-    appCache.publishedArticles = data || [];
+    let data;
+    try {
+      data = await rest({
+        select: PUBLISHED_COLUMNS,
+        status: 'eq.published',
+        deleted_at: 'is.null',
+        or: `(publish_at.is.null,publish_at.lte.${nowIso})`,
+        order: 'date.desc.nullslast'
+      });
+    } catch (err) { console.error(err); return []; }
+    appCache.publishedArticles = Array.isArray(data) ? data : [];
     return appCache.publishedArticles.slice();
   },
   async listAll() {
@@ -569,9 +600,15 @@ const Data = {
       appCache.allArticles = result;
       return result.slice();
     }
-    const { data, error } = await sb.from('articles').select('*').is('deleted_at', null).order('updated',{ascending:false});
-    if (error) return [];
-    appCache.allArticles = data || [];
+    let data;
+    try {
+      data = await rest({
+        select: '*',
+        deleted_at: 'is.null',
+        order: 'updated.desc'
+      });
+    } catch (err) { console.error(err); return []; }
+    appCache.allArticles = Array.isArray(data) ? data : [];
     return appCache.allArticles.slice();
   },
   async upsert(article) {
@@ -768,9 +805,12 @@ const Data = {
       const found = list.find(a => a.id === id);
       return found ? (found.body || '') : '';
     }
-    const { data, error } = await sb.from('articles').select('body').eq('id', id).single();
-    if (error) return '';
-    return data ? (data.body || '') : '';
+    let rows;
+    try {
+      rows = await rest({ select: 'body', id: `eq.${id}`, limit: '1' });
+    } catch (err) { return ''; }
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return row ? (row.body || '') : '';
   },
   async uploadThumb(fileOrDataUrl) {
     if (!sb) {

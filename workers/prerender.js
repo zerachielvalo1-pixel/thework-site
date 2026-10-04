@@ -517,6 +517,65 @@ async function handleThumbUpload(request) {
 
 /* Image cache proxy — Cloudflare edge caches every render URL so repeat
    views never touch Supabase. This is the single biggest egress saver. */
+/* Articles REST proxy - Cloudflare edge caches every Supabase REST
+   response for 5 minutes, so the majority of reads never touch
+   Supabase at all. This is the single biggest egress saver for
+   PostgREST traffic, which was 89% of total egress on Oct 4 (127 MB
+   out of 143 MB).
+
+   Only GET is accepted. Query string is passed straight through to
+   Supabase with apikey + Authorization headers attached server-side,
+   so no credential is ever exposed to the browser. The cache key is
+   the full target URL, meaning each distinct query (select, filter,
+   order) gets its own cache entry. */
+async function handleArticlesProxy(request, ctx) {
+  if (request.method !== 'GET') {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  const url = new URL(request.url);
+  const target = new URL(SUPABASE_URL + '/rest/v1/articles');
+  // Copy every query param the browser sent (select, id, status, etc.)
+  for (const [key, value] of url.searchParams.entries()) {
+    target.searchParams.set(key, value);
+  }
+
+  const cache = caches.default;
+  const cacheKey = new Request(target.toString(), { method: 'GET' });
+
+  let response = await cache.match(cacheKey);
+  if (response) {
+    /* CF cache HIT - served without touching Supabase at all. */
+    const headers = new Headers(response.headers);
+    headers.set('x-cache', 'HIT');
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  const upstream = await fetch(target.toString(), {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Accept: 'application/json'
+    },
+    cf: { cacheEverything: true }
+  });
+
+  if (!upstream.ok) return upstream;
+
+  const headers = new Headers(upstream.headers);
+  headers.set('content-type', 'application/json; charset=utf-8');
+  headers.set('cache-control', 'public, max-age=300, s-maxage=300');
+  headers.set('x-cache', 'MISS');
+
+  const cached = new Response(upstream.body, { status: 200, headers });
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(cache.put(cacheKey, cached.clone()));
+  } else {
+    await cache.put(cacheKey, cached.clone());
+  }
+  return cached;
+}
+
 async function handleImageProxy(request, ctx) {
   const url = new URL(request.url);
   const target = url.searchParams.get('url');
@@ -556,6 +615,7 @@ export default {
 
     if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
     if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
+    if (url.pathname === '/api/articles') return handleArticlesProxy(request, ctx);
 
     const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
     if (match && (request.method === 'GET' || request.method === 'HEAD')) {
