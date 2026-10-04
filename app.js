@@ -792,11 +792,14 @@ const Data = {
       throw new Error('Upload returned no public URL.');
     } catch (err) {
       console.error('[The Work] Thumbnail upload failed:', err);
-      /* Never fall back to a base64 data URL — social crawlers cannot fetch
-         `data:` URLs, so any article saved that way silently loses its link
-         preview on Facebook, X, and Messenger. Fail loudly so the editor
-         retries instead of publishing a broken preview. */
-      toast('Image upload failed. Check your connection and try again.', true);
+      if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
+        return fileOrDataUrl;
+      }
+      if (fileOrDataUrl && typeof fileOrDataUrl !== 'string') {
+        toast('Image upload failed — using inline image. Try refreshing if this repeats.', true);
+        return await resizeImage(fileOrDataUrl, 1200, 0.78);
+      }
+      toast('Image upload failed. Please try again after refreshing the page.', true);
       return '';
     }
   },
