@@ -2679,7 +2679,11 @@ async function openArticle(id) {
           url: 'https://thework.tw78.workers.dev/logo-tw.png'
         }
       },
-      image: a.thumbnail || undefined,
+      /* Route through the same-origin proxy: search engines and social
+         crawlers fetch JSON-LD image values directly, so leaving the raw
+         Supabase URL here was a cached egress leak - every crawl = 1
+         Supabase render request, on top of the og:image one. */
+      image: a.thumbnail ? socialCardUrl(a.thumbnail) : undefined,
       mainEntityOfPage: {
         '@type': 'WebPage',
         '@id': new URL(storyUrl(a), location.origin).href
