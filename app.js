@@ -68,9 +68,15 @@ function imgUrl(url, width) {
   /* resize=contain is required, not cosmetic. With only `width` and no resize
      mode the renderer *stretches* the image to that width and leaves the height
      alone - a 1400x1400 upload came back as 640x1400. `contain` scales
-     proportionally, which is what object-fit:cover in the CSS then crops. */
-  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+     proportionally, which is what object-fit:cover in the CSS then crops.
+
+     Routed through /api/image-proxy (same-origin Worker) so Cloudflare's edge
+     cache absorbs repeat requests instead of every page view hitting Supabase
+     Storage. This is what makes the egress fix actually count for the SPA -
+     without it, only prerendered /stories/ pages benefit from the cache. */
+  const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
     'width=' + width + '&resize=contain&quality=' + IMG_QUALITY + '&format=webp';
+  return '/api/image-proxy?url=' + encodeURIComponent(supabaseUrl);
 }
 
 /* Emits <img> with srcset so phones fetch the small variant and wide screens

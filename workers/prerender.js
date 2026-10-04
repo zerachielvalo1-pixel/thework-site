@@ -3,10 +3,11 @@ const SUPABASE_URL = 'https://fgojhhgqpvnwtcqkornz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_UiH_F3V2tFE1doecIb337w__hYVQIQf';
 const CACHE_TTL = 600; // 10 minutes
 const STALE_WHILE_REVALIDATE_SECONDS = 172800; // revalidate up to 2 days stale
-const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,author,author2,photojournalist,graphics_by,layout_by,layout_by_2,read,credits';
+const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,subcat,author,author2,photojournalist,photojournalist_2,photo_courtesy,graphics_by,layout_by,layout_by_2,read,credits';
 const CATEGORY_LABELS = {
   news: 'News', editorial: 'Editorial', opinion: 'Opinion',
-  features: 'Features', literary: 'Literary', sports: 'Sports'
+  features: 'Features', literary: 'Literary', sports: 'Sports',
+  devcom: 'DevCom', entertainment: 'Entertainment'
 };
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -38,14 +39,15 @@ function storyDescription(article) {
    whole image stays visible. */
 const IMG_OBJECT_PATH = '/storage/v1/object/public/';
 const IMG_RENDER_PATH = '/storage/v1/render/image/public/';
-const IMG_QUALITY = 68;
+const IMG_QUALITY = 55;
 
 function imgUrl(url, width) {
   const src = String(url == null ? '' : url);
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
-  return src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
+  const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
     'width=' + width + '&resize=contain&quality=' + IMG_QUALITY + '&format=webp';
+  return '/api/image-proxy?url=' + encodeURIComponent(supabaseUrl);
 }
 
 function imgTag(url, widths, sizes, attrs) {
@@ -115,11 +117,6 @@ function socialCardUrl(url) {
    rather than being guessed from the crawler's own region. */
 const OG_LOCALE = 'en_PH';
 
-/* The `articles.date` column is a plain YYYY-MM-DD while `updated` is already a
-   full timestamp. The Open Graph article namespace expects ISO 8601 datetimes,
-   so a bare date is anchored to midnight Philippine time (UTC+8) rather than
-   left to the crawler to interpret - which would otherwise shift the published
-   date by a day for anyone reading it west of Manila. */
 function isoDateTime(value) {
   const raw = String(value == null ? '' : value).trim();
   if (!raw) return '';
@@ -128,6 +125,45 @@ function isoDateTime(value) {
   return `${raw}T00:00:00+08:00`;
 }
 
+/* ---------- Article body renderer (mirror of app.js) ----------
+   Must stay byte-for-byte in sync with renderArticleBody() in app.js, or
+   the SPA modal and the prerendered story page will render the same
+   article differently. Same esc-first-then-regex order, same rules. */
+function renderInlineFormatting(escaped) {
+  let out = escaped;
+  out = out.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+  );
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|\s)\*([^*\n\s][^*\n]*?)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
+  return out;
+}
+
+function renderArticleBody(text) {
+  const raw = String(text || '');
+  const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
+  if (!parts.length) return '';
+  return parts.map(part => {
+    const trimmed = part.trim();
+    if (/^>\s?/.test(trimmed)) {
+      const inner = trimmed.replace(/^>\s?/gm, '');
+      return `<blockquote>${renderInlineFormatting(escapeHtml(inner)).replace(/\n/g, '<br>')}</blockquote>`;
+    }
+    const hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      const level = Math.min(4, hm[1].length + 1);
+      return `<h${level}>${renderInlineFormatting(escapeHtml(hm[2]))}</h${level}>`;
+    }
+    return `<p>${renderInlineFormatting(escapeHtml(trimmed)).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
+/* The `articles.date` column is a plain YYYY-MM-DD while `updated` is already a
+   full timestamp. The Open Graph article namespace expects ISO 8601 datetimes,
+   so a bare date is anchored to midnight Philippine time (UTC+8) rather than
+   left to the crawler to interpret - which would otherwise shift the published
+   date by a day for anyone reading it west of Manila. */
 function storyMarkup(article) {
   /* Mirror getCredits() from app.js. Prefer the JSONB array; fall back to
      the legacy two-slot columns for articles written before the migration.
@@ -138,7 +174,6 @@ function storyMarkup(article) {
     : [article.author, article.author2].filter(Boolean);
   const authors = authorsArr.join(', ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
-  const paragraphs = String(article.body || '').split(/\n\s*\n/).filter(part => part.trim());
   const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(article.date)}</time>` : '';
   const readTime = article.read ? ` · ${escapeHtml(article.read)} read` : '';
 
@@ -148,25 +183,37 @@ function storyMarkup(article) {
   const hero = article.thumbnail
     ? `<figure class="story-hero">${imgTag(
         article.thumbnail,
-        [600, 1200],
+        [800, 1200],
         '(max-width: 900px) 100vw, 900px',
         ' alt="" fetchpriority="high" decoding="async"'
       )}</figure>`
     : '';
 
-  const body = paragraphs.map(part => `<p>${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`).join('')
+  const body = renderArticleBody(article.body)
     || (article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : '');
 
   return `<main id="view-story" class="view active" data-server-story="true">
     <article class="story-page">
       <div class="wrap story-page-inner">
-        <a class="story-back" href="/#/">← All stories</a>
+        <div class="story-back-row">
+          <a class="story-back" href="/#/">← All stories</a>
+          <a class="story-back story-back-site" href="/">Back to site →</a>
+        </div>
         <div class="story-category">${escapeHtml(category)}</div>
         <h1>${escapeHtml(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${escapeHtml(article.excerpt)}</p>` : ''}
         <div class="story-byline">By ${escapeHtml(authors)}${dateMarkup ? ` · ${dateMarkup}` : ''}${readTime}</div>
         ${hero}
         <div class="story-content">${body}</div>
+        <div id="storyShare" class="modal-share">
+          <div class="modal-share-label">Share this story</div>
+          <div class="modal-share-buttons">
+            <button class="share-btn" data-share="copy" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy link</span></button>
+            <button class="share-btn" data-share="messenger" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.1 2 11.2c0 2.9 1.4 5.5 3.7 7.2V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4.1 10-9.2S17.5 2 12 2zm1 12.4l-2.6-2.7-5 2.7L8.2 11l2.6 2.7 4.9-2.7-2.7 3.4z"></path></svg><span>Messenger</span></button>
+            <button class="share-btn" data-share="facebook" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"></path></svg><span>Facebook</span></button>
+            <button class="share-btn" data-share="x" type="button"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg><span>X</span></button>
+          </div>
+        </div>
       </div>
     </article>
   </main>`;
@@ -174,7 +221,14 @@ function storyMarkup(article) {
 
 async function fetchArticles(query) {
   const url = new URL('/rest/v1/articles', SUPABASE_URL);
-  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  const params = { ...query };
+  if (params.status === 'eq.published') {
+    if (!Object.prototype.hasOwnProperty.call(params, 'deleted_at')) params.deleted_at = 'is.null';
+    if (!Object.prototype.hasOwnProperty.call(params, 'or')) {
+      params.or = `(publish_at.is.null,publish_at.lte.${new Date().toISOString()})`;
+    }
+  }
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   return fetch(url, {
     headers: {
       apikey: SUPABASE_KEY,
@@ -203,7 +257,12 @@ async function renderStory(request, env, ctx, id) {
   const storyUrlKey = `${SITE_ORIGIN}/stories/${encodeURIComponent(id)}`;
   return serveFreshOrStale(request, ctx, storyUrlKey, async (isRevalidate) => {
     const rendered = await renderAndCacheStory(request, env, id, storyUrlKey, ctx, isRevalidate);
-    if (rendered.status === 503 || rendered.status === 404) {
+    if (rendered.status === 404) {
+      const cache = caches.default;
+      await cache.delete(new Request(storyUrlKey));
+      return rendered;
+    }
+    if (rendered.status === 503) {
       const cache = caches.default;
       const stale = await cache.match(new Request(storyUrlKey));
       if (stale) return stale;
@@ -255,9 +314,9 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
      fixed, crawler-safe card. The card URL is derived exactly once so it cannot
      be feed back through itself. */
   const cardImage = socialCardUrl(image) || `${SITE_ORIGIN}/logo-tw.png`;
-  const setMeta = (htmlText, pattern, attrs) => htmlText.replace(pattern, `<meta ${attrs}>`);
+  const setMeta = (htmlText, pattern, attrs) => htmlText.replace(pattern, () => `<meta ${attrs}>`);
 
-  html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`);
   html = setMeta(html, /<meta name="description"[^>]*>/i, `name="description" content="${escapeHtml(description)}"`);
   html = setMeta(html, /<meta property="og:type"[^>]*>/i, 'property="og:type" content="article"');
   html = setMeta(html, /<meta property="og:title"[^>]*>/i, `property="og:title" content="${escapeHtml(title)}"`);
@@ -266,7 +325,7 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   html = setMeta(html, /<meta property="og:locale"[^>]*>/i, `property="og:locale" content="${OG_LOCALE}"`);
   html = setMeta(html, /<meta property="og:image"[^>]*>/i, `property="og:image" content="${escapeHtml(cardImage)}"`);
   html = setMeta(html, /<meta name="twitter:card"[^>]*>/i, 'name="twitter:card" content="summary_large_image"');
-  html = html.replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escapeHtml(canonical)}">`);
+  html = html.replace(/<link rel="canonical"[^>]*>/i, () => `<link rel="canonical" href="${escapeHtml(canonical)}">`);
 
   /* Preview-crawler tags. These must REPLACE the generic homepage defaults that
      index.html ships with, not be appended - a crawler reads the first matching
@@ -286,7 +345,7 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   const published = isoDateTime(article.date);
   const modified = isoDateTime(article.updated) || published;
   if (published) {
-    html = html.replace('</head>',
+    html = html.replace('</head>', () =>
       `<meta property="article:published_time" content="${escapeHtml(published)}">\n` +
       (modified ? `<meta property="article:modified_time" content="${escapeHtml(modified)}">\n` : '') +
       `<meta property="article:section" content="${escapeHtml(CATEGORY_LABELS[article.cat] || article.cat || 'News')}">\n` +
@@ -297,9 +356,9 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
      bucket object, which is a multi-megabyte upload, so the "optimisation" was
      fetching megabytes before first paint. */
   if (image && image !== `${SITE_ORIGIN}/logo-tw.png`) {
-    const srcset = [600, 1200].map(w => `${renderImage(image, `width=${w}&resize=contain&quality=68&format=webp`)} ${w}w`).join(', ');
-    html = html.replace('</head>',
-      `<link rel="preload" as="image" href="${escapeHtml(renderImage(image, 'width=1200&resize=contain&quality=68&format=webp'))}"` +
+    const srcset = [800, 1200].map(w => `${imgUrl(image, w)} ${w}w`).join(', ');
+    html = html.replace('</head>', () =>
+      `<link rel="preload" as="image" href="${escapeHtml(imgUrl(image, 1200))}"` +
       ` imagesrcset="${escapeHtml(srcset)}" imagesizes="(max-width: 900px) 100vw, 900px" fetchpriority="high">\n</head>`);
   }
 
@@ -322,8 +381,8 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   .replace(/</g, '\\u003c')
   .replace(/>/g, '\\u003e')
   .replace(/&/g, '\\u0026');
-  html = html.replace('</head>', `<script type="application/ld+json">${jsonLd}</script>\n</head>`);
-  html = html.replace(/<main id="view-home" class="view active">[\s\S]*?<\/main>/i, storyMarkup(article));
+  html = html.replace('</head>', () => `<script type="application/ld+json">${jsonLd}</script>\n</head>`);
+  html = html.replace(/<main id="view-home" class="view active">[\s\S]*?<\/main>/i, () => storyMarkup(article));
 
   const headers = new Headers(assetResponse.headers);
   for (const header of ['content-length', 'content-encoding', 'etag', 'last-modified']) headers.delete(header);
@@ -403,7 +462,9 @@ async function handleThumbUpload(request) {
         'apikey': SUPABASE_KEY,
         'Content-Type': contentType,
         'x-upsert': 'false',
-        'cache-control': 'max-age=31536000'
+        /* Supabase prefixes `max-age=` a second time if you send it, producing
+           a malformed header. Send the value only, with immutable appended. */
+        'cache-control': '31536000, immutable'
       },
       body: request.body
     }
@@ -415,12 +476,47 @@ async function handleThumbUpload(request) {
   });
 }
 
+/* Image cache proxy — Cloudflare edge caches every render URL so repeat
+   views never touch Supabase. This is the single biggest egress saver. */
+async function handleImageProxy(request, ctx) {
+  const url = new URL(request.url);
+  const target = url.searchParams.get('url');
+  const PREFIX = SUPABASE_URL + '/storage/v1/render/';
+
+  if (!target || !target.startsWith(PREFIX)) {
+    return new Response('Bad target', { status: 400 });
+  }
+
+  const cache = caches.default;
+  const cacheKey = new Request(target, { method: 'GET' });
+
+  let response = await cache.match(cacheKey);
+  if (response) return response;
+
+  response = await fetch(target, { cf: { cacheEverything: true } });
+  if (!response.ok) return response;
+
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'public, max-age=2592000, immutable');
+
+  const cached = new Response(response.body, { status: response.status, headers });
+  /* Without this, cache.match() above always misses and every image still hits
+     Supabase. This is the line that actually saves the egress. */
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(cache.put(cacheKey, cached.clone()));
+  } else {
+    await cache.put(cacheKey, cached.clone());
+  }
+  return cached;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
 
     if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
+    if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
 
     const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
     if (match && (request.method === 'GET' || request.method === 'HEAD')) {
