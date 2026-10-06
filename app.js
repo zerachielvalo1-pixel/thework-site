@@ -901,6 +901,17 @@ const Data = {
 
       if (!res.ok) {
         const body = await res.text().catch(() => '');
+        /* 401 from the proxy means the JWT this tab attached is no
+           longer accepted upstream. The session watcher may not have
+           fired yet (it polls every 20s), so nudge it here: try a
+           silent refresh once, then fall through to the sign-in modal
+           if it fails. Thumbnail uploads are the one flow that writes
+           directly with the tab's current token, which is why this
+           detection lives here rather than in the watcher. */
+        if (res.status === 401) {
+          const ok = await twTryRefreshSession();
+          if (!ok) twHandleExpiredSession();
+        }
         throw new Error('Upload ' + res.status + (body ? ': ' + body.slice(0, 200) : ''));
       }
 
@@ -1093,6 +1104,130 @@ async function signIn(email, password) {
 async function signOut() {
   if (!sb) return;
   await sb.auth.signOut();
+}
+
+/* ---------- Session expiry resilience ----------
+   Supabase's own client refreshes tokens silently, but it can fail: the
+   network drops mid-refresh, the device is asleep for hours, or the
+   project revokes the token. When that happens the session dies without
+   warning and the next save 401s. The helpers below surface it early
+   and give the editor a way back without losing the article they have
+   open.
+
+   The autosave in twSaveDraft() already keeps the current form on this
+   device, so nothing is actually lost when the session expires. What
+   these helpers add is (a) warning before it happens, (b) a silent
+   refresh attempt, (c) a re-login modal that returns to the same admin
+   panel instead of dumping the editor on the dashboard, and (d) a
+   cleanup of stale drafts on sign-out so a shared machine doesn't leak
+   the previous writer's work. */
+
+let twSessionWatchTimer = null;
+let twSessionWarningEl = null;
+/* Where to send the browser after a successful re-login. Set when the
+   login modal is opened from the session watcher; cleared by the login
+   handler so a normal Sign In still lands on the dashboard. */
+let twLoginReturnHash = '';
+
+function twShowSessionWarning(secondsLeft) {
+  if (!twSessionWarningEl) {
+    twSessionWarningEl = document.createElement('div');
+    twSessionWarningEl.id = 'twSessionWarning';
+    twSessionWarningEl.className = 'tw-session-warning';
+    twSessionWarningEl.setAttribute('role', 'status');
+    twSessionWarningEl.setAttribute('aria-live', 'polite');
+    document.body.appendChild(twSessionWarningEl);
+  }
+  twSessionWarningEl.textContent = 'Session expires in ' + Math.max(0, Math.round(secondsLeft)) + 's — saving your draft…';
+  twSessionWarningEl.classList.add('show');
+}
+
+function twHideSessionWarning() {
+  if (twSessionWarningEl) twSessionWarningEl.classList.remove('show');
+}
+
+async function twTryRefreshSession() {
+  if (!sb) return false;
+  try {
+    const { data, error } = await sb.auth.refreshSession();
+    if (error || !data || !data.session) return false;
+    session = data.session;
+    updateAuthUI();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Called when the token is truly dead and a silent refresh has already
+   failed. Saves the current draft, opens the login overlay, and — via
+   the login handler's twLoginReturnHash — returns to the same admin
+   panel after a successful sign-in. */
+function twHandleExpiredSession() {
+  twHideSessionWarning();
+  if (document.getElementById('articleForm') && document.getElementById('fBody')) {
+    try { twSaveDraft(); } catch (e) { /* non-fatal */ }
+  }
+  twLoginReturnHash = location.hash || '#/admin';
+  const el = document.getElementById('loginError');
+  if (el) {
+    el.textContent = 'Your session expired. Sign in again — your draft is saved on this device.';
+    el.classList.add('show');
+  }
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (loginOverlay && !loginOverlay.classList.contains('open')) {
+    loginOverlay.classList.add('open');
+    setTimeout(() => {
+      const emailField = document.getElementById('loginEmail');
+      if (emailField) emailField.focus();
+    }, 80);
+  }
+}
+
+async function twCheckSession() {
+  if (!session || !session.expires_at) { twHideSessionWarning(); return; }
+  const secondsLeft = session.expires_at - Math.floor(Date.now() / 1000);
+
+  /* Expired and refresh already failed (onAuthStateChange would have
+     fired SIGNED_OUT by then). Bounce to re-login. */
+  if (secondsLeft <= 0) {
+    const refreshed = await twTryRefreshSession();
+    if (!refreshed) twHandleExpiredSession();
+    return;
+  }
+  /* Close to expiry: warn once and try a proactive refresh. On success,
+     the new token is installed on `session` and the warning hides on
+     the next tick. */
+  if (secondsLeft <= 120) {
+    twShowSessionWarning(secondsLeft);
+    if (secondsLeft <= 60) {
+      const refreshed = await twTryRefreshSession();
+      if (refreshed) twHideSessionWarning();
+    }
+    return;
+  }
+  twHideSessionWarning();
+}
+
+function twStartSessionWatcher() {
+  if (twSessionWatchTimer) clearInterval(twSessionWatchTimer);
+  /* 20s cadence: fine-grained enough to catch the 60s threshold, cheap
+     enough to not matter. */
+  twSessionWatchTimer = setInterval(twCheckSession, 20000);
+  twCheckSession();
+}
+
+/* Clear every draft saved to this device. Called on sign-out so a shared
+   machine does not hand the next writer the previous one's unsaved work. */
+function twClearAllDrafts() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf('tw_article_draft_') === 0) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+  } catch (e) { /* private mode / quota — non-fatal */ }
 }
 
 // ---------- Role-based access ----------
@@ -1343,14 +1478,43 @@ $('#loginForm').addEventListener('submit', async e => {
     $('#loginOverlay').classList.remove('open');
     updateAuthUI();
     await loadRole();
-    toast('Welcome back');
-    location.hash = '#/admin';
+    /* Restart the expiry watcher against the fresh token. */
+    twStartSessionWatcher();
+    /* If the login was opened by the session watcher, land back on the
+       panel the editor was working on. Normal Sign In still goes to the
+       dashboard. */
+    if (twLoginReturnHash) {
+      const target = twLoginReturnHash;
+      twLoginReturnHash = '';
+      location.hash = target;
+      toast('Signed in — back to your draft');
+    } else {
+      location.hash = '#/admin';
+      toast('Welcome back');
+    }
   } finally {
     btn.disabled = false; btn.textContent = 'Sign In';
   }
 });
-$('#logoutBtn').addEventListener('click', async () => { await signOut(); session = null; currentRole = null; updateAuthUI(); location.hash = '#/'; toast('Signed out'); });
-$('#signOutBtn').addEventListener('click', async () => { await signOut(); session = null; currentRole = null; updateAuthUI(); location.hash = '#/'; toast('Signed out'); });
+
+async function twDoSignOut() {
+  /* Stop the session watcher first so it cannot race the manual sign-out
+     and re-open the login modal on the way to the homepage. */
+  if (twSessionWatchTimer) { clearInterval(twSessionWatchTimer); twSessionWatchTimer = null; }
+  twHideSessionWarning();
+  await signOut();
+  session = null;
+  currentRole = null;
+  twLoginReturnHash = '';
+  /* Shared-machine hygiene: don't leave the previous writer's unsaved
+     article behind for the next login. */
+  twClearAllDrafts();
+  updateAuthUI();
+  location.hash = '#/';
+  toast('Signed out');
+}
+$('#logoutBtn').addEventListener('click', twDoSignOut);
+$('#signOutBtn').addEventListener('click', twDoSignOut);
 $('#userChip').addEventListener('click', () => location.hash = '#/admin');
 
 function setView(v) {
@@ -5408,7 +5572,10 @@ async function init() {
   sessionReady = getSession().then(async s => {
     session = s;
     updateAuthUI();
-    if (s) await loadRole();
+    if (s) {
+      await loadRole();
+      twStartSessionWatcher();
+    }
     return s;
   }).catch(err => {
     session = null;
@@ -5421,8 +5588,17 @@ async function init() {
     sb.auth.onAuthStateChange(async (_evt, s) => {
       session = s;
       updateAuthUI();
-      if (s) await loadRole();
-      else { currentRole = null; applyRoleUI(); }
+      if (s) {
+        await loadRole();
+        /* Refresh events arrive here with a fresh token — the watcher
+           should see the new expiry next tick, and any warning banner
+           that was already up can come down. */
+        twStartSessionWatcher();
+      } else {
+        currentRole = null;
+        applyRoleUI();
+        twHideSessionWarning();
+      }
     });
   }
 
