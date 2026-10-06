@@ -427,6 +427,35 @@ const TW_EDITOR_KEY = 'tw_editor_name';
 const TW_EDITOR_PROMPT_KEY = 'tw_editor_prompted';
 let editorIdentityCallback = null;
 
+/* ---------- Revision history ----------
+   Every successful article save inserts a JSONB snapshot into
+   article_revisions. A DB trigger keeps only the newest 20 per article.
+   Restoring fills the form; it does not write to the DB — the editor must
+   press Save, which is what actually creates the next revision. */
+const REVISION_SNAPSHOT_FIELDS = [
+  'title', 'cat', 'subcat', 'credits', 'date', 'read', 'publish_at',
+  'excerpt', 'body', 'status', 'featured', 'thumbnail'
+];
+
+function twBuildRevisionSnapshot(payload) {
+  const out = {};
+  REVISION_SNAPSHOT_FIELDS.forEach(k => { if (k in payload) out[k] = payload[k]; });
+  return out;
+}
+
+function twFormatRevisionWhen(ts) {
+  if (!ts) return '—';
+  const diff = Date.now() - new Date(ts).getTime();
+  if (diff < 60000) return 'just now';
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24);
+  if (d < 30) return d + 'd ago';
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 async function refreshPublicArticleState() {
   try {
     const published = await Data.listPublished();
@@ -481,10 +510,33 @@ function twCollectDraft() {
   };
 }
 
+let twAutosaveLastAt = 0;
+let twAutosaveTickTimer = null;
+
+function twUpdateAutosaveIndicator() {
+  const el = document.getElementById('editorAutosave');
+  if (!el) return;
+  if (!twAutosaveLastAt) { el.textContent = ''; el.classList.remove('show'); return; }
+  el.classList.add('show');
+  el.textContent = 'Draft saved ' + twFormatRevisionWhen(twAutosaveLastAt);
+}
+
+function twStartAutosaveTicker() {
+  if (twAutosaveTickTimer) clearInterval(twAutosaveTickTimer);
+  /* Refresh the relative label every 10s while the editor is open. */
+  twAutosaveTickTimer = setInterval(twUpdateAutosaveIndicator, 10000);
+}
+
+function twStopAutosaveTicker() {
+  if (twAutosaveTickTimer) { clearInterval(twAutosaveTickTimer); twAutosaveTickTimer = null; }
+}
+
 function twSaveDraft() {
   const draft = twCollectDraft();
   if (!draft) return;
   localStorage.setItem(twDraftKey(draft.id), JSON.stringify(draft));
+  twAutosaveLastAt = Date.now();
+  twUpdateAutosaveIndicator();
 }
 
 function twLoadDraft(id = editingId || 'new') {
@@ -1665,6 +1717,114 @@ document.getElementById('adminIdentityBtn')?.addEventListener('click', () => {
       toast('Switched to ' + name);
     }
   });
+});
+
+/* ---------- Revision history ---------- */
+
+function twUpdateHistoryButton() {
+  const btn = document.getElementById('historyBtn');
+  if (!btn) return;
+  /* Only meaningful for an already-saved article (has a real id). */
+  btn.style.display = editingId ? '' : 'none';
+}
+
+async function twLoadRevisions(articleId) {
+  if (!sb || !articleId) return [];
+  const { data, error } = await sb.from('article_revisions')
+    .select('id, snapshot, saved_by, created_at')
+    .eq('article_id', articleId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) { console.warn('[The Work] Could not load revisions', error); return []; }
+  return Array.isArray(data) ? data : [];
+}
+
+async function twOpenHistoryModal() {
+  if (!editingId) return;
+  const overlay = document.getElementById('historyOverlay');
+  const list = document.getElementById('historyList');
+  if (!overlay || !list) return;
+  list.innerHTML = '<div class="tw-error"><strong>Loading…</strong></div>';
+  overlay.classList.add('open');
+  lockScroll();
+  const revisions = await twLoadRevisions(editingId);
+  if (!revisions.length) {
+    list.innerHTML = '<div class="tw-error"><strong>No revisions yet</strong>Revisions appear after the first save of an edit.</div>';
+    return;
+  }
+  list.innerHTML = revisions.map((r, i) => {
+    const snap = r.snapshot || {};
+    const title = String(snap.title || '(untitled)');
+    const excerpt = String(snap.body || snap.excerpt || '').slice(0, 90);
+    const who = r.saved_by || 'Unknown';
+    const when = twFormatRevisionWhen(r.created_at);
+    const isLatest = i === 0;
+    return `<div class="revision-item${isLatest ? ' latest' : ''}" data-revision-id="${esc(r.id)}">
+      <div class="revision-meta">
+        <span class="revision-when">${esc(when)}</span>
+        <span class="revision-sep">·</span>
+        <span class="revision-who">${esc(who)}</span>
+        ${isLatest ? '<span class="revision-badge">current</span>' : ''}
+      </div>
+      <div class="revision-title">${esc(title)}</div>
+      ${excerpt ? `<div class="revision-excerpt">${esc(excerpt)}${excerpt.length >= 90 ? '…' : ''}</div>` : ''}
+      <div class="revision-actions">
+        <button type="button" class="btn btn-ghost btn-sm" data-revision-restore="${esc(r.id)}">Restore into form</button>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-revision-restore]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rev = revisions.find(x => String(x.id) === String(btn.dataset.revisionRestore));
+      if (!rev) return;
+      twApplyRevisionToForm(rev.snapshot || {});
+      document.getElementById('historyOverlay').classList.remove('open');
+      unlockScroll();
+      toast('Restored — press Save to apply');
+    });
+  });
+}
+
+function twApplyRevisionToForm(snap) {
+  if (!snap || !$('#articleForm')) return;
+  if ('title' in snap) $('#fTitle').value = snap.title || '';
+  if ('cat' in snap) $('#fCat').value = snap.cat || '';
+  if ('subcat' in snap && $('#fSubcat')) {
+    $('#fSubcat').value = snap.subcat || '';
+    if (typeof updateBodyMeter === 'function') updateBodyMeter();
+  }
+  if ('credits' in snap && snap.credits && typeof snap.credits === 'object') {
+    setCreditValues('authors', snap.credits.authors || []);
+    setCreditValues('photojournalists', snap.credits.photojournalists || []);
+    setCreditValues('courtesy', snap.credits.courtesy || []);
+    setCreditValues('layout', snap.credits.layout || []);
+    setCreditValues('graphics', snap.credits.graphics || []);
+  }
+  if ('date' in snap) $('#fDate').value = snap.date || '';
+  if ('read' in snap) $('#fRead').value = snap.read || '';
+  if ('publish_at' in snap) {
+    $('#fPublishAt').value = snap.publish_at ? toLocalDateTimeInput(snap.publish_at) : '';
+  }
+  if ('excerpt' in snap) $('#fExcerpt').value = snap.excerpt || '';
+  if ('body' in snap) $('#fBody').value = snap.body || '';
+  if ('status' in snap) $('#fStatus').value = snap.status || 'published';
+  if ('featured' in snap) $('#fFeatured').checked = !!snap.featured;
+  if ('thumbnail' in snap) {
+    setThumbnail(snap.thumbnail || null, snap.thumbnail ? 'restored.jpg' : '');
+  }
+  twSaveDraft();
+}
+
+document.getElementById('historyBtn')?.addEventListener('click', twOpenHistoryModal);
+document.getElementById('historyClose')?.addEventListener('click', () => {
+  document.getElementById('historyOverlay').classList.remove('open');
+  unlockScroll();
+});
+document.getElementById('historyOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('historyOverlay')) {
+    document.getElementById('historyOverlay').classList.remove('open');
+    unlockScroll();
+  }
 });
 
 async function twDoSignOut() {
@@ -3306,6 +3466,11 @@ document.addEventListener('keydown', e => {
   }
   if (e.key !== 'Escape') return;
   if (twLightboxOpen) { twCloseLightbox(); return; }
+  if ($('#historyOverlay').classList.contains('open')) {
+    $('#historyOverlay').classList.remove('open');
+    unlockScroll();
+    return;
+  }
   if ($('#readerOverlay').classList.contains('open')) { closeReader(); return; }
   if ($('#cropOverlay').classList.contains('open')) { closeCropModal(); return; }
   if ($('#memoriamOverlay').classList.contains('open')) { closeMemoriam(); return; }
@@ -5082,6 +5247,10 @@ function resetForm() {
   setThumbnail(null);
   twClearDraft('new');
   twStartDraftTimer();
+  twAutosaveLastAt = 0;
+  twUpdateAutosaveIndicator();
+  twStartAutosaveTicker();
+  twUpdateHistoryButton();
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
 
@@ -5117,6 +5286,10 @@ function loadIntoForm(id) {
   $('#editorTitle').textContent = 'Edit article';
   $('#deleteBtn').style.display = 'inline-flex';
   twStartDraftTimer();
+  twAutosaveLastAt = 0;
+  twUpdateAutosaveIndicator();
+  twStartAutosaveTicker();
+  twUpdateHistoryButton();
   twOfferDraft(id);
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
@@ -5307,6 +5480,20 @@ $('#articleForm').addEventListener('submit', async e => {
       }
     }
     await Data.upsert(payload);
+    /* Snapshot the state we just wrote. Fire-and-forget — a failed
+       revision insert must not fail the save (the article is already
+       committed). The DB trigger keeps only the newest 20 per article. */
+    try {
+      const snapshot = twBuildRevisionSnapshot(payload);
+      await sb.from('article_revisions').insert({
+        article_id: payload.id,
+        snapshot,
+        saved_by: editorName || '',
+        created_at: new Date().toISOString()
+      });
+    } catch (revErr) {
+      console.warn('[The Work] Revision snapshot failed', revErr);
+    }
     await refreshPublicArticleState();
     twClearDraft(payload.id);
     twStopDraftTimer();
@@ -5401,8 +5588,8 @@ function setPanel(name, skipReset) {
   if (name === 'releases') hideReleaseForm();
   if (name === 'videos') hideVideoForm();
   if (name === 'memoriam') hideMemoriamForm();
-  if (name === 'new') twStartDraftTimer();
-  else twStopDraftTimer();
+  if (name === 'new') { twStartDraftTimer(); twStartAutosaveTicker(); }
+  else { twStopDraftTimer(); twStopAutosaveTicker(); }
   $$('.admin-section').forEach(s => s.classList.remove('active'));
   const el = $('#panel-' + name);
   if (el) el.classList.add('active');

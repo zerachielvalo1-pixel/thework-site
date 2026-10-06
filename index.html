@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=40">
+<link rel="stylesheet" href="styles.css?v=41">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -675,8 +675,15 @@
 
       <section class="admin-section" id="panel-new">
         <div class="admin-head">
-          <div><h1 id="editorTitle">New article</h1><p id="editorSub">Draft a new story for The Work.</p></div>
-          <button class="btn btn-ghost btn-sm" data-goto="articles">Back to list</button>
+          <div>
+            <h1 id="editorTitle">New article</h1>
+            <p id="editorSub">Draft a new story for The Work.</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="editor-autosave" id="editorAutosave" aria-live="polite"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="historyBtn" style="display:none">History</button>
+            <button class="btn btn-ghost btn-sm" data-goto="articles">Back to list</button>
+          </div>
         </div>
         <div class="panel">
           <form id="articleForm" novalidate>
@@ -1042,6 +1049,19 @@
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="historyOverlay" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+  <div class="modal modal-sm">
+    <button class="modal-close" id="historyClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="modal-body">
+      <div class="panel-head" style="margin-bottom:16px">
+        <h2 id="historyTitle" style="font-size:1.1rem">Revision history</h2>
+        <p style="font-family:var(--sans);font-size:.78rem;color:var(--ink-3);margin:4px 0 0">Last 20 saves. Restoring fills the form — nothing is saved until you press Save.</p>
+      </div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="editorIdentityOverlay" role="dialog" aria-modal="true" aria-labelledby="editorIdentityTitle">
   <div class="modal modal-sm">
     <div class="modal-body">
@@ -1091,7 +1111,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=68" defer></script>
+<script src="app.js?v=69" defer></script>
 
 </body>
 </html>

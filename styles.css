@@ -513,6 +513,86 @@ footer ul a:hover{color:var(--accent)}
 .admin-nav button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:none;background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:.82rem;font-weight:600;border-radius:var(--radius);cursor:pointer;text-align:left;transition:.15s var(--ease);white-space:nowrap}
 .admin-nav button:hover{background:var(--paper-3);color:var(--ink)}
 .admin-nav button.active{background:var(--gradient);color:#fff;box-shadow:0 3px 12px color-mix(in srgb,var(--brand-primary) 28%,transparent)}
+/* ---------- Autosave indicator + revision history ---------- */
+.editor-autosave{
+  display:none;
+  font-family:var(--sans);
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.02em;
+  color:var(--ink-3);
+  white-space:nowrap;
+}
+.editor-autosave.show{display:inline-block}
+
+.revision-item{
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--paper-2);
+  margin-bottom:10px;
+}
+.revision-item:last-child{margin-bottom:0}
+.revision-item.latest{
+  border-color:color-mix(in srgb,var(--brand-primary) 40%,var(--line));
+  background:var(--paper-3);
+}
+.revision-meta{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-family:var(--sans);
+  font-size:.68rem;
+  font-weight:650;
+  color:var(--ink-4);
+  margin-bottom:6px;
+  flex-wrap:wrap;
+}
+.revision-when{color:var(--accent)}
+.revision-sep{color:var(--line)}
+.revision-who{color:var(--ink-3)}
+.revision-badge{
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:999px;
+  background:var(--accent-soft);
+  color:var(--accent);
+  font-size:.58rem;
+  font-weight:750;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.revision-title{
+  font-family:var(--serif);
+  font-size:.92rem;
+  font-weight:700;
+  line-height:1.35;
+  color:var(--ink);
+  margin-bottom:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+}
+.revision-excerpt{
+  font-family:var(--sans);
+  font-size:.72rem;
+  color:var(--ink-3);
+  line-height:1.45;
+  margin-bottom:10px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+}
+.revision-actions{display:flex;gap:6px}
+@media(max-width:520px){
+  .revision-item{padding:12px 13px}
+  .revision-title{font-size:.88rem}
+}
+
 /* ---------- Editor identity chip (admin sidebar) ---------- */
 .admin-identity{
   padding:0 10px 14px;
