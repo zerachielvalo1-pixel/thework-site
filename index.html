@@ -357,6 +357,7 @@
         <button data-panel="memoriam">Look Back</button>
         <button data-panel="board">Board Photos</button>
         <button data-panel="roster">EB Roster</button>
+        <button data-panel="users">Staff</button>
         <button data-panel="settings">Settings</button>
         <button data-panel="trash">Trash</button>
         <button data-panel="permissions">Permissions</button>
@@ -372,12 +373,27 @@
           <button class="btn btn-primary" data-goto="new">New article</button>
         </div>
         <div class="stat-grid">
-          <div class="stat-card"><b id="statTotal">0</b><span>Total articles</span></div>
-          <div class="stat-card"><b id="statPublished">0</b><span>Published</span></div>
-          <div class="stat-card"><b id="statDrafts">0</b><span>Drafts</span></div>
-          <div class="stat-card"><b id="statSections">0</b><span>Sections</span></div>
+          <div class="stat-card"><b id="statTotal">0</b><span id="statTotalLabel">Total articles</span></div>
+          <div class="stat-card"><b id="statPublished">0</b><span id="statPublishedLabel">Published</span></div>
+          <div class="stat-card"><b id="statDrafts">0</b><span id="statDraftsLabel">Drafts</span></div>
+          <div class="stat-card"><b id="statSections">0</b><span id="statSectionsLabel">Sections</span></div>
         </div>
-        <div class="panel"><div class="panel-head"><h2>Recent articles</h2></div><div id="recentList"></div></div>
+        <div class="panel" id="memberGuide" hidden>
+          <div class="panel-head"><h2>Submitting to The Work</h2><p>A short guide for staff writers.</p></div>
+          <div style="font-family:var(--sans);font-size:.85rem;color:var(--ink-2);line-height:1.75">
+            <p style="margin:0 0 12px">Everything you publish runs through the editor here. Drafts autosave to this device as you type — safe to close the tab and come back.</p>
+            <ul style="margin:0;padding-left:20px;display:grid;gap:6px">
+              <li><strong>Title</strong> — sentence case, no clickbait.</li>
+              <li><strong>Excerpt</strong> — 1–2 sentences, shown in cards and previews.</li>
+              <li><strong>Body</strong> — blank line between paragraphs. The toolbar handles bold, italics, links, quotes, and headings.</li>
+              <li><strong>Credits</strong> — list every author, photojournalist, and layout artist.</li>
+              <li><strong>Thumbnail</strong> — landscape 16:9, at least 800px wide.</li>
+              <li><strong>Status</strong> — leave as <em>Draft</em> if you want an editor to review before it goes live.</li>
+            </ul>
+            <p style="margin:12px 0 0">Questions? Email <a href="mailto:tsu.tw78@gmail.com">tsu.tw78@gmail.com</a>.</p>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-head"><h2 id="recentListHeader">Recent articles</h2></div><div id="recentList"></div></div>
       </section>
 
       <section class="admin-section" id="panel-articles">
@@ -844,6 +860,19 @@
         <div id="boardMemberList"></div>
       </section>
 
+      <section class="admin-section" id="panel-users">
+        <div class="admin-head">
+          <div><h1>Staff accounts</h1><p>Assign the byline names each staff member writes under.</p></div>
+        </div>
+        <div class="panel" style="margin-bottom:22px">
+          <div class="panel-head">
+            <h2>How byline names work</h2>
+            <p>One name per line, matching exactly how the writer is credited in articles. Punctuation and spacing are normalized when matching, so <em>Alelie Jade J. Mallari</em> and <em>Alelie Jade Mallari</em> both work. If the field is blank, that member's dashboard shows no articles until you set it.</p>
+          </div>
+        </div>
+        <div id="usersList"></div>
+      </section>
+
       <section class="admin-section" id="panel-settings">
         <div class="admin-head"><div><h1>Settings</h1><p>Customize your site's look and manage your account.</p></div></div>
         <div class="panel" style="margin-bottom:22px">
@@ -1028,7 +1057,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=60" defer></script>
+<script src="app.js?v=62" defer></script>
 
 </body>
 </html>

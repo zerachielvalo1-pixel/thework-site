@@ -44,6 +44,19 @@ function staffByline(article) {
   return getCredits(article).authors.join(', ') || 'The Work Staff';
 }
 
+/* True when the signed-in user is credited as an author on this article.
+   Compares the article's credits.authors against every byline variant on
+   the user's profile (profiles.byline_names), all normalised through
+   normalizePersonName() so punctuation, spacing and case differences do
+   not block a match. Returns false when byline_names is empty — that
+   means the profile has not been configured, not that no articles match. */
+function articleMatchesMe(article) {
+  if (!currentBylineNames.length || !article) return false;
+  const mine = currentBylineNames.map(normalizePersonName);
+  const authors = getCredits(article).authors.map(normalizePersonName);
+  return authors.some(a => mine.includes(a));
+}
+
 /* Estimated reading time. 200 wpm, rounded to the nearest minute,
    minimum "1 min". Empty string for empty input so a byline with no
    body stays bare. Strips the markdown subset renderArticleBody()
@@ -396,6 +409,10 @@ let boardMembers = BOARD.slice();
 const appCache = { publishedArticles: null, allArticles: null };
 let session = null;
 let currentRole = null;
+/* Byline variants for the signed-in user, pulled from profiles.byline_names.
+   Used by articleMatchesMe() to filter the member dashboard. Empty for
+   non-members and for anyone whose profile has not been configured yet. */
+let currentBylineNames = [];
 let activeFilter = 'all';
 let searchTerm = '';
 let editingId = null;
@@ -1095,14 +1112,25 @@ const ROLE_PERMISSIONS = {
 };
 
 async function loadRole() {
-  if (!sb) { currentRole = null; return; }
-  if (!session || !session.user) { currentRole = null; return; }
+  if (!sb) { currentRole = null; currentBylineNames = []; return; }
+  if (!session || !session.user) { currentRole = null; currentBylineNames = []; return; }
   try {
-    const { data, error } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
-    if (error || !data) { currentRole = 'member'; }
-    else { currentRole = data.role || 'member'; }
+    const { data, error } = await sb.from('profiles')
+      .select('role,byline_names')
+      .eq('id', session.user.id)
+      .single();
+    if (error || !data) {
+      currentRole = 'member';
+      currentBylineNames = [];
+    } else {
+      currentRole = data.role || 'member';
+      currentBylineNames = Array.isArray(data.byline_names)
+        ? data.byline_names.map(String).filter(Boolean)
+        : [];
+    }
   } catch (e) {
     currentRole = 'member';
+    currentBylineNames = [];
   }
   applyRoleUI();
 }
@@ -1112,6 +1140,7 @@ function canAccess(panel) {
   if (r === 'dev') return true;
   if (panel === 'releases' || panel === 'memoriam' || panel === 'board' || panel === 'roster') return r === 'eb';
   if (panel === 'trash') return r === 'eb';
+  if (panel === 'users') return r === 'eb'; // dev + eb; role changes are blocked by a DB trigger
   return true; // dashboard, articles, new, videos, settings, permissions
 }
 
@@ -3763,21 +3792,61 @@ document.getElementById('resetColorsBtn')?.addEventListener('click', () => {
 async function renderAdmin() {
   const all = await Data.listAll();
   window.__allArticles = Array.isArray(all) ? all : [];
-  const total = window.__allArticles.length;
-  const published = window.__allArticles.filter(a => a.status === 'published').length;
+
+  /* The Overview adapts to the signed-in role. A member sees only the
+     articles they are credited on (matched through profiles.byline_names
+     via articleMatchesMe()); eb and dev see the full picture. This is a
+     view filter, not a security boundary — RLS on `articles` still
+     allows any signed-in user to read every row, and the Articles panel
+     below is unchanged. Treat the member view as a focus tool. */
+  const isMember = currentRole === 'member';
+  const scoped = isMember
+    ? window.__allArticles.filter(articleMatchesMe)
+    : window.__allArticles;
+
+  const total = scoped.length;
+  const published = scoped.filter(a => a.status === 'published').length;
   const drafts = total - published;
-  const sections = new Set(window.__allArticles.map(a => a.cat)).size;
+  const sections = new Set(scoped.map(a => a.cat).filter(Boolean)).size;
+
   $('#statTotal').textContent = total;
   $('#statPublished').textContent = published;
   $('#statDrafts').textContent = drafts;
   $('#statSections').textContent = sections;
+
+  const setLabel = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+  setLabel('statTotalLabel',     isMember ? 'My articles'      : 'Total articles');
+  setLabel('statPublishedLabel', isMember ? 'My published'     : 'Published');
+  setLabel('statDraftsLabel',    isMember ? 'My drafts'        : 'Drafts');
+  setLabel('statSectionsLabel',  isMember ? 'Sections covered' : 'Sections');
+
   const email = session?.user?.email || session?.email || 'admin';
   $('#dashName').textContent = email.split('@')[0];
 
-  const recent = all.slice(0,5);
+  /* Member-only submission guide, hidden for eb/dev. */
+  const guide = document.getElementById('memberGuide');
+  if (guide) guide.hidden = !isMember;
+  const guideSub = guide && guide.querySelector('.panel-head p');
+  if (guideSub) {
+    if (isMember && !currentBylineNames.length) {
+      guideSub.innerHTML = '<strong style="color:#B91C1C">Your byline names are not set up yet.</strong> Ask the developer to add them to your profile — until then, this list will stay empty.';
+    } else {
+      guideSub.textContent = 'A short guide for staff writers.';
+    }
+  }
+
+  const headerEl = document.getElementById('recentListHeader');
+  if (headerEl) headerEl.textContent = isMember ? 'My recent articles' : 'Recent articles';
+
+  const recent = scoped.slice(0, 5);
   const rl = $('#recentList');
   if (!recent.length) {
-    rl.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">No articles yet.</p></div>';
+    rl.innerHTML = isMember
+      ? '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">You have no articles yet. <button class="btn btn-primary btn-sm" data-goto="new" style="margin-left:6px">Start one</button></p></div>'
+      : '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">No articles yet.</p></div>';
   } else {
     rl.innerHTML = recent.map(a =>
       `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-2)">
@@ -4815,6 +4884,7 @@ function setPanel(name, skipReset) {
   if (name === 'trash') renderTrashAdmin();
   if (name === 'permissions') renderPermissions();
   if (name === 'roster') renderRosterAdmin();
+  if (name === 'users') renderUsersAdmin();
 }
 
 function showBoardMemberForm(m) {
@@ -4938,6 +5008,115 @@ $('#boardMemberForm').addEventListener('submit', async e => {
     toast('Save failed: ' + safeErrorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'Save member';
+  }
+});
+
+/* ---------- Staff accounts panel (dev + eb) ----------
+   Lists every row in `profiles` and lets staff with the dev or eb role
+   assign the byline variants each member writes under. Those variants live
+   in profiles.byline_names (JSONB array) and are matched against an
+   article's credits.authors by articleMatchesMe() to build the member
+   dashboard.
+
+   Role changes are NOT exposed here. Only dev can change a profile's role,
+   enforced server-side by the profiles_block_role_escalation trigger. */
+async function renderUsersAdmin() {
+  const el = $('#usersList');
+  if (!el) return;
+  if (!sb) {
+    el.innerHTML = '<div class="tw-error"><strong>Not connected</strong>Sign in with a real account to manage staff.</div>';
+    return;
+  }
+  const { data, error } = await sb.from('profiles')
+    .select('id,email,role,byline_names,updated')
+    .order('email', { ascending: true });
+  if (error) {
+    el.innerHTML = '<div class="tw-error"><strong>Could not load staff</strong>' + esc(safeErrorText(error)) + '</div>';
+    return;
+  }
+  const profiles = Array.isArray(data) ? data : [];
+  if (!profiles.length) {
+    el.innerHTML = '<div class="tw-error"><strong>No staff accounts yet</strong>Invite members from Supabase Auth (Authentication → Users → Invite user). Each one appears here once their account exists.</div>';
+    return;
+  }
+
+  el.innerHTML = profiles.map(p => {
+    const names = Array.isArray(p.byline_names) ? p.byline_names.map(String).filter(Boolean) : [];
+    const namesText = names.join('\n');
+    const configured = names.length > 0;
+    const roleClass = p.role === 'dev' ? 'published' : (p.role === 'eb' ? 'published' : 'draft');
+    const badge = configured
+      ? `<span class="badge published">${names.length} byline${names.length > 1 ? 's' : ''}</span>`
+      : '<span class="badge" style="background:#FDECEA;color:#B91C1C">Not set up</span>';
+    return `
+      <div class="release-list-item" style="align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <h4 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(p.email || '(no email)')} <span class="badge ${roleClass}">${esc(p.role || 'member')}</span> ${badge}</h4>
+          <small>${configured ? esc(names.join(' · ')) : 'No byline variants assigned'}</small>
+        </div>
+        <div class="release-list-actions">
+          <button class="btn btn-ghost btn-sm" data-user-edit="${esc(p.id)}">Edit</button>
+        </div>
+      </div>
+      <div class="panel" data-user-form="${esc(p.id)}" hidden style="margin:-8px 0 16px;padding:18px">
+        <div class="panel-head" style="margin-bottom:14px;padding-bottom:12px">
+          <h2 style="font-size:.95rem">${esc(p.email || '')}</h2>
+          <p>One name per line. Match exactly how the writer is credited in articles.</p>
+        </div>
+        <div class="field">
+          <label for="user-input-${esc(p.id)}">Byline variants</label>
+          <textarea id="user-input-${esc(p.id)}" data-user-input="${esc(p.id)}" style="min-height:110px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;line-height:1.6" placeholder="Alelie Jade J. Mallari&#10;Alelie Jade Mallari&#10;AJ Mallari">${esc(namesText)}</textarea>
+        </div>
+        <div class="form-actions" style="margin-top:14px;padding-top:14px">
+          <button class="btn btn-primary" data-user-save="${esc(p.id)}">Save</button>
+          <button class="btn btn-ghost" data-user-cancel="${esc(p.id)}">Cancel</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function saveUserBylineNames(id) {
+  const input = document.querySelector(`[data-user-input="${id}"]`);
+  if (!input || !sb) return;
+  const names = input.value.split('\n').map(s => s.trim()).filter(Boolean);
+  const btn = document.querySelector(`[data-user-save="${id}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const { error } = await sb.from('profiles')
+      .update({ byline_names: names, updated: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    toast('Byline names saved');
+    /* If the signed-in user just edited their own row, reload the role so
+       articleMatchesMe() picks up the new list without a refresh. */
+    if (session && session.user && session.user.id === id) {
+      await loadRole();
+    }
+    await renderUsersAdmin();
+  } catch (err) {
+    toast('Save failed: ' + safeErrorText(err), true);
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+}
+
+document.addEventListener('click', e => {
+  const editBtn = e.target.closest('[data-user-edit]');
+  if (editBtn) {
+    const form = document.querySelector(`[data-user-form="${editBtn.dataset.userEdit}"]`);
+    if (form) form.hidden = false;
+    return;
+  }
+  const cancelBtn = e.target.closest('[data-user-cancel]');
+  if (cancelBtn) {
+    const form = document.querySelector(`[data-user-form="${cancelBtn.dataset.userCancel}"]`);
+    if (form) form.hidden = true;
+    return;
+  }
+  const saveBtn = e.target.closest('[data-user-save]');
+  if (saveBtn) {
+    saveUserBylineNames(saveBtn.dataset.userSave);
+    return;
   }
 });
 
@@ -5204,7 +5383,7 @@ async function route() {
     setView('admin');
     const parts = path.split('/');
     const sub = parts[2] || 'dashboard';
-    setPanel(['dashboard','articles','releases','videos','memoriam','board','roster','new','settings','trash','permissions'].includes(sub) ? sub : 'dashboard');
+    setPanel(['dashboard','articles','releases','videos','memoriam','board','roster','new','settings','trash','permissions','users'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
     if (sub === 'board') ensureBoardPhotos();
     updateAuthUI();
