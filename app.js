@@ -1769,6 +1769,123 @@ function renderStoryPage(article) {
     </article>`;
   const storyShare = main.querySelector('#storyShare');
   if (storyShare) twRenderShareTo(storyShare, article);
+  const navHost = twEnsureStoryNavHost();
+  if (navHost) twRenderStoryNav(article, navHost);
+}
+
+/* ---------- Story navigation (prev / next in section + more from author) ----------
+   Rendered client-side only. The Worker's storyMarkup() deliberately does
+   NOT include this block, so crawlers get a clean prerendered page and
+   never pay for the extra DOM. On the SPA path, renderStoryPage() calls
+   this after rendering. On the Worker path, route() calls it after the
+   page has hydrated.
+
+   Section paging is by date only (WordPress convention):
+     prev  = chronologically older (published before)
+     next  = chronologically newer (published after)
+   "More from author" is matched on the first credit of the article's
+   credits.authors, with the fallback to legacy author columns handled by
+   getCredits(). Anonymous staff pieces produce no such block. */
+function twEnsureStoryNavHost() {
+  const storyView = document.querySelector('#view-story');
+  if (!storyView) return null;
+  let navHost = storyView.querySelector('#storyNav');
+  if (!navHost) {
+    navHost = document.createElement('div');
+    navHost.id = 'storyNav';
+    navHost.className = 'story-nav-host';
+    const inner = storyView.querySelector('.story-page-inner');
+    if (!inner) return null;
+    inner.appendChild(navHost);
+  }
+  return navHost;
+}
+
+function twRenderStoryNav(article, hostEl) {
+  if (!hostEl || !article) return;
+  const pool = Array.isArray(articles) ? articles : [];
+
+  /* Same section, excluding current, published only. */
+  const sameSection = pool
+    .filter(a => a && String(a.id) !== String(article.id)
+      && a.cat === article.cat
+      && a.status === 'published'
+      && !a.deleted_at)
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  const currentTs = new Date(article.date || 0).getTime();
+  const newer = sameSection.filter(a => new Date(a.date || 0).getTime() > currentTs);
+  const older = sameSection.filter(a => new Date(a.date || 0).getTime() < currentTs);
+
+  /* sameSection is sorted desc by date, so:
+       older[0]            = closest story older than current  → prev
+       newer[newer.length-1] = closest story newer than current → next */
+  const prev = older[0] || null;
+  const next = newer.length ? newer[newer.length - 1] : null;
+
+  /* "More from author" needs a real first-author name. Anonymous staff
+     pieces (no credits) skip the block entirely. */
+  const c = getCredits(article);
+  const firstAuthor = (c.authors || [])[0] || '';
+  const moreByAuthor = firstAuthor
+    ? pool
+        .filter(a => a && String(a.id) !== String(article.id)
+          && a.status === 'published'
+          && !a.deleted_at)
+        .filter(a => (getCredits(a).authors || []).indexOf(firstAuthor) !== -1)
+        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+        .slice(0, 3)
+    : [];
+
+  if (!prev && !next && !moreByAuthor.length) {
+    hostEl.innerHTML = '';
+    hostEl.hidden = true;
+    return;
+  }
+  hostEl.hidden = false;
+
+  const sectionLabel = CAT_LABELS[article.cat] || article.cat || 'Story';
+
+  let pagerHtml = '';
+  if (prev || next) {
+    const single = !prev || !next;
+    pagerHtml = `<div class="story-nav-pager${single ? ' single' : ''}">
+      ${prev ? `
+        <a class="story-nav-link prev" href="${esc(storyUrl(prev))}" data-story-link>
+          <span class="story-nav-dir">← Older in ${esc(sectionLabel)}</span>
+          <span class="story-nav-link-title">${esc(prev.title)}</span>
+        </a>` : ''}
+      ${next ? `
+        <a class="story-nav-link next" href="${esc(storyUrl(next))}" data-story-link>
+          <span class="story-nav-dir">Newer in ${esc(sectionLabel)} →</span>
+          <span class="story-nav-link-title">${esc(next.title)}</span>
+        </a>` : ''}
+    </div>`;
+  }
+
+  const moreHtml = moreByAuthor.length
+    ? `<div class="story-nav-more">
+        <div class="story-nav-section-title">More from ${esc(firstAuthor)}</div>
+        <div class="related-list">
+          ${moreByAuthor.map(r => `
+            <a class="related-item" href="${esc(storyUrl(r))}" data-story-link>
+              <div class="related-thumb">${r.thumbnail
+                ? imgTag(r.thumbnail, [160], '', ' alt="" loading="lazy" decoding="async"')
+                : esc((CAT_LABELS[r.cat] || '?').charAt(0))}</div>
+              <div class="related-info">
+                <div class="related-title">${esc(r.title)}</div>
+                <div class="related-meta">${esc(CAT_LABELS[r.cat] || r.cat || 'Story')} · ${esc(fmtDate(r.date))}</div>
+              </div>
+            </a>
+          `).join('')}
+        </div>
+      </div>`
+    : '';
+
+  hostEl.innerHTML = `<nav class="story-nav" aria-label="More stories">
+    ${pagerHtml}
+    ${moreHtml}
+  </nav>`;
 }
 
 function updateArticleMeta(article) {
@@ -5769,6 +5886,12 @@ async function route() {
       const story = published.find(a => String(a.id) === directStoryId);
       const storyShare = document.querySelector('#storyShare');
       if (story && storyShare) twRenderShareTo(storyShare, story);
+      /* Add the story navigation client-side. The Worker never emits it,
+         so the prerendered HTML stays lean and crawlers are unaffected. */
+      if (story) {
+        const navHost = twEnsureStoryNavHost();
+        if (navHost) twRenderStoryNav(story, navHost);
+      }
     }
     setView('story');
     updateArticleMeta({
