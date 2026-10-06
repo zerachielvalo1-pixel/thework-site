@@ -1382,10 +1382,23 @@ function resizeImage(file, maxW, quality) {
     reader.readAsDataURL(file);
   });
 }
-function openConfirm(title, msg, cb) {
+/* Options:
+     okLabel / cancelLabel — button text (default: "Confirm" / "Cancel")
+     okClass               — full btn class for the OK button
+                             (default: "btn-danger"; pass "btn-primary"
+                             for non-destructive actions). */
+function openConfirm(title, msg, cb, opts) {
+  opts = opts || {};
   $('#confirmTitle').textContent = title;
   $('#confirmMsg').textContent = msg;
   confirmCb = cb;
+  const okBtn = $('#confirmOk');
+  const cancelBtn = $('#confirmCancel');
+  if (okBtn) {
+    okBtn.textContent = opts.okLabel || 'Confirm';
+    okBtn.className = 'btn ' + (opts.okClass || 'btn-danger');
+  }
+  if (cancelBtn) cancelBtn.textContent = opts.cancelLabel || 'Cancel';
   $('#confirmOverlay').classList.add('open');
 }
 function closeConfirm() { $('#confirmOverlay').classList.remove('open'); confirmCb = null; }
@@ -4839,9 +4852,50 @@ function loadIntoForm(id) {
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
 }
 
+/* ---------- Pre-publish checklist ----------
+   Runs on the Save click when status = 'published'. Non-blocking:
+   the warnings are shown in a confirm dialog and the editor can either
+   "Publish anyway" (proceeds with the save) or "Go back" (dialog closes,
+   form is left untouched). Nothing here is validation — the hard
+   requirements are enforced earlier in the submit handler and still
+   block the save outright. These are "you might want to know" items.
+
+   twPublishConfirmed is set by the dialog's OK handler and read on the
+   very next submit event, then reset. That's how the second pass (the
+   requestSubmit() the dialog fires) skips the check without a loop. */
+let twPublishConfirmed = false;
+
+function twCheckBeforePublish(ctx) {
+  const warnings = [];
+  const titleLen = String(ctx.title || '').length;
+  const bodyWords = String(ctx.body || '').trim().split(/\s+/).filter(Boolean).length;
+
+  if (!ctx.thumbnail) {
+    warnings.push('No thumbnail — cards, the hero carousel, and social previews will show a letter placeholder instead of an image.');
+  }
+  if (!String(ctx.excerpt || '').trim()) {
+    warnings.push('No excerpt — search results and shares will fall back to the first ~160 characters of the body.');
+  }
+  if (ctx.thumbnail && !ctx.credits.photojournalists.length && !ctx.credits.courtesy.length) {
+    warnings.push('Thumbnail without a photo credit — add a photojournalist or a courtesy line so the image is attributed.');
+  }
+  if (titleLen > 100) {
+    warnings.push('Title is ' + titleLen + ' characters — over the 100-character display limit for cards and previews.');
+  }
+  if (bodyWords > 0 && bodyWords < 100) {
+    warnings.push('Body is only ' + bodyWords + ' ' + (bodyWords === 1 ? 'word' : 'words') + ' — published stories are usually longer. Did the paste go through?');
+  }
+  return warnings;
+}
+
 $('#articleForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (!session) { toast('Please sign in first.', true); return; }
+
+  /* Read then immediately reset — any path that bails out below leaves
+     the flag clear, so a future save always re-runs the checklist. */
+  const wasConfirmed = twPublishConfirmed;
+  twPublishConfirmed = false;
 
   const title = $('#fTitle').value.trim();
   const cat = $('#fCat').value;
@@ -4862,6 +4916,30 @@ $('#articleForm').addEventListener('submit', async e => {
   if (missing.length) {
     toast('Missing required fields: ' + missing.join(', '), true);
     return;
+  }
+
+  /* Pre-publish checklist. Only for status = 'published' and only on the
+     first pass — the second pass (fired by the dialog's Publish anyway)
+     arrives here with wasConfirmed = true and skips straight through. */
+  if (status === 'published' && !wasConfirmed) {
+    const warnings = twCheckBeforePublish({
+      title, cat, subcat, body, excerpt,
+      thumbnail: pendingThumbnail,
+      credits
+    });
+    if (warnings.length) {
+      const msg = 'Before this goes live:\n\n• ' + warnings.join('\n\n• ') +
+        '\n\nYou can publish anyway, or go back and fix these.';
+      openConfirm('Pre-publish checklist', msg, () => {
+        twPublishConfirmed = true;
+        $('#articleForm').requestSubmit();
+      }, {
+        okLabel: 'Publish anyway',
+        cancelLabel: 'Go back',
+        okClass: 'btn-primary'
+      });
+      return;
+    }
   }
 
   const btn = $('#saveBtn');
