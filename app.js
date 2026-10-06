@@ -4870,6 +4870,15 @@ function twCheckBeforePublish(ctx) {
   const titleLen = String(ctx.title || '').length;
   const bodyWords = String(ctx.body || '').trim().split(/\s+/).filter(Boolean).length;
 
+  /* Author is required for every section except news and the opinion
+     sub-categories that staff-write anonymously (editorial and
+     standpoints). The same exemption the old hard-validation used. */
+  const authorOptional = ctx.cat === 'news' ||
+    (ctx.cat === 'opinion' && (ctx.subcat === 'editorial' || ctx.subcat === 'standpoints'));
+  if (!ctx.credits.authors.length && !authorOptional) {
+    warnings.push('No author — this section normally carries a byline. Add one, or publish anyway if this is a staff piece.');
+  }
+
   if (!ctx.thumbnail) {
     warnings.push('No thumbnail — cards, the hero carousel, and social previews will show a letter placeholder instead of an image.');
   }
@@ -4907,11 +4916,13 @@ $('#articleForm').addEventListener('submit', async e => {
   const subcat = ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : '';
   const noAuthorRequired = cat === 'news' || (cat === 'opinion' && (subcat === 'editorial' || subcat === 'standpoints'));
 
+  /* Hard requirements — these block the save outright because the
+     article is broken without them. Everything else (excerpt, author,
+     thumbnail, photo credit, length limits) is checked by the
+     non-blocking pre-publish checklist below. */
   if (!title) missing.push('title');
   if (!cat) missing.push('section');
-  if (!credits.authors.length && !noAuthorRequired) missing.push('author');
   if (!body) missing.push('body');
-  if (status === 'published' && !excerpt && !noAuthorRequired) missing.push('excerpt');
 
   if (missing.length) {
     toast('Missing required fields: ' + missing.join(', '), true);
