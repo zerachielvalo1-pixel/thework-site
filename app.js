@@ -1209,6 +1209,22 @@ async function twCheckSession() {
   twHideSessionWarning();
 }
 
+/* Debug-only escape hatch for testing the session watcher from DevTools.
+   Exposes narrow hooks that only affect the session state, nothing else.
+   Remove this block before production if you don't want it shipped. */
+if (typeof window !== 'undefined') {
+  window.__twSession = {
+    get: () => session,
+    expireIn: (seconds) => {
+      if (!session) return false;
+      session.expires_at = Math.floor(Date.now() / 1000) + Number(seconds || 0);
+      if (typeof twCheckSession === 'function') twCheckSession();
+      return true;
+    },
+    check: () => (typeof twCheckSession === 'function' ? twCheckSession() : null)
+  };
+}
+
 function twStartSessionWatcher() {
   if (twSessionWatchTimer) clearInterval(twSessionWatchTimer);
   /* 20s cadence: fine-grained enough to catch the 60s threshold, cheap
