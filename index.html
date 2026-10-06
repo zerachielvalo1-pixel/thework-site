@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=38">
+<link rel="stylesheet" href="styles.css?v=39">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -347,6 +347,13 @@
 <main id="view-admin" class="view">
   <div class="admin-shell">
     <aside class="admin-side">
+      <div class="admin-identity" id="adminIdentity" hidden>
+        <span class="admin-identity-label">You are</span>
+        <button type="button" class="admin-identity-btn" id="adminIdentityBtn" title="Switch user">
+          <span id="adminIdentityName">—</span>
+          <span class="admin-identity-switch">Switch</span>
+        </button>
+      </div>
       <h4>Dashboard</h4>
       <div class="admin-nav">
         <button data-panel="dashboard" class="active">Overview</button>
@@ -1035,6 +1042,33 @@
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="editorIdentityOverlay" role="dialog" aria-modal="true" aria-labelledby="editorIdentityTitle">
+  <div class="modal modal-sm">
+    <div class="modal-body">
+      <div class="login-head">
+        <div class="login-wordmark"><span class="brand-the">the</span><span class="brand-work">WORK</span></div>
+        <h2 id="editorIdentityTitle">Who's using this device?</h2>
+        <p id="editorIdentitySub">Your name is recorded on everything you save. Switch anytime from the admin sidebar.</p>
+      </div>
+      <div class="form-error" id="editorIdentityError"></div>
+      <div class="field">
+        <label for="editorIdentitySelect">Select your name</label>
+        <select id="editorIdentitySelect">
+          <option value="">Choose…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="editorIdentityManual">Or type it manually <span class="hint">for guests or non-members</span></label>
+        <input type="text" id="editorIdentityManual" maxlength="120" placeholder="e.g. Guest contributor">
+      </div>
+      <div class="form-actions" style="margin-top:20px">
+        <button type="button" class="btn btn-primary btn-block" id="editorIdentitySave">Continue</button>
+        <button type="button" class="btn btn-ghost btn-block" id="editorIdentityCancel">Not now</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
   <div class="modal modal-sm">
     <div class="modal-body">
@@ -1057,7 +1091,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=65" defer></script>
+<script src="app.js?v=66" defer></script>
 
 </body>
 </html>

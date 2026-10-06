@@ -446,6 +446,17 @@ let pendingMemoriamPhoto = null;
 let draftTimer = null;
 let selectedIds = new Set();
 
+/* ---------- Editor identity (sub-profile attribution) ----------
+   When several people share one eb@ or staff@ login, each session needs
+   a name attached to everything it saves. The name lives in
+   sessionStorage so it does not survive a browser close (a shared
+   device should prompt the next person). A separate localStorage flag
+   suppresses the proactive prompt across tabs, so opening a second tab
+   does not nag. Real enforcement is at save time: no name → no save. */
+const TW_EDITOR_KEY = 'tw_editor_name';
+const TW_EDITOR_PROMPT_KEY = 'tw_editor_prompted';
+let editorIdentityCallback = null;
+
 async function refreshPublicArticleState() {
   try {
     const published = await Data.listPublished();
@@ -1526,6 +1537,166 @@ $('#loginForm').addEventListener('submit', async e => {
   }
 });
 
+/* ---------- Editor identity helpers ---------- */
+
+function twGetEditorFromStorage() {
+  try { return sessionStorage.getItem(TW_EDITOR_KEY) || ''; } catch (e) { return ''; }
+}
+
+function twSetEditorInStorage(name) {
+  try { sessionStorage.setItem(TW_EDITOR_KEY, String(name || '').trim()); } catch (e) {}
+}
+
+function twClearEditorIdentity() {
+  try { sessionStorage.removeItem(TW_EDITOR_KEY); } catch (e) {}
+  try { localStorage.removeItem(TW_EDITOR_PROMPT_KEY); } catch (e) {}
+}
+
+/* Whether the signed-in user needs to pick a name. Dev accounts and
+   individual accounts (anyone with profiles.byline_names set) skip the
+   picker entirely. Only shared eb/staff logins go through it. */
+function twNeedsEditorPicker() {
+  if (currentRole === 'dev') return false;
+  if (Array.isArray(currentBylineNames) && currentBylineNames.length > 0) return false;
+  return true;
+}
+
+/* The name that should be recorded on a save. For dev and individual
+   accounts this resolves automatically; for shared accounts it is
+   whatever the current session has picked, or empty. */
+function twGetEffectiveEditor() {
+  if (currentRole === 'dev') {
+    return (session && session.user && session.user.email) || 'Developer';
+  }
+  if (Array.isArray(currentBylineNames) && currentBylineNames.length > 0) {
+    return currentBylineNames[0];
+  }
+  return twGetEditorFromStorage();
+}
+
+function twCloseEditorIdentityModal() {
+  const el = document.getElementById('editorIdentityOverlay');
+  if (el) el.classList.remove('open');
+  unlockScroll();
+}
+
+function twShowEditorIdentityModal(callback) {
+  const overlay = document.getElementById('editorIdentityOverlay');
+  const select = document.getElementById('editorIdentitySelect');
+  if (!overlay || !select) return;
+  editorIdentityCallback = typeof callback === 'function' ? callback : null;
+  const err = document.getElementById('editorIdentityError');
+  if (err) err.classList.remove('show');
+  const manual = document.getElementById('editorIdentityManual');
+  if (manual) manual.value = '';
+  /* The dropdown is populated fresh from board_members, so a roster edit
+     shows up on the next prompt without a rebuild. */
+  const opts = (Array.isArray(boardMembers) ? boardMembers : [])
+    .filter(m => m && m.name)
+    .map(m => `<option value="${esc(m.name)}">${esc(m.name)}${m.role ? ' — ' + esc(m.role) : ''}</option>`)
+    .join('');
+  select.innerHTML = '<option value="">Choose…</option>' + opts;
+  select.value = '';
+  overlay.classList.add('open');
+  lockScroll();
+  setTimeout(() => select.focus(), 80);
+}
+
+function twRenderIdentityChip() {
+  const chip = document.getElementById('adminIdentity');
+  const nameEl = document.getElementById('adminIdentityName');
+  if (!chip || !nameEl) return;
+  /* Dev sees the chip too, with their email — useful context but no
+     Switch button since there's nothing to switch to. */
+  const name = twGetEffectiveEditor();
+  if (!name) { chip.hidden = true; return; }
+  chip.hidden = false;
+  nameEl.textContent = name;
+  const btn = document.getElementById('adminIdentityBtn');
+  if (btn) btn.title = currentRole === 'dev' ? 'Signed in as developer' : 'Switch user';
+}
+
+/* Shown proactively when the admin panel opens. Suppressed by a
+   localStorage flag so a second tab does not nag — save-time enforcement
+   in the article form is the actual gate. */
+function twMaybePromptEditorIdentity() {
+  if (!twNeedsEditorPicker()) return;
+  if (twGetEditorFromStorage()) { twRenderIdentityChip(); return; }
+  try {
+    if (localStorage.getItem(TW_EDITOR_PROMPT_KEY) === '1') return;
+    localStorage.setItem(TW_EDITOR_PROMPT_KEY, '1');
+  } catch (e) {}
+  twShowEditorIdentityModal((name) => {
+    if (name) {
+      twSetEditorInStorage(name);
+      twRenderIdentityChip();
+      toast('Signed as ' + name);
+    }
+  });
+}
+
+/* Modal buttons. Wired once at load. */
+(function initEditorIdentityModal() {
+  const overlay = document.getElementById('editorIdentityOverlay');
+  const save = document.getElementById('editorIdentitySave');
+  const cancel = document.getElementById('editorIdentityCancel');
+  const select = document.getElementById('editorIdentitySelect');
+  const manual = document.getElementById('editorIdentityManual');
+  if (!overlay || !save || !cancel) return;
+
+  function commit() {
+    const typed = manual ? manual.value.trim() : '';
+    const picked = select ? select.value.trim() : '';
+    const name = typed || picked;
+    if (!name) {
+      const err = document.getElementById('editorIdentityError');
+      if (err) {
+        err.textContent = 'Please pick or type a name.';
+        err.classList.add('show');
+      }
+      return;
+    }
+    twCloseEditorIdentityModal();
+    const cb = editorIdentityCallback;
+    editorIdentityCallback = null;
+    if (cb) cb(name);
+  }
+
+  function bail() {
+    twCloseEditorIdentityModal();
+    const cb = editorIdentityCallback;
+    editorIdentityCallback = null;
+    if (cb) cb('');
+  }
+
+  save.addEventListener('click', commit);
+  cancel.addEventListener('click', bail);
+  overlay.addEventListener('click', e => { if (e.target === overlay) bail(); });
+  if (manual) {
+    manual.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+  }
+  if (select) {
+    select.addEventListener('change', () => {
+      if (select.value && manual) manual.value = '';
+      const err = document.getElementById('editorIdentityError');
+      if (err) err.classList.remove('show');
+    });
+  }
+})();
+
+/* Sidebar chip: click reopens the picker. Dev sees the chip but the click
+   is a no-op (nothing to switch). */
+document.getElementById('adminIdentityBtn')?.addEventListener('click', () => {
+  if (currentRole === 'dev') return;
+  twShowEditorIdentityModal((name) => {
+    if (name) {
+      twSetEditorInStorage(name);
+      twRenderIdentityChip();
+      toast('Switched to ' + name);
+    }
+  });
+});
+
 async function twDoSignOut() {
   /* Stop the session watcher first so it cannot race the manual sign-out
      and re-open the login modal on the way to the homepage. */
@@ -1538,6 +1709,11 @@ async function twDoSignOut() {
   /* Shared-machine hygiene: don't leave the previous writer's unsaved
      article behind for the next login. */
   twClearAllDrafts();
+  /* Same reasoning for the identity chip — next login should prompt
+     fresh. Clears both sessionStorage name and the proactive-prompt
+     suppression flag. */
+  twClearEditorIdentity();
+  twRenderIdentityChip();
   updateAuthUI();
   location.hash = '#/';
   toast('Signed out');
@@ -4054,7 +4230,7 @@ function renderTable() {
       <td class="title-cell"><div class="cell-title"><div class="mini-thumb">${thumbHtml}</div><div style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div><small>by ${esc(a.author||'—')} · ${esc(fmtDate(a.date))}</small></div></div></td>
       <td><span class="badge cat-${esc(a.cat)}">${esc(CAT_LABELS[a.cat]||a.cat)}</span></td>
       <td><span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span></td>
-      <td style="font-family:var(--sans);font-size:.76rem;color:var(--ink-3)">${timeAgo(a.updated)}</td>
+      <td style="font-family:var(--sans);font-size:.76rem;color:var(--ink-3)">${timeAgo(a.updated)}${a.last_edited_by ? ` <span style="color:var(--ink-4)">·</span> <span title="Last edited by">${esc(a.last_edited_by)}</span>` : ''}</td>
       <td><div class="row-actions">
         <button class="icon-action" data-view="${a.id}">👁</button>
         <button class="icon-action" data-edit="${a.id}">✎</button>
@@ -4086,7 +4262,13 @@ async function bulkUpdate(status) {
     return;
   }
   try {
-    const { error } = await sb.from('articles').update({ status, updated: new Date().toISOString() }).in('id', ids);
+    const { error } = await sb.from('articles').update({
+      status,
+      updated: new Date().toISOString(),
+      /* Bulk publish / draft-change counts as an edit for attribution
+         purposes, so the admin table shows who performed it. */
+      last_edited_by: twGetEffectiveEditor() || ''
+    }).in('id', ids);
     if (error) throw error;
     appCache.publishedArticles = null;
     appCache.allArticles = null;
@@ -4901,10 +5083,11 @@ $('#articleForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (!session) { toast('Please sign in first.', true); return; }
 
-  /* Read then immediately reset — any path that bails out below leaves
-     the flag clear, so a future save always re-runs the checklist. */
+  /* Read but do NOT reset yet — any path that bails out below (identity,
+     validation) leaves the flag intact so a retry from the modal does
+     not re-run the pre-publish checklist. Reset happens once we are
+     committed to the save. */
   const wasConfirmed = twPublishConfirmed;
-  twPublishConfirmed = false;
 
   const title = $('#fTitle').value.trim();
   const cat = $('#fCat').value;
@@ -4928,6 +5111,27 @@ $('#articleForm').addEventListener('submit', async e => {
     toast('Missing required fields: ' + missing.join(', '), true);
     return;
   }
+
+  /* Identity gate. Mandatory for shared eb/staff logins: no name → no
+     save. The modal resolves a name and re-submits. Dev and individual
+     accounts (byline_names set) bypass this entirely. */
+  if (twNeedsEditorPicker() && !twGetEditorFromStorage()) {
+    twShowEditorIdentityModal((name) => {
+      if (name) {
+        twSetEditorInStorage(name);
+        twRenderIdentityChip();
+        toast('Signed as ' + name);
+        $('#articleForm').requestSubmit();
+      } else {
+        toast('Please pick your name before saving.', true);
+      }
+    });
+    return;
+  }
+
+  /* Now we are committed. Reset the confirmation flag so a fresh save
+     always re-runs the checklist. */
+  twPublishConfirmed = false;
 
   /* Pre-publish checklist. Only for status = 'published' and only on the
      first pass — the second pass (fired by the dialog's Publish anyway)
@@ -4964,6 +5168,16 @@ $('#articleForm').addEventListener('submit', async e => {
     if (thumbnail && thumbnail.startsWith('data:')) {
       thumbnail = await Data.uploadThumb(thumbnail);
     }
+    /* Who to credit. twGetEffectiveEditor() resolves to email for dev,
+       byline_names[0] for individual accounts, or the picked name for
+       shared logins. created_by is preserved on edits so the original
+       author survives; on new articles both are set to the same name. */
+    const editorName = twGetEffectiveEditor() || '';
+    const existing = editingId
+      ? (Array.isArray(window.__allArticles)
+          ? window.__allArticles.find(x => x.id === editingId)
+          : null)
+      : null;
     const payload = {
       id: editingId || uid(),
       title, cat,
@@ -4993,6 +5207,9 @@ $('#articleForm').addEventListener('submit', async e => {
       status: $('#fStatus').value,
       featured: $('#fFeatured').checked,
       thumbnail: thumbnail || null,
+      /* Sub-profile attribution. Both text, both empty-string-safe. */
+      created_by: (existing && existing.created_by) || editorName,
+      last_edited_by: editorName,
       updated: new Date().toISOString()
     };
     if (payload.featured) {
@@ -5616,6 +5833,11 @@ async function route() {
     await renderAdmin();
     if (sub === 'board') ensureBoardPhotos();
     updateAuthUI();
+    /* Show the identity chip and (once per device) prompt for a name. The
+       actual gate is at save time — this is just early so the user is not
+       surprised mid-draft. */
+    twRenderIdentityChip();
+    twMaybePromptEditorIdentity();
     return;
   }
 
@@ -5680,6 +5902,7 @@ async function init() {
     if (s) {
       await loadRole();
       twStartSessionWatcher();
+      twRenderIdentityChip();
     }
     return s;
   }).catch(err => {
@@ -5699,10 +5922,13 @@ async function init() {
            should see the new expiry next tick, and any warning banner
            that was already up can come down. */
         twStartSessionWatcher();
+        twRenderIdentityChip();
       } else {
         currentRole = null;
         applyRoleUI();
         twHideSessionWarning();
+        twClearEditorIdentity();
+        twRenderIdentityChip();
       }
     });
   }
