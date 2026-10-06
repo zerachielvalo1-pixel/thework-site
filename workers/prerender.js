@@ -31,6 +31,23 @@ function storyDescription(article) {
   return String(value).replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
+/* Estimated reading time. Mirror of estimateReadTime() in app.js so the
+   prerendered story page and the SPA-rendered one agree byte-for-byte.
+   200 wpm, rounded to the nearest minute, minimum "1 min". Empty string
+   for empty input so a byline with no body stays bare. */
+function estimateReadTime(text) {
+  const raw = String(text || '');
+  if (!raw.trim()) return '';
+  const clean = raw
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[*#>`_~]/g, ' ');
+  const words = clean.split(/\s+/).filter(Boolean).length;
+  if (!words) return '';
+  return Math.max(1, Math.round(words / 200)) + ' min';
+}
+
 /* ---------- Responsive image delivery (mirrors app.js) ----------
    Without this, the prerendered page loads the raw full-resolution
    thumbnail, which a tall infographic blows right past the CSS
@@ -213,7 +230,10 @@ function storyMarkup(article) {
   const authors = authorsArr.join(', ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
   const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(article.date)}</time>` : '';
-  const readTime = article.read ? ` · ${escapeHtml(article.read)} read` : '';
+  /* Prefer the stored value; estimate from the body for pre-migration
+     articles whose read column is still empty. */
+  const readValue = article.read || estimateReadTime(article.body);
+  const readTime = readValue ? ` · ${escapeHtml(readValue)} read` : '';
 
   /* Multi-width srcset so phones fetch the small variant and wide screens
      fetch the larger one. The CSS `.story-hero img` caps at 70vh with

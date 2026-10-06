@@ -44,6 +44,27 @@ function staffByline(article) {
   return getCredits(article).authors.join(', ') || 'The Work Staff';
 }
 
+/* Estimated reading time. 200 wpm, rounded to the nearest minute,
+   minimum "1 min". Empty string for empty input so a byline with no
+   body stays bare. Strips the markdown subset renderArticleBody()
+   understands so its markers (*, #, >, `, _, ~) and link URLs do not
+   get counted as words, and treats Filipino and English the same -
+   both split on whitespace. Mirrored byte-for-byte in
+   workers/prerender.js so a story shows the same figure whether it
+   was prerendered or rendered by the SPA. */
+function estimateReadTime(text) {
+  const raw = String(text || '');
+  if (!raw.trim()) return '';
+  const clean = raw
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[*#>`_~]/g, ' ');
+  const words = clean.split(/\s+/).filter(Boolean).length;
+  if (!words) return '';
+  return Math.max(1, Math.round(words / 200)) + ' min';
+}
+
 function renderInlineFormatting(escaped) {
   let out = escaped;
   out = out.replace(
@@ -504,10 +525,12 @@ function twApplyDraft(draft) {
     setCreditValues('graphics', [draft.graphics_by].filter(Boolean));
   }
   $('#fDate').value = draft.date || todayISO();
-  $('#fRead').value = draft.read || '';
   $('#fPublishAt').value = draft.publish_at || '';
   $('#fExcerpt').value = draft.excerpt || '';
   $('#fBody').value = draft.body || '';
+  /* Read time is derived; prefer whatever the draft already had, else
+     recompute from the body it just restored. */
+  $('#fRead').value = draft.read || estimateReadTime(draft.body) || '';
   $('#fStatus').value = draft.status || 'published';
   $('#fFeatured').checked = !!draft.featured;
   $('#editorTitle').textContent = editingId ? 'Edit article' : 'New article';
@@ -1351,6 +1374,9 @@ function storyRouteId() {
 }
 
 function renderStoryPage(article) {
+  /* Prefer the stored value; fall back to estimating from the body for
+     articles whose read column is still empty. */
+  const readTime = article.read || estimateReadTime(article.body);
   let main = $('#view-story');
   if (!main) {
     main = document.createElement('main');
@@ -1366,7 +1392,7 @@ function renderStoryPage(article) {
         <div class="story-category">${esc(CAT_LABELS[article.cat] || article.cat || 'Story')}</div>
         <h1>${esc(article.title)}</h1>
         ${article.excerpt ? `<p class="story-deck">${esc(article.excerpt)}</p>` : ''}
-        <div class="story-byline">${article.date ? esc(fmtDateLong(article.date)) : ''}${article.date && article.read ? ' · ' : ''}${article.read ? esc(article.read) + ' read' : ''}</div>
+        <div class="story-byline">${article.date ? esc(fmtDateLong(article.date)) : ''}${article.date && readTime ? ' · ' : ''}${readTime ? esc(readTime) + ' read' : ''}</div>
         ${renderStoryCredits(article)}
         ${article.thumbnail ? `<figure class="story-hero">${imgTag(article.thumbnail, [600, 1200], SIZES.hero, ' alt="" fetchpriority="high" decoding="async"')}</figure>` : ''}
         <div class="story-content">${renderArticleBody(article.body) || `<p>${esc(article.excerpt || '')}</p>`}</div>
@@ -4504,6 +4530,14 @@ function resetCreditPickers() {
     else if (key === 'i') { e.preventDefault(); wrapSelection('*', '*'); }
     else if (key === 'k') { e.preventDefault(); wrapSelection('[', '](https://)', 8); }
   });
+
+  /* Read time is derived from the body, never typed. Every keystroke
+     recomputes it; #fRead is readonly, so it cannot drift out of sync
+     with the text. */
+  body.addEventListener('input', () => {
+    const readEl = document.getElementById('fRead');
+    if (readEl) readEl.value = estimateReadTime(body.value);
+  });
 })();
 
 function updateBodyMeter() {
@@ -4580,7 +4614,9 @@ function loadIntoForm(id) {
   setCreditValues('layout', c.layout);
   setCreditValues('graphics', c.graphics);
   $('#fDate').value = a.date || todayISO();
-  $('#fRead').value = a.read || '';
+  /* Prefer the stored value; fall back to a fresh estimate from the body
+     for articles created before read time was auto-computed. */
+  $('#fRead').value = a.read || estimateReadTime(a.body) || '';
   $('#fPublishAt').value = a.publish_at ? toLocalDateTimeInput(a.publish_at) : '';
   $('#fExcerpt').value = a.excerpt || '';
   $('#fBody').value = a.body || '';
@@ -4649,7 +4685,10 @@ $('#articleForm').addEventListener('submit', async e => {
       graphics_by:       credits.graphics[0]         || '',
       subcat: ($('#fSubcat') && $('#fSubcat').value) ? $('#fSubcat').value : null,
       date: $('#fDate').value || todayISO(),
-      read: $('#fRead').value.trim() || '1 min',
+      /* Field is readonly and already populated by the body listener, but
+         compute as a last resort so an article can never land in the DB
+         with a stale or missing figure. */
+      read: $('#fRead').value.trim() || estimateReadTime($('#fBody').value) || '1 min',
       publish_at: $('#fPublishAt').value ? new Date($('#fPublishAt').value).toISOString() : null,
       excerpt: $('#fExcerpt').value.trim(),
       body: $('#fBody').value.trim(),
