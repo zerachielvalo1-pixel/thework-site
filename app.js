@@ -3792,61 +3792,21 @@ document.getElementById('resetColorsBtn')?.addEventListener('click', () => {
 async function renderAdmin() {
   const all = await Data.listAll();
   window.__allArticles = Array.isArray(all) ? all : [];
-
-  /* The Overview adapts to the signed-in role. A member sees only the
-     articles they are credited on (matched through profiles.byline_names
-     via articleMatchesMe()); eb and dev see the full picture. This is a
-     view filter, not a security boundary — RLS on `articles` still
-     allows any signed-in user to read every row, and the Articles panel
-     below is unchanged. Treat the member view as a focus tool. */
-  const isMember = currentRole === 'member';
-  const scoped = isMember
-    ? window.__allArticles.filter(articleMatchesMe)
-    : window.__allArticles;
-
-  const total = scoped.length;
-  const published = scoped.filter(a => a.status === 'published').length;
+  const total = window.__allArticles.length;
+  const published = window.__allArticles.filter(a => a.status === 'published').length;
   const drafts = total - published;
-  const sections = new Set(scoped.map(a => a.cat).filter(Boolean)).size;
-
+  const sections = new Set(window.__allArticles.map(a => a.cat)).size;
   $('#statTotal').textContent = total;
   $('#statPublished').textContent = published;
   $('#statDrafts').textContent = drafts;
   $('#statSections').textContent = sections;
-
-  const setLabel = (id, text) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
-  };
-  setLabel('statTotalLabel',     isMember ? 'My articles'      : 'Total articles');
-  setLabel('statPublishedLabel', isMember ? 'My published'     : 'Published');
-  setLabel('statDraftsLabel',    isMember ? 'My drafts'        : 'Drafts');
-  setLabel('statSectionsLabel',  isMember ? 'Sections covered' : 'Sections');
-
   const email = session?.user?.email || session?.email || 'admin';
   $('#dashName').textContent = email.split('@')[0];
 
-  /* Member-only submission guide, hidden for eb/dev. */
-  const guide = document.getElementById('memberGuide');
-  if (guide) guide.hidden = !isMember;
-  const guideSub = guide && guide.querySelector('.panel-head p');
-  if (guideSub) {
-    if (isMember && !currentBylineNames.length) {
-      guideSub.innerHTML = '<strong style="color:#B91C1C">Your byline names are not set up yet.</strong> Ask the developer to add them to your profile — until then, this list will stay empty.';
-    } else {
-      guideSub.textContent = 'A short guide for staff writers.';
-    }
-  }
-
-  const headerEl = document.getElementById('recentListHeader');
-  if (headerEl) headerEl.textContent = isMember ? 'My recent articles' : 'Recent articles';
-
-  const recent = scoped.slice(0, 5);
+  const recent = all.slice(0,5);
   const rl = $('#recentList');
   if (!recent.length) {
-    rl.innerHTML = isMember
-      ? '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">You have no articles yet. <button class="btn btn-primary btn-sm" data-goto="new" style="margin-left:6px">Start one</button></p></div>'
-      : '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">No articles yet.</p></div>';
+    rl.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">No articles yet.</p></div>';
   } else {
     rl.innerHTML = recent.map(a =>
       `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-2)">
