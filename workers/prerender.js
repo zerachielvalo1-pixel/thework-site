@@ -470,6 +470,95 @@ async function renderSitemap(env, ctx) {
   });
 }
 
+/* Atom feed of the 20 newest published articles. Same caching strategy as
+   the sitemap: serve stale instantly, refresh in the background, so the
+   feed is fast for subscribers and cheap for Supabase. The query uses
+   fetchArticles({status:'eq.published'}) which auto-applies the
+   deleted_at=is.null and publish_at<=now filters - identical semantics
+   to renderSitemap() and renderStory(). */
+async function renderFeed(env, ctx) {
+  const key = `${SITE_ORIGIN}/feed.xml`;
+  return serveFreshOrStale(null, ctx, key, async () => {
+    let rows;
+    try {
+      const response = await fetchArticles({
+        select: ARTICLE_COLUMNS,
+        status: 'eq.published',
+        order: 'date.desc',
+        limit: '20'
+      });
+      if (!response.ok) throw new Error('Feed query failed');
+      rows = await response.json();
+    } catch {
+      return env.ASSETS.fetch(new URL('/feed.xml', SITE_ORIGIN));
+    }
+
+    const articles = Array.isArray(rows) ? rows : [];
+    const nowIso = new Date().toISOString();
+    /* <updated> on the feed element must be the newest entry's timestamp,
+       per RFC 4287. Fall back to "now" only when the feed is empty. */
+    const feedUpdated = articles.length
+      ? (isoDateTime(articles[0].updated || articles[0].date) || nowIso)
+      : nowIso;
+
+    const entries = articles.map(article => {
+      const link = `${SITE_ORIGIN}${storyPath(article)}`;
+      const published = isoDateTime(article.date) || '';
+      const updated = isoDateTime(article.updated) || published || feedUpdated;
+      const summary = storyDescription(article);
+      const title = article.title || '';
+
+      /* Prefer the JSONB credits array; fall back to the legacy two-slot
+         columns for pre-migration articles. Same precedence as getCredits()
+         in app.js and storyMarkup() in this file. */
+      const creds = (article.credits && typeof article.credits === 'object') ? article.credits : {};
+      const authorsArr = Array.isArray(creds.authors) && creds.authors.length
+        ? creds.authors.map(String).filter(Boolean)
+        : [article.author, article.author2].filter(Boolean);
+      const authorName = authorsArr.join(', ') || 'The Work Staff';
+
+      const category = CATEGORY_LABELS[article.cat] || article.cat || '';
+
+      return `<entry>
+    <title>${escapeHtml(title)}</title>
+    <link href="${escapeHtml(link)}"/>
+    <id>${escapeHtml(link)}</id>
+    <updated>${escapeHtml(updated)}</updated>
+    ${published ? `<published>${escapeHtml(published)}</published>` : ''}
+    <summary type="text">${escapeHtml(summary)}</summary>
+    <author><name>${escapeHtml(authorName)}</name></author>
+    ${category ? `<category term="${escapeHtml(category)}"/>` : ''}
+  </entry>`;
+    }).join('');
+
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-PH">
+  <title>The Work — Tarlac State University</title>
+  <subtitle>The official student publication of Tarlac State University. Founded 1948.</subtitle>
+  <link href="${SITE_ORIGIN}/feed.xml" rel="self" type="application/atom+xml"/>
+  <link href="${SITE_ORIGIN}/"/>
+  <id>${SITE_ORIGIN}/</id>
+  <updated>${escapeHtml(feedUpdated)}</updated>
+  <author>
+    <name>The Work</name>
+    <email>tsu.tw78@gmail.com</email>
+  </author>
+  <rights>© ${new Date().getFullYear()} The Work · Tarlac State University</rights>
+  ${entries}
+</feed>`;
+
+    const response = new Response(xml, {
+      headers: {
+        'content-type': 'application/atom+xml; charset=utf-8',
+        'cache-control': `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
+      }
+    });
+    const cache = caches.default;
+    try { await cache.put(new Request(key), response.clone()); } catch (e) { /* non-fatal */ }
+    return response;
+  });
+}
+
 /* Same-origin upload proxy.
    Supabase Storage lives on a different origin from the site, so browsers
    with strict privacy defaults (Brave Shields, Firefox ETP Strict, Safari ITP)
@@ -612,6 +701,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
+    if (url.pathname === '/feed.xml' && request.method === 'GET') return renderFeed(env, ctx);
 
     if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
     if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
