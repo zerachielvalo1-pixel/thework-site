@@ -78,36 +78,6 @@ function estimateReadTime(text) {
   return Math.max(1, Math.round(words / 200)) + ' min';
 }
 
-function renderInlineFormatting(escaped) {
-  let out = escaped;
-  out = out.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>'
-  );
-  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  out = out.replace(/(^|\s)\*([^*\n\s][^*\n]*?)\*(\s|$|[.,!?;:])/g, '$1<em>$2</em>$3');
-  return out;
-}
-
-function renderArticleBody(text) {
-  const raw = String(text || '');
-  const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
-  if (!parts.length) return '';
-  return parts.map(part => {
-    const trimmed = part.trim();
-    if (/^>\s?/.test(trimmed)) {
-      const inner = trimmed.replace(/^>\s?/gm, '');
-      return `<blockquote>${renderInlineFormatting(esc(inner)).replace(/\n/g, '<br>')}</blockquote>`;
-    }
-    const hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
-    if (hm) {
-      const level = Math.min(4, hm[1].length + 1);
-      return `<h${level}>${renderInlineFormatting(esc(hm[2]))}</h${level}>`;
-    }
-    return `<p>${renderInlineFormatting(esc(trimmed)).replace(/\n/g, '<br>')}</p>`;
-  }).join('');
-}
-
 /* ---------- Article body renderer (mirror of workers/prerender.js) ----------
    Converts the plain-text body column into HTML. Storage stays plain text
    with light markdown syntax; this is the only place that turns it into
