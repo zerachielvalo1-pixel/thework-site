@@ -721,6 +721,7 @@ function twApplyDraft(draft) {
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
   if (typeof updateSharePreview === 'function') updateSharePreview();
+  if (typeof renderNotesPanel === 'function') renderNotesPanel();
 }
 
 function twOfferDraft(id = editingId || 'new') {
@@ -1883,6 +1884,127 @@ function twUpdateHistoryButton() {
   /* Only meaningful for an already-saved article (has a real id). */
   btn.style.display = editingId ? '' : 'none';
 }
+
+/* ---------- Notes on drafts ---------- */
+const twNotesCache = { byArticleId: {}, at: {} };
+const TW_NOTES_TTL = 30000;
+
+async function twLoadNotes(articleId) {
+  if (!sb || !articleId) return [];
+  const now = Date.now();
+  const cached = twNotesCache.byArticleId[articleId];
+  if (cached && now - (twNotesCache.at[articleId] || 0) < TW_NOTES_TTL) return cached;
+  const { data, error } = await sb.from('article_notes')
+    .select('id,author_id,author_email,body,created_at')
+    .eq('article_id', articleId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) { console.warn('[The Work] Could not load notes', error); return []; }
+  const list = Array.isArray(data) ? data : [];
+  twNotesCache.byArticleId[articleId] = list;
+  twNotesCache.at[articleId] = now;
+  return list;
+}
+
+function twInvalidateNotesCache(articleId) {
+  if (!articleId) return;
+  delete twNotesCache.byArticleId[articleId];
+  delete twNotesCache.at[articleId];
+}
+
+function twEscapeNoteBody(text) {
+  return esc(String(text || '')).replace(/\n/g, '<br>');
+}
+
+async function renderNotesPanel() {
+  const panel = document.getElementById('notesPanel');
+  const listEl = document.getElementById('notesList');
+  const countEl = document.getElementById('notesCount');
+  if (!panel || !listEl) return;
+  if (!editingId) {
+    panel.hidden = true;
+    listEl.innerHTML = '';
+    if (countEl) countEl.textContent = '· 0';
+    return;
+  }
+  panel.hidden = false;
+  listEl.innerHTML = '<div class="notes-empty">Loading…</div>';
+  const notes = await twLoadNotes(editingId);
+  if (countEl) countEl.textContent = '· ' + notes.length;
+  if (!notes.length) {
+    listEl.innerHTML = '<div class="notes-empty">No notes yet. Add one below to start a thread.</div>';
+    return;
+  }
+  const currentUserId = (session && session.user && session.user.id) || '';
+  listEl.innerHTML = notes.map(n => {
+    const mine = n.author_id && String(n.author_id) === String(currentUserId);
+    const canDelete = mine || currentRole === 'dev';
+    const shortName = String(n.author_email || 'Unknown').split('@')[0];
+    const del = canDelete
+      ? '<button type="button" class="note-delete" data-note-del="' + esc(n.id) + '" aria-label="Delete note" title="Delete">×</button>'
+      : '';
+    return '<div class="note-item' + (mine ? ' mine' : '') + '">'
+      + '<div class="note-meta"><span class="note-author">' + esc(shortName) + '</span>'
+      + '<span class="note-sep">·</span><span class="note-when">' + esc(twFormatRevisionWhen(n.created_at)) + '</span>'
+      + del + '</div><div class="note-body">' + twEscapeNoteBody(n.body) + '</div></div>';
+  }).join('');
+}
+
+async function twPostNote() {
+  const compose = document.getElementById('noteCompose');
+  const btn = document.getElementById('noteSubmit');
+  if (!compose || !editingId || !sb) return;
+  const body = compose.value.trim();
+  if (!body) { toast('Note is empty', true); return; }
+  if (!session || !session.user) { toast('Please sign in first.', true); return; }
+  btn.disabled = true;
+  btn.textContent = 'Posting…';
+  try {
+    const { error } = await sb.from('article_notes').insert({
+      article_id: editingId,
+      author_id: session.user.id,
+      author_email: session.user.email || '',
+      body
+    });
+    if (error) throw error;
+    compose.value = '';
+    twInvalidateNotesCache(editingId);
+    await renderNotesPanel();
+    toast('Note posted');
+  } catch (err) {
+    toast('Could not post note: ' + safeErrorText(err), true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Post note';
+  }
+}
+
+async function twDeleteNote(noteId) {
+  if (!sb || !noteId) return;
+  openConfirm('Delete note?', 'This note will be removed permanently.', async () => {
+    try {
+      const { error } = await sb.from('article_notes').delete().eq('id', noteId);
+      if (error) throw error;
+      twInvalidateNotesCache(editingId);
+      await renderNotesPanel();
+      toast('Note deleted');
+    } catch (err) {
+      toast('Could not delete note: ' + safeErrorText(err), true);
+    }
+  });
+}
+
+document.getElementById('noteSubmit')?.addEventListener('click', twPostNote);
+document.getElementById('notesList')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-note-del]');
+  if (btn) twDeleteNote(btn.dataset.noteDel);
+});
+document.getElementById('noteCompose')?.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    twPostNote();
+  }
+});
 
 async function twLoadRevisions(articleId) {
   if (!sb || !articleId) return [];
@@ -5462,6 +5584,7 @@ function resetForm() {
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
   if (typeof updateSharePreview === 'function') updateSharePreview();
+  if (typeof renderNotesPanel === 'function') renderNotesPanel();
 }
 
 function loadIntoForm(id) {
@@ -5504,6 +5627,7 @@ function loadIntoForm(id) {
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
   if (typeof updateSharePreview === 'function') updateSharePreview();
+  if (typeof renderNotesPanel === 'function') renderNotesPanel();
 }
 
 /* ---------- Pre-publish checklist ----------
@@ -5817,6 +5941,7 @@ function setPanel(name, skipReset) {
   if (name === 'permissions') renderPermissions();
   if (name === 'roster') renderRosterAdmin();
   if (name === 'users') renderUsersAdmin();
+  if (name === 'new') renderNotesPanel();
 }
 
 function showBoardMemberForm(m) {
