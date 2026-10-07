@@ -16,6 +16,7 @@ const checks = [
   ['word meter is present and wired', /id="wordMeter"/.test(index) && /function countWords\(/.test(app) && /function updateWordMeter\(/.test(app) && /updateWordMeter\(\)/.test(app)],
   ['share preview is present and wired', /id="sharePreviewPanel"/.test(index) && /function updateSharePreview\(/.test(app) && /sharePreviewTitle/.test(app) && /share-preview/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))],
   ['article notes panel and handlers are present', /id="notesPanel"/.test(index) && /function twLoadNotes\(/.test(app) && /function twPostNote\(/.test(app) && /function twDeleteNote\(/.test(app) && /\.from\('article_notes'\)/.test(app) && /notes-list/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))]
+  ,['reading progress is wired', /TW_READING_KEY/.test(app) && /twShowContinueBar/.test(app) && /twIsArticleFinished/.test(app) && /article-read-mark/.test(app) && /tw-continue-bar/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))]
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

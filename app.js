@@ -2149,6 +2149,134 @@ function slugifyStoryTitle(title) {
     .slice(0, 70) || 'story';
 }
 
+/* ---------- Reading progress ---------- */
+const TW_READING_KEY = 'tw_reading_progress';
+const TW_READING_MAX = 100;
+const TW_READING_FINISHED_PCT = 90;
+const TW_READING_MIN_START_PCT = 5;
+const TW_READING_RECENT_MS = 30 * 24 * 60 * 60 * 1000;
+const TW_READING_THROTTLE_MS = 500;
+
+function twGetReadingMap() {
+  try {
+    const raw = localStorage.getItem(TW_READING_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+  } catch (e) { return {}; }
+}
+
+function twSetReadingMap(map) {
+  const keys = Object.keys(map);
+  if (keys.length > TW_READING_MAX) {
+    keys.sort((a, b) => (map[a].ts || 0) - (map[b].ts || 0));
+    keys.slice(0, keys.length - TW_READING_MAX).forEach(key => delete map[key]);
+  }
+  try { localStorage.setItem(TW_READING_KEY, JSON.stringify(map)); } catch (e) {}
+}
+
+function twGetArticleProgress(id) {
+  if (!id) return null;
+  return twGetReadingMap()[String(id)] || null;
+}
+
+function twSaveArticleProgress(id, pct) {
+  if (!id) return;
+  const map = twGetReadingMap();
+  const key = String(id);
+  const existing = map[key] || { pct: 0, ts: 0, dismissed: false };
+  map[key] = {
+    pct: Math.max(existing.pct || 0, Math.min(100, Math.max(0, Number(pct) || 0))),
+    ts: Date.now(),
+    dismissed: false
+  };
+  twSetReadingMap(map);
+}
+
+function twDismissContinue(id) {
+  if (!id) return;
+  const map = twGetReadingMap();
+  if (map[String(id)]) {
+    map[String(id)].dismissed = true;
+    map[String(id)].ts = Date.now();
+    twSetReadingMap(map);
+  }
+}
+
+function twIsArticleFinished(id) {
+  const progress = twGetArticleProgress(id);
+  return !!(progress && progress.pct >= TW_READING_FINISHED_PCT);
+}
+
+function twComputeReadingPct() {
+  const content = document.querySelector('#view-story .story-content');
+  if (!content) {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    return total > 0 ? Math.min(100, Math.max(0, window.scrollY / total * 100)) : 0;
+  }
+  const rect = content.getBoundingClientRect();
+  const contentTop = rect.top + window.scrollY;
+  const viewBottom = window.scrollY + window.innerHeight;
+  return Math.min(100, Math.max(0, (viewBottom - contentTop) / rect.height * 100));
+}
+
+let twReadingCurrentId = null;
+let twReadingLastSave = 0;
+let twReadingBound = false;
+
+function twWireReadingListeners() {
+  if (twReadingBound) return;
+  twReadingBound = true;
+  document.addEventListener('scroll', () => {
+    if (!twReadingCurrentId || Date.now() - twReadingLastSave < TW_READING_THROTTLE_MS) return;
+    twReadingLastSave = Date.now();
+    twSaveArticleProgress(twReadingCurrentId, twComputeReadingPct());
+  }, { passive: true });
+  window.addEventListener('beforeunload', () => {
+    if (twReadingCurrentId) twSaveArticleProgress(twReadingCurrentId, twComputeReadingPct());
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && twReadingCurrentId) twSaveArticleProgress(twReadingCurrentId, twComputeReadingPct());
+  });
+}
+
+function twRemoveContinueBar() {
+  document.getElementById('twContinueBar')?.remove();
+}
+
+function twShowContinueBar(articleId) {
+  twRemoveContinueBar();
+  const progress = twGetArticleProgress(articleId);
+  if (!progress || progress.dismissed || progress.pct < TW_READING_MIN_START_PCT ||
+      progress.pct >= TW_READING_FINISHED_PCT ||
+      Date.now() - (progress.ts || 0) > TW_READING_RECENT_MS) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'twContinueBar';
+  bar.className = 'tw-continue-bar';
+  bar.setAttribute('role', 'status');
+  bar.setAttribute('aria-live', 'polite');
+  bar.innerHTML = '<div class="tw-continue-text"><strong>Continue where you left off</strong>' +
+    '<span>You stopped at ' + Math.round(progress.pct) + '% of this story.</span></div>' +
+    '<div class="tw-continue-actions"><button type="button" class="btn btn-primary btn-sm" id="twContinueResume">Resume</button>' +
+    '<button type="button" class="tw-continue-close" id="twContinueDismiss" aria-label="Dismiss">×</button></div>';
+  document.body.appendChild(bar);
+  requestAnimationFrame(() => bar.classList.add('show'));
+  document.getElementById('twContinueResume').addEventListener('click', () => {
+    const content = document.querySelector('#view-story .story-content');
+    const targetTop = content
+      ? content.getBoundingClientRect().top + window.scrollY + content.getBoundingClientRect().height * progress.pct / 100 - window.innerHeight * .3
+      : (document.documentElement.scrollHeight - window.innerHeight) * progress.pct / 100;
+    window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+    bar.classList.remove('show');
+    setTimeout(twRemoveContinueBar, 320);
+  });
+  document.getElementById('twContinueDismiss').addEventListener('click', () => {
+    twDismissContinue(articleId);
+    bar.classList.remove('show');
+    setTimeout(twRemoveContinueBar, 320);
+  });
+}
+
 function storyUrl(article) {
   return `/stories/${slugifyStoryTitle(article.title)}/${encodeURIComponent(article.id)}`;
 }
@@ -2387,9 +2515,12 @@ function buildArticleCard(a) {
   const subcatBadge = subcatLabel
     ? `<span class="article-subcat">${esc(subcatLabel)}</span>`
     : '';
+  const readMark = a.thumbnail && twIsArticleFinished(a.id)
+    ? '<span class="article-read-mark" title="Finished reading" aria-label="Finished reading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>'
+    : '';
   const byline = staffByline(a);
   return `
-    <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>${subcatBadge}</div>
+    <div class="article-thumb">${thumbHtml}<span class="article-cat">${esc(CAT_LABELS[a.cat]||a.cat)}</span>${subcatBadge}${readMark}</div>
     <div class="article-body">
       <h3 class="article-title"><a data-story-link href="${esc(storyUrl(a))}">${esc(a.title)}</a></h3>
       <p class="article-excerpt">${esc(a.excerpt||(a.body||'').split('\n\n')[0]||'')}</p>
@@ -6376,6 +6507,8 @@ if (searchBar) {
 
 async function route() {
   setNavMenu(false);
+  twReadingCurrentId = null;
+  twRemoveContinueBar();
   const directStoryId = storyRouteId();
   if (directStoryId && location.hash) {
     history.replaceState(null, '', `/${location.hash}`);
@@ -6424,6 +6557,9 @@ async function route() {
       excerpt: document.querySelector('#view-story .story-deck')?.textContent || '',
       thumbnail: document.querySelector('#view-story .story-hero img')?.src || ''
     });
+    twReadingCurrentId = directStoryId;
+    twWireReadingListeners();
+    setTimeout(() => twShowContinueBar(directStoryId), 250);
     updateAuthUI();
     return;
   } else if (modalOpen) {
