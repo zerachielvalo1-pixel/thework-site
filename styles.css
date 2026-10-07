@@ -1199,6 +1199,21 @@ a.related-item:hover{
   .story-nav{padding-top:28px}
 }
 
+/* ---------- Share-card preview (article editor) ---------- */
+.share-preview{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--paper);max-width:480px}
+.share-preview-img{aspect-ratio:1.91/1;background:var(--paper-3);display:grid;place-items:center;overflow:hidden}
+.share-preview-img img{width:100%;height:100%;object-fit:cover;display:block}
+.share-preview-img.empty{background:repeating-linear-gradient(45deg,var(--paper-3),var(--paper-3) 10px,var(--line-2) 10px,var(--line-2) 20px)}
+.share-preview-placeholder{font-family:var(--sans);font-size:.68rem;color:var(--ink-4);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.share-preview-body{padding:12px 14px 14px;border-top:1px solid var(--line-2)}
+.share-preview-domain{font-family:var(--sans);font-size:.64rem;color:var(--ink-4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.share-preview-title{font-family:var(--serif);font-size:1rem;font-weight:700;line-height:1.3;color:var(--ink);margin-bottom:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.share-preview-excerpt{font-family:var(--sans);font-size:.82rem;color:var(--ink-3);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.share-preview-excerpt.placeholder{color:var(--ink-4);font-style:italic}
+.share-preview-url{font-family:var(--sans);font-size:.72rem;color:var(--ink-3);margin-top:14px;padding:9px 12px;background:var(--paper-3);border-radius:var(--radius);border:1px solid var(--line-2);word-break:break-all;line-height:1.5}
+.share-preview-note{font-family:var(--sans);font-size:.68rem;color:var(--ink-4);margin-top:10px;line-height:1.5;max-width:480px}
+@media(max-width:520px){.share-preview{max-width:none}.share-preview-note{max-width:none}}
+
 /* Related articles in modal */
 .modal-related{margin-top:28px;padding-top:22px;border-top:1px solid var(--line);display:none}
 .related-label{font-family:var(--sans);font-size:.62rem;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-4);margin-bottom:12px}

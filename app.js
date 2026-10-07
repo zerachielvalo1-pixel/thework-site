@@ -101,6 +101,48 @@ function updateWordMeter() {
   readEl.textContent = words === 0 ? '—' : '~' + Math.max(1, Math.round(words / 200)) + ' min read';
 }
 
+/* Live preview of the social link card. Keep the URL and image behavior
+   aligned with the published story and socialCardUrl() helpers. */
+function updateSharePreview() {
+  const panel = document.getElementById('sharePreviewPanel');
+  if (!panel) return;
+  const imgEl = document.getElementById('sharePreviewImg');
+  const domainEl = document.getElementById('sharePreviewDomain');
+  const titleEl = document.getElementById('sharePreviewTitle');
+  const excerptEl = document.getElementById('sharePreviewExcerpt');
+  const urlEl = document.getElementById('sharePreviewUrl');
+  if (!imgEl || !domainEl || !titleEl || !excerptEl || !urlEl) return;
+
+  const title = ($('#fTitle').value || '').trim() || 'Untitled story';
+  const excerpt = ($('#fExcerpt').value || '').trim();
+  const fakeArticle = { id: editingId || 'preview', title };
+  const path = storyUrl(fakeArticle);
+  const domain = location.host || 'thework.tw78.workers.dev';
+
+  domainEl.textContent = domain;
+  titleEl.textContent = title;
+  excerptEl.textContent = excerpt || 'Add an excerpt to show a description here…';
+  excerptEl.classList.toggle('placeholder', !excerpt);
+  urlEl.textContent = 'https://' + domain + path;
+
+  const existing = editingId
+    ? (safeAllArticles().find(x => String(x.id) === String(editingId)) || null)
+    : null;
+  const thumb = pendingThumbnail || (existing && existing.thumbnail) || '';
+  const src = thumb
+    ? (thumb.indexOf('data:') === 0 ? thumb : imgUrl(thumb, 600))
+    : '';
+  if (imgEl.dataset.src === src) return;
+  imgEl.dataset.src = src;
+  if (src) {
+    imgEl.classList.remove('empty');
+    imgEl.innerHTML = '<img src="' + esc(src) + '" alt="" decoding="async">';
+  } else {
+    imgEl.classList.add('empty');
+    imgEl.innerHTML = '<span class="share-preview-placeholder">No image</span>';
+  }
+}
+
 /* ---------- Article body renderer (mirror of workers/prerender.js) ----------
    Converts the plain-text body column into HTML. Storage stays plain text
    with light markdown syntax; this is the only place that turns it into
@@ -678,6 +720,7 @@ function twApplyDraft(draft) {
   setThumbnail(draft.thumbnail || null, draft.thumbnail ? 'saved-draft.jpg' : '');
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
+  if (typeof updateSharePreview === 'function') updateSharePreview();
 }
 
 function twOfferDraft(id = editingId || 'new') {
@@ -1925,6 +1968,7 @@ function twApplyRevisionToForm(snap) {
   if ('thumbnail' in snap) {
     setThumbnail(snap.thumbnail || null, snap.thumbnail ? 'restored.jpg' : '');
   }
+  if (typeof updateSharePreview === 'function') updateSharePreview();
   if (typeof updateWordMeter === 'function') updateWordMeter();
   twSaveDraft();
 }
@@ -4698,6 +4742,7 @@ function setThumbnail(dataUrl, name) {
     uploader.classList.remove('has-image');
     $('#thumbActions').style.display = 'none';
   }
+  if (typeof updateSharePreview === 'function') updateSharePreview();
 }
 $('#thumbUploader').addEventListener('click', e => {
   if (e.target.closest('#removeThumbBtn') || e.target.closest('#changeThumbBtn')) return;
@@ -5386,6 +5431,12 @@ document.addEventListener('change', e => {
   if (e.target && e.target.id === 'fSubcat') updateBodyMeter();
 });
 
+document.addEventListener('input', e => {
+  if (e.target && (e.target.id === 'fTitle' || e.target.id === 'fExcerpt')) {
+    updateSharePreview();
+  }
+});
+
 function resetForm() {
   editingId = null;
   window.__pendingThumbFile = null;
@@ -5410,6 +5461,7 @@ function resetForm() {
   twUpdateHistoryButton();
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
+  if (typeof updateSharePreview === 'function') updateSharePreview();
 }
 
 function loadIntoForm(id) {
@@ -5451,6 +5503,7 @@ function loadIntoForm(id) {
   twOfferDraft(id);
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
+  if (typeof updateSharePreview === 'function') updateSharePreview();
 }
 
 /* ---------- Pre-publish checklist ----------

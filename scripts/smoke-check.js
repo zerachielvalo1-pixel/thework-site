@@ -13,7 +13,8 @@ const checks = [
   ['article bodies use the shared Supabase allowlist', /const ALLOWED_IMG_ORIGINS\s*=\s*\[[\s\S]*https:\/\/fgojhhgqpvnwtcqkornz\.supabase\.co/.test(app) && /const ALLOWED_IMG_ORIGINS\s*=\s*\[[\s\S]*https:\/\/fgojhhgqpvnwtcqkornz\.supabase\.co/.test(worker)],
   ['article image toolbar button is present', /data-format="image"/.test(index) && /insertBlockImage\(\)/.test(app)],
   ['article image upload flow uses Data.uploadThumb', /Data\.uploadThumb\(file\)/.test(app)],
-  ['word meter is present and wired', /id="wordMeter"/.test(index) && /function countWords\(/.test(app) && /function updateWordMeter\(/.test(app) && /updateWordMeter\(\)/.test(app)]
+  ['word meter is present and wired', /id="wordMeter"/.test(index) && /function countWords\(/.test(app) && /function updateWordMeter\(/.test(app) && /updateWordMeter\(\)/.test(app)],
+  ['share preview is present and wired', /id="sharePreviewPanel"/.test(index) && /function updateSharePreview\(/.test(app) && /sharePreviewTitle/.test(app) && /share-preview/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))]
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

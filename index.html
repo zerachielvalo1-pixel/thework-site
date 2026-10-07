@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=43">
+<link rel="stylesheet" href="styles.css?v=44">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -685,6 +685,24 @@
             <button class="btn btn-ghost btn-sm" data-goto="articles">Back to list</button>
           </div>
         </div>
+        <div class="panel" id="sharePreviewPanel" style="margin-bottom:22px">
+          <div class="panel-head">
+            <h2>Share preview</h2>
+            <p>How this story will look when shared on Facebook, Messenger, or X.</p>
+          </div>
+          <div class="share-preview">
+            <div class="share-preview-img empty" id="sharePreviewImg">
+              <span class="share-preview-placeholder">No image</span>
+            </div>
+            <div class="share-preview-body">
+              <div class="share-preview-domain" id="sharePreviewDomain">—</div>
+              <div class="share-preview-title" id="sharePreviewTitle">Untitled story</div>
+              <div class="share-preview-excerpt placeholder" id="sharePreviewExcerpt">Add an excerpt to show a description here…</div>
+            </div>
+          </div>
+          <div class="share-preview-url" id="sharePreviewUrl">—</div>
+          <div class="share-preview-note">Facebook and Messenger may add metadata (source, date). The card above is an approximation of what they will render.</div>
+        </div>
         <div class="panel">
           <form id="articleForm" novalidate>
             <input type="hidden" id="fId">
@@ -1118,7 +1136,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=74" defer></script>
+<script src="app.js?v=75" defer></script>
 
 </body>
 </html>
