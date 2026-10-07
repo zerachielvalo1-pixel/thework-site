@@ -2,6 +2,7 @@
 .gitignore
 .wrangler
 node_modules
+package*.json
 *.md
 workers
 migrations

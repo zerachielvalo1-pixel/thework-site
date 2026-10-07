@@ -644,15 +644,30 @@ async function handleArticlesProxy(request, ctx) {
 
   const url = new URL(request.url);
   const target = new URL(SUPABASE_URL + '/rest/v1/articles');
-  // Copy every query param the browser sent (select, id, status, etc.)
+  /* Copy every query param the browser sent, EXCEPT the `_` cache-buster.
+     PostgREST treats unknown params as column filters and would error on
+     `_` since it is not a real column. The `_` stays in the cache key
+     (see cacheKey below) so a unique admin URL always misses the cache,
+     but it never reaches Supabase. */
   for (const [key, value] of url.searchParams.entries()) {
+    if (key === '_') continue;
     target.searchParams.set(key, value);
   }
 
-  const cache = caches.default;
-  const cacheKey = new Request(target.toString(), { method: 'GET' });
+  /* Admin sends a `_` cache-buster (see listAll() in app.js) so an edit
+     shows up immediately instead of waiting for the 5-minute edge cache
+     to expire. When present, skip both the Cache API lookup and the
+     cacheable response headers, and never store the response — the
+     public read path (no `_`) keeps its cache as before. */
+  const bypassCache = url.searchParams.has('_');
 
-  let response = await cache.match(cacheKey);
+  const cache = caches.default;
+  /* Key off the original URL including the `_` param, so an admin
+     request with a fresh timestamp is always a cache miss. The public
+     path still has a stable URL and therefore still hits the cache. */
+  const cacheKey = new Request(url.toString(), { method: 'GET' });
+
+  let response = bypassCache ? null : await cache.match(cacheKey);
   if (response) {
     /* CF cache HIT - served without touching Supabase at all. */
     const headers = new Headers(response.headers);
@@ -673,9 +688,15 @@ async function handleArticlesProxy(request, ctx) {
 
   const headers = new Headers(upstream.headers);
   headers.set('content-type', 'application/json; charset=utf-8');
-  headers.set('cache-control', 'public, max-age=300, s-maxage=300');
-  headers.set('x-cache', 'MISS');
+  headers.set('x-cache', bypassCache ? 'BYPASS' : 'MISS');
+  if (bypassCache) {
+    /* Do not let anything cache this response — not the browser, not the
+       Cloudflare edge, not the Worker's own Cache API. */
+    headers.set('cache-control', 'no-store, must-revalidate');
+    return new Response(upstream.body, { status: 200, headers });
+  }
 
+  headers.set('cache-control', 'public, max-age=300, s-maxage=300');
   const cached = new Response(upstream.body, { status: 200, headers });
   if (ctx && ctx.waitUntil) {
     ctx.waitUntil(cache.put(cacheKey, cached.clone()));

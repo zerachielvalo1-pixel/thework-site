@@ -709,7 +709,17 @@ const Data = {
       data = await rest({
         select: '*',
         deleted_at: 'is.null',
-        order: 'updated.desc'
+        order: 'updated.desc',
+        /* Cache-buster. The /api/articles proxy caches responses for 5
+           minutes (cache-control: public, max-age=300) so the public
+           site does not hammer Supabase. But the admin table must reflect
+           saves immediately — a stale publish_at means the Scheduled
+           badge never appears, and deleted rows linger. A unique `_`
+           query param defeats both the browser HTTP cache and the
+           Worker's Cache API entry, because both key off the full URL.
+           Only the admin path (listAll) pays this cost; listPublished
+           keeps its cache. */
+        _: Date.now()
       });
     } catch (err) { console.error(err); return []; }
     appCache.allArticles = Array.isArray(data) ? data : [];
