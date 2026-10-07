@@ -654,18 +654,30 @@ async function handleArticlesProxy(request, ctx) {
     target.searchParams.set(key, value);
   }
 
+  /* The signed-in staff member's JWT arrives here in the standard
+     Authorization header. Forwarding it to Supabase lets the
+     `articles_auth_read_all` RLS policy run under the authenticated
+     role, which is the only way scheduled articles and drafts become
+     visible — the `articles_public_read` policy that anon requests
+     hit filters them out (`publish_at <= now()`). */
+  const clientAuth = request.headers.get('authorization') || '';
+  const isAuthenticated = clientAuth.startsWith('Bearer ');
+
   /* Admin sends a `_` cache-buster (see listAll() in app.js) so an edit
      shows up immediately instead of waiting for the 5-minute edge cache
-     to expire. When present, skip both the Cache API lookup and the
-     cacheable response headers, and never store the response — the
-     public read path (no `_`) keeps its cache as before. */
-  const bypassCache = url.searchParams.has('_');
+     to expire. Either that or a valid JWT forces the cache to be
+     skipped entirely. The public read path (no `_`, no auth header)
+     keeps its cache as before. */
+  const bypassCache = url.searchParams.has('_') || isAuthenticated;
 
   const cache = caches.default;
-  /* Key off the original URL including the `_` param, so an admin
-     request with a fresh timestamp is always a cache miss. The public
-     path still has a stable URL and therefore still hits the cache. */
-  const cacheKey = new Request(url.toString(), { method: 'GET' });
+  /* The cache key includes a fragment that distinguishes authed from
+     anon reads. Fragments are stripped before the fetch is made, so
+     Supabase never sees them; only the local Cache API is affected.
+     This prevents an authed read from poisoning the anon cache entry
+     (and vice versa) now that the two paths produce different
+     result sets under RLS. */
+  const cacheKey = new Request(url.toString() + (isAuthenticated ? '#auth' : '#anon'), { method: 'GET' });
 
   let response = bypassCache ? null : await cache.match(cacheKey);
   if (response) {
@@ -678,7 +690,9 @@ async function handleArticlesProxy(request, ctx) {
   const upstream = await fetch(target.toString(), {
     headers: {
       apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      /* Forward the client's JWT when present. Anonymous callers keep the
+         publishable key, which restricts them to the public-read subset. */
+      Authorization: isAuthenticated ? clientAuth : `Bearer ${SUPABASE_KEY}`,
       Accept: 'application/json'
     },
     cf: { cacheEverything: true }

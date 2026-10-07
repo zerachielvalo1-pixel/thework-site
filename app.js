@@ -655,9 +655,21 @@ async function rest(query) {
     if (v == null) continue;
     params.set(k, String(v));
   }
-  const res = await fetch('/api/articles?' + params.toString(), {
-    headers: { Accept: 'application/json' }
-  });
+  /* Attach the signed-in user's JWT so the Worker can forward it to
+     Supabase. The `articles_auth_read_all` RLS policy exposes drafts and
+     future-scheduled articles to authenticated callers only; without
+     this header every request runs as anon and is filtered down to
+     publicly-visible rows, which is why the admin table never saw a
+     scheduled article before. */
+  const headers = { Accept: 'application/json' };
+  if (sb) {
+    try {
+      const { data } = await sb.auth.getSession();
+      const token = data && data.session && data.session.access_token;
+      if (token) headers.Authorization = `Bearer ${token}`;
+    } catch (_) { /* non-fatal: falls back to anon */ }
+  }
+  const res = await fetch('/api/articles?' + params.toString(), { headers });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error('Articles API ' + res.status + (body ? ': ' + body.slice(0, 200) : ''));
