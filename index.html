@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=41">
+<link rel="stylesheet" href="styles.css?v=42">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -411,7 +411,7 @@
         <div class="table-wrap">
           <div class="table-toolbar">
             <input type="text" id="searchInput" placeholder="Search by title or author…">
-            <select id="statusFilter"><option value="">All statuses</option><option value="published">Published</option><option value="draft">Drafts</option></select>
+            <select id="statusFilter"><option value="">All statuses</option><option value="published">Published</option><option value="scheduled">Scheduled</option><option value="draft">Drafts</option></select>
             <select id="catFilter"><option value="">All sections</option><option value="news">News</option><option value="opinion">Opinion</option><option value="features">Features</option><option value="literary">Literary</option><option value="sports">Sports</option><option value="devcom">DevCom</option><option value="entertainment">Entertainment</option></select>
           </div>
           <div class="bulk-bar" id="bulkBar" hidden>
@@ -1111,7 +1111,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=69" defer></script>
+<script src="app.js?v=70" defer></script>
 
 </body>
 </html>

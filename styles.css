@@ -875,6 +875,13 @@ td.title-cell small{display:block;color:var(--ink-3);font-weight:400;font-size:.
   .brand-logo{width:26px;height:26px;margin-right:8px}
   .foot-brand .brand-logo{width:24px;height:24px}
 }
+/* ---------- Scheduled badge ---------- */
+/* Distinct from "published" (green) and "draft" (gray). Info-blue so it
+   reads as "pending" rather than as a status of its own. */
+.badge.scheduled{background:#DBEAFE;color:#1E40AF}
+[data-theme="dark"] .badge.scheduled{background:rgba(59,130,246,.2);color:#93C5FD}
+.badge.scheduled::before{background:#3B82F6}
+
 .badge.cat-editorial,
 .badge.cat-op-ed{background:#EDE9FE;color:#5B21B6}
 [data-theme="dark"] .badge.cat-editorial,

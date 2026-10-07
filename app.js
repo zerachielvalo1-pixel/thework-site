@@ -217,6 +217,37 @@ const fmtDateLong = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00
 const fmtDateTimeLive = d => d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 const timeAgo = ts => { if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); if(diff<60000) return 'just now'; const m=Math.floor(diff/60000); if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; };
 const toLocalDateTimeInput = iso => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); };
+
+/* ---------- Scheduling detection ----------
+   An article is "scheduled" when its status is published but publish_at
+   is a moment in the future. The public site already hides it (the
+   fetchArticles() query filters on publish_at <= now()), so this is
+   purely how the admin tells scheduled rows apart from already-live
+   ones. */
+function isScheduled(a) {
+  if (!a || a.status !== 'published') return false;
+  if (!a.publish_at) return false;
+  return new Date(a.publish_at).getTime() > Date.now();
+}
+
+/* Manille-local formatter for the badge label. Uses the browser's own
+   timezone — the editors are in the Philippines, so this resolves to
+   Philippine time on their machines without a hardcoded offset. */
+function fmtScheduleLabel(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    + ' at '
+    + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+/* Rendered under the title wherever an article appears. Returns '' when
+   the row is not scheduled, so callers can append unconditionally. */
+function scheduleBadgeHtml(a) {
+  if (!isScheduled(a)) return '';
+  return `<span class="badge scheduled" title="Hidden from the public site until this time">Scheduled for ${esc(fmtScheduleLabel(a.publish_at))}</span>`;
+}
 // ---------- subtle entrance animations ----------
 const TW_FADE_TARGETS = '.article,.lead-story,.sidebar-item,.board-card,.release-card,.video-card,.memoriam-item,.panel,.stat-card';
 let twFadeObs = null;
@@ -4433,7 +4464,7 @@ async function renderAdmin() {
       `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-2)">
         <div style="flex:1;min-width:0">
           <div style="font-weight:650;font-size:.9rem;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
-          <div style="font-family:var(--sans);font-size:.74rem;color:var(--ink-3)">${esc(a.author||'—')} · ${esc(fmtDate(a.date))} · <span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span></div>
+          <div style="font-family:var(--sans);font-size:.74rem;color:var(--ink-3)">${esc(a.author||'—')} · ${esc(fmtDate(a.date))} · <span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span> ${scheduleBadgeHtml(a)}</div>
         </div>
         <button class="icon-action" data-edit="${a.id}">✎</button>
       </div>`
@@ -4466,7 +4497,14 @@ function renderTable() {
     const q = searchQuery.toLowerCase();
     list = list.filter(a => (a.title||'').toLowerCase().includes(q) || (a.author||'').toLowerCase().includes(q));
   }
-  if (statusFilter) list = list.filter(a => a.status === statusFilter);
+  /* statusFilter values:
+       ''          → all
+       'published' → published AND not scheduled (already live)
+       'scheduled' → published AND publish_at > now
+       'draft'     → drafts only */
+  if (statusFilter === 'published') list = list.filter(a => a.status === 'published' && !isScheduled(a));
+  else if (statusFilter === 'scheduled') list = list.filter(isScheduled);
+  else if (statusFilter === 'draft') list = list.filter(a => a.status === 'draft');
   if (catFilter) list = list.filter(a => a.cat === catFilter);
 
   if (!list.length) {
@@ -4481,7 +4519,10 @@ function renderTable() {
       <td style="width:34px;padding-right:0"><input class="row-check" type="checkbox" data-row-id="${esc(a.id)}" ${selectedIds.has(a.id) ? 'checked' : ''} /></td>
       <td class="title-cell"><div class="cell-title"><div class="mini-thumb">${thumbHtml}</div><div style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div><small>by ${esc(a.author||'—')} · ${esc(fmtDate(a.date))}</small></div></div></td>
       <td><span class="badge cat-${esc(a.cat)}">${esc(CAT_LABELS[a.cat]||a.cat)}</span></td>
-      <td><span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span></td>
+      <td>
+        <span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span>
+        ${scheduleBadgeHtml(a)}
+      </td>
       <td style="font-family:var(--sans);font-size:.76rem;color:var(--ink-3)">${timeAgo(a.updated)}${a.last_edited_by ? ` <span style="color:var(--ink-4)">·</span> <span title="Last edited by">${esc(a.last_edited_by)}</span>` : ''}</td>
       <td><div class="row-actions">
         <button class="icon-action" data-view="${a.id}">👁</button>
