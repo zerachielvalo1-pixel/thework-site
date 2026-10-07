@@ -78,6 +78,29 @@ function estimateReadTime(text) {
   return Math.max(1, Math.round(words / 200)) + ' min';
 }
 
+/* Word count for the editor meter. Keep the markdown-stripping rules aligned
+   with estimateReadTime() so the live count and read-time hint agree. */
+function countWords(text) {
+  const raw = String(text || '');
+  if (!raw.trim()) return 0;
+  const clean = raw
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[*#>`_~]/g, ' ');
+  return clean.split(/\s+/).filter(Boolean).length;
+}
+
+function updateWordMeter() {
+  const countEl = document.getElementById('wordCount');
+  const readEl = document.getElementById('readTimeHint');
+  const body = document.getElementById('fBody');
+  if (!countEl || !readEl || !body) return;
+  const words = countWords(body.value);
+  countEl.textContent = words === 1 ? '1 word' : words.toLocaleString() + ' words';
+  readEl.textContent = words === 0 ? '—' : '~' + Math.max(1, Math.round(words / 200)) + ' min read';
+}
+
 /* ---------- Article body renderer (mirror of workers/prerender.js) ----------
    Converts the plain-text body column into HTML. Storage stays plain text
    with light markdown syntax; this is the only place that turns it into
@@ -654,6 +677,7 @@ function twApplyDraft(draft) {
   $('#deleteBtn').style.display = editingId ? 'inline-flex' : 'none';
   setThumbnail(draft.thumbnail || null, draft.thumbnail ? 'saved-draft.jpg' : '');
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
+  if (typeof updateWordMeter === 'function') updateWordMeter();
 }
 
 function twOfferDraft(id = editingId || 'new') {
@@ -1901,6 +1925,7 @@ function twApplyRevisionToForm(snap) {
   if ('thumbnail' in snap) {
     setThumbnail(snap.thumbnail || null, snap.thumbnail ? 'restored.jpg' : '');
   }
+  if (typeof updateWordMeter === 'function') updateWordMeter();
   twSaveDraft();
 }
 
@@ -5324,6 +5349,7 @@ function resetCreditPickers() {
   body.addEventListener('input', () => {
     const readEl = document.getElementById('fRead');
     if (readEl) readEl.value = estimateReadTime(body.value);
+    updateWordMeter();
   });
 })();
 
@@ -5383,6 +5409,7 @@ function resetForm() {
   twStartAutosaveTicker();
   twUpdateHistoryButton();
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
+  if (typeof updateWordMeter === 'function') updateWordMeter();
 }
 
 function loadIntoForm(id) {
@@ -5423,6 +5450,7 @@ function loadIntoForm(id) {
   twUpdateHistoryButton();
   twOfferDraft(id);
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
+  if (typeof updateWordMeter === 'function') updateWordMeter();
 }
 
 /* ---------- Pre-publish checklist ----------
