@@ -2139,7 +2139,68 @@ function setView(v) {
   const skipLink = $('.skip-link');
   if (skipLink) skipLink.href = '#view-' + v;
   $$('.nav-sections a').forEach(a => a.classList.toggle('active', a.dataset.route === v));
+  if (typeof twSetStoryControlsVisible === 'function') twSetStoryControlsVisible(v === 'story');
 }
+
+function twSetStoryControlsVisible(visible) {
+  const wrap = document.getElementById('twStoryControls');
+  if (!wrap) return;
+  wrap.hidden = !visible;
+  if (!visible) {
+    const panel = document.getElementById('twStoryControlsPanel');
+    const toggle = document.getElementById('twStoryControlsToggle');
+    if (panel) panel.hidden = true;
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  }
+}
+
+(function initStoryControls() {
+  const wrap = document.getElementById('twStoryControls');
+  const toggle = document.getElementById('twStoryControlsToggle');
+  const panel = document.getElementById('twStoryControlsPanel');
+  if (!wrap || !toggle || !panel) return;
+  const root = document.documentElement;
+  let currentSize = root.getAttribute('data-story-text-size') || 'md';
+  let currentWidth = root.getAttribute('data-story-width') || 'narrow';
+  const syncButtons = () => {
+    panel.querySelectorAll('[data-size]').forEach(btn => btn.setAttribute('aria-pressed', String(btn.dataset.size === currentSize)));
+    panel.querySelectorAll('[data-width]').forEach(btn => btn.setAttribute('aria-pressed', String(btn.dataset.width === currentWidth)));
+  };
+  const closePanel = () => {
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+  toggle.addEventListener('click', e => {
+    e.stopPropagation();
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute('aria-expanded', String(!panel.hidden));
+    if (!panel.hidden) panel.querySelector('.tw-story-controls-opt')?.focus();
+  });
+  panel.addEventListener('click', e => {
+    const opt = e.target.closest('.tw-story-controls-opt');
+    if (!opt) return;
+    if (opt.dataset.size) {
+      currentSize = opt.dataset.size;
+      root.setAttribute('data-story-text-size', currentSize);
+      try { localStorage.setItem('tw_story_text_size', currentSize); } catch (e) {}
+    } else if (opt.dataset.width) {
+      currentWidth = opt.dataset.width;
+      root.setAttribute('data-story-width', currentWidth);
+      try { localStorage.setItem('tw_story_width', currentWidth); } catch (e) {}
+    }
+    syncButtons();
+  });
+  document.addEventListener('click', e => {
+    if (!panel.hidden && !wrap.contains(e.target)) closePanel();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !panel.hidden) {
+      closePanel();
+      toggle.focus();
+    }
+  });
+  syncButtons();
+})();
 
 function slugifyStoryTitle(title) {
   return String(title || 'story').normalize('NFKD').toLowerCase()

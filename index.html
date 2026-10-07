@@ -36,6 +36,18 @@
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Organization","name":"The Work","description":"The official student publication of Tarlac State University.","url":"https://thework.tw78.workers.dev/","logo":"https://thework.tw78.workers.dev/logo-tw.png","sameAs":["https://www.facebook.com/theworktsu","https://www.instagram.com/theworktsu","https://www.tiktok.com/@theworktsu","https://x.com/theworktsu","https://www.youtube.com/@theworktsu"]}
 </script>
+<script>
+(function(){
+  try {
+    var s = localStorage.getItem('tw_story_text_size');
+    if (s !== 'sm' && s !== 'md' && s !== 'lg') s = 'md';
+    document.documentElement.setAttribute('data-story-text-size', s);
+    var w = localStorage.getItem('tw_story_width');
+    if (w !== 'narrow' && w !== 'wide') w = 'narrow';
+    document.documentElement.setAttribute('data-story-width', w);
+  } catch(e){}
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%237C3AED'/><text y='72' x='50' text-anchor='middle' font-size='62' font-family='Georgia' fill='%23FAF8FF'>W</text></svg>">
 <script>
 (function(){
@@ -52,7 +64,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=46">
+<link rel="stylesheet" href="styles.css?v=47">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -1144,12 +1156,35 @@
   <img class="tw-lightbox-img" id="twLightboxImg" alt="">
 </div>
 
+<div class="tw-story-controls" id="twStoryControls" hidden>
+  <div class="tw-story-controls-panel" id="twStoryControlsPanel" role="region" aria-label="Text settings" hidden>
+    <div class="tw-story-controls-group">
+      <span class="tw-story-controls-label">Text size</span>
+      <div class="tw-story-controls-options" role="group" aria-label="Text size">
+        <button type="button" class="tw-story-controls-opt" data-size="sm" aria-pressed="false" aria-label="Small text">A</button>
+        <button type="button" class="tw-story-controls-opt" data-size="md" aria-pressed="true" aria-label="Medium text">A</button>
+        <button type="button" class="tw-story-controls-opt" data-size="lg" aria-pressed="false" aria-label="Large text">A</button>
+      </div>
+    </div>
+    <div class="tw-story-controls-group">
+      <span class="tw-story-controls-label">Reading width</span>
+      <div class="tw-story-controls-options" role="group" aria-label="Reading width">
+        <button type="button" class="tw-story-controls-opt" data-width="narrow" aria-pressed="true">Narrow</button>
+        <button type="button" class="tw-story-controls-opt" data-width="wide" aria-pressed="false">Wide</button>
+      </div>
+    </div>
+  </div>
+  <button class="tw-story-controls-toggle" id="twStoryControlsToggle" type="button" aria-label="Text settings" aria-expanded="false" aria-controls="twStoryControlsPanel">
+    <span class="tw-story-controls-aa" aria-hidden="true">Aa</span>
+  </button>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=77" defer></script>
+<script src="app.js?v=78" defer></script>
 
 </body>
 </html>
