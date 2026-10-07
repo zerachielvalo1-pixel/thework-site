@@ -52,7 +52,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=42">
+<link rel="stylesheet" href="styles.css?v=43">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -794,6 +794,9 @@
                   </button>
                   <button type="button" class="rt-btn" data-format="quote" title="Blockquote" aria-label="Insert blockquote">“</button>
                   <button type="button" class="rt-btn rt-btn-heading" data-format="heading" title="Heading" aria-label="Insert heading">H</button>
+                  <button type="button" class="rt-btn" data-format="image" title="Insert image" aria-label="Insert image">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m3 16 5-5 4 4 3-3 6 6"></path></svg>
+                  </button>
                 </div>
                 <textarea id="fBody" style="min-height:260px"></textarea>
               </div>
@@ -1111,7 +1114,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=72" defer></script>
+<script src="app.js?v=73" defer></script>
 
 </body>
 </html>

@@ -94,12 +94,48 @@ function renderInlineFormatting(escaped) {
   return out;
 }
 
+/* ---------- Block image allowlist ----------
+   Only https:// URLs from these hosts are rendered as <figure> images in
+   article bodies. Anything else falls through to the text renderer, so a
+   malformed or hostile URL shows up as visible text rather than a broken
+   image tag. The Supabase project host is the only one accepted because
+   every uploaded thumbnail lives in its `thumbnails` bucket. */
+const ALLOWED_IMG_ORIGINS = [
+  'https://fgojhhgqpvnwtcqkornz.supabase.co'
+];
+
+function isAllowedImageUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && ALLOWED_IMG_ORIGINS.indexOf(url.origin) !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
 function renderArticleBody(text) {
   const raw = String(text || '');
   const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
   if (!parts.length) return '';
   return parts.map(part => {
     const trimmed = part.trim();
+    /* Block image: a paragraph that is exactly `![alt](url)`. Must be
+       checked BEFORE the paragraph fallback, and BEFORE the link regex
+       inside renderInlineFormatting would half-match `[alt](url)` and
+       emit `!<a ...>alt</a>`. Strict allowlist + https check; on any
+       failure the block falls through to text so a bad URL is visible
+       instead of silently broken. */
+    const im = trimmed.match(/^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/);
+    if (im && isAllowedImageUrl(im[2])) {
+      const altText = im[1] || '';
+      const safeAlt = esc(altText);
+      const src = im[2];
+      const inner = src.indexOf(IMG_OBJECT_PATH) !== -1
+        ? imgTag(src, [600, 1200], SIZES.hero, ' alt="' + safeAlt + '" loading="lazy" decoding="async"')
+        : '<img src="' + esc(src) + '" alt="' + safeAlt + '" loading="lazy" decoding="async">';
+      const caption = altText ? '<figcaption>' + safeAlt + '</figcaption>' : '';
+      return '<figure class="article-image">' + inner + caption + '</figure>';
+    }
     if (/^>\s?/.test(trimmed)) {
       const inner = trimmed.replace(/^>\s?/gm, '');
       return `<blockquote>${renderInlineFormatting(esc(inner)).replace(/\n/g, '<br>')}</blockquote>`;
@@ -5230,6 +5266,37 @@ function resetCreditPickers() {
     dispatchInput();
   }
 
+  /* Upload a file through the same pipeline the article thumbnail uses,
+     then insert `![alt](url)` on its own paragraph. The editor autosave
+     picks the change up via the dispatched input event, so nothing else
+     needs to know the image was added. */
+  async function insertBlockImage() {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.addEventListener('change', async () => {
+      const file = picker.files && picker.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { toast('Not an image', true); return; }
+      try {
+        const url = await Data.uploadThumb(file);
+        if (!url) return;
+        const rawName = String(file.name || '').replace(/\.[^.]+$/, '');
+        const alt = rawName.replace(/[\[\]()]/g, '').trim() || 'Image';
+        const markdown = '\n\n![' + alt + '](' + url + ')\n\n';
+        const start = body.selectionStart;
+        const value = body.value;
+        body.value = value.slice(0, start) + markdown + value.slice(start);
+        body.selectionStart = body.selectionEnd = start + markdown.length;
+        body.focus();
+        dispatchInput();
+      } catch (err) {
+        toast('Image upload failed: ' + safeErrorText(err), true);
+      }
+    });
+    picker.click();
+  }
+
   toolbar.addEventListener('click', e => {
     const btn = e.target.closest('.rt-btn');
     if (!btn) return;
@@ -5240,6 +5307,7 @@ function resetCreditPickers() {
     else if (fmt === 'link') wrapSelection('[', '](https://)', 8);
     else if (fmt === 'quote') prefixLine('> ');
     else if (fmt === 'heading') prefixLine('## ');
+    else if (fmt === 'image') insertBlockImage();
   });
 
   body.addEventListener('keydown', e => {

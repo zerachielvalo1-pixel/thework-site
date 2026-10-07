@@ -195,12 +195,46 @@ function renderInlineFormatting(escaped) {
   return out;
 }
 
+/* ---------- Block image allowlist ----------
+   Mirror of the same const in app.js. Only https:// URLs from these hosts
+   render as <figure> images inside article bodies; anything else falls
+   through to the text renderer. Must stay in sync with the client-side
+   copy so prerendered and SPA-rendered bodies agree byte-for-byte. */
+const ALLOWED_IMG_ORIGINS = [
+  'https://fgojhhgqpvnwtcqkornz.supabase.co'
+];
+
+function isAllowedImageUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && ALLOWED_IMG_ORIGINS.indexOf(url.origin) !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
 function renderArticleBody(text) {
   const raw = String(text || '');
   const parts = raw.split(/\n\s*\n/).filter(p => p.trim());
   if (!parts.length) return '';
   return parts.map(part => {
     const trimmed = part.trim();
+    /* Block image: a paragraph that is exactly `![alt](url)`. Checked
+       before the paragraph fallback so the link regex never half-matches
+       `[alt](url)` and emits `!<a ...>alt</a>`. Strict allowlist + https
+       check; on any failure the block falls through to text. Must stay
+       in sync with the same function in app.js. */
+    const im = trimmed.match(/^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/);
+    if (im && isAllowedImageUrl(im[2])) {
+      const altText = im[1] || '';
+      const safeAlt = escapeHtml(altText);
+      const src = im[2];
+      const inner = src.indexOf(IMG_OBJECT_PATH) !== -1
+        ? imgTag(src, [600, 1200], '(max-width: 900px) 100vw, 900px', ' alt="' + safeAlt + '" loading="lazy" decoding="async"')
+        : '<img src="' + escapeHtml(src) + '" alt="' + safeAlt + '" loading="lazy" decoding="async">';
+      const caption = altText ? '<figcaption>' + safeAlt + '</figcaption>' : '';
+      return '<figure class="article-image">' + inner + caption + '</figure>';
+    }
     if (/^>\s?/.test(trimmed)) {
       const inner = trimmed.replace(/^>\s?/gm, '');
       return `<blockquote>${renderInlineFormatting(escapeHtml(inner)).replace(/\n/g, '<br>')}</blockquote>`;
