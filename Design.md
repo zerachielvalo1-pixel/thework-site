@@ -40,7 +40,7 @@ Carousel: 8s Ken Burns on active slide
 No bounce. No scale on every element.
 
 ## Dials
-ENERGY 2 / RHYTHM 2 / MOTION 1
+ENERGY 2 / RHYTHM 2 / MOTION 2
 ENERGY 2 — masthead, bold serif headlines, active sort/filter; not Awwwards-loud
 RHYTHM 2 — hero + sidebar + more-stories + section previews + CTA band; varied but predictable
-MOTION 1 — one animation, hover feedback only, reduced-motion honored
+MOTION 2 — scroll-reveal (tw-fade), single Ken Burns on active carousel slide, modal/overlay transitions; no parallax, no pin, no bounce. prefers-reduced-motion disables all of it.

@@ -3171,7 +3171,14 @@ async function renderVideosPage() {
 async function renderMemoriamPage() {
   const list = $('#memoriamList');
   if (!list) return;
-  const items = await Data.listMemoriam();
+  list.innerHTML = twSkelGrid(4);
+  let items = [];
+  try {
+    items = await Data.listMemoriam();
+  } catch (err) {
+    twShowError(list, 'Could not load Look Back.', () => renderMemoriamPage());
+    return;
+  }
   if (!items.length) {
     list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2);font-weight:500">No terms yet</h3><p style="font-family:var(--sans);font-size:.85rem">Past editorial boards will appear here.</p></div>';
     return;
