@@ -180,6 +180,36 @@ function isoDateTime(value) {
   return `${raw}T00:00:00+08:00`;
 }
 
+/* Long date for display: "Sunday, October 11, 2026".
+   Mirror of fmtDateLong() in app.js. The SPA story view and this prerendered
+   page must agree, and they did NOT: this page printed the raw `2026-10-11`
+   straight from the database while app.js printed the long form, so visitors
+   arriving from a shared link (and every crawler) saw a different byline date
+   than a reader who opened the story from the site. Same class of drift as
+   the other mirrored helpers in this file; see the note on ALLOWED_IMG_ORIGINS.
+
+   Hand-rolled rather than toLocaleDateString() on purpose: the Worker and the
+   reader's browser could resolve ICU data differently, which would reintroduce
+   exactly the drift this fixes. The weekday is computed in UTC so the result
+   never shifts with the Worker's timezone.
+
+   Returns the input unchanged when it is not a bare YYYY-MM-DD, so a value
+   that arrived as a timestamp behaves exactly as app.js's version does. */
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+  'Friday', 'Saturday'];
+
+function formatDateLong(value) {
+  const raw = String(value == null ? '' : value).trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return raw;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return raw;
+  const weekday = DAYS_LONG[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${weekday}, ${MONTHS_LONG[month - 1]} ${day}, ${year}`;
+}
+
 /* ---------- Article body renderer (mirror of app.js) ----------
    Must stay byte-for-byte in sync with renderArticleBody() in app.js, or
    the SPA modal and the prerendered story page will render the same
@@ -263,7 +293,7 @@ function storyMarkup(article) {
     : [article.author, article.author2].filter(Boolean);
   const authors = authorsArr.join(', ') || 'The Work Staff';
   const category = CATEGORY_LABELS[article.cat] || article.cat || 'Story';
-  const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(article.date)}</time>` : '';
+  const dateMarkup = article.date ? `<time datetime="${escapeHtml(article.date)}">${escapeHtml(formatDateLong(article.date))}</time>` : '';
   /* Prefer the stored value; estimate from the body for pre-migration
      articles whose read column is still empty. */
   const readValue = article.read || estimateReadTime(article.body);
@@ -786,36 +816,125 @@ async function handleImageProxy(request, ctx) {
   return cached;
 }
 
+/* ---------- Response hardening ----------
+   Every response the Worker returns leaves through withSecurityHeaders(), so
+   the shell, prerendered stories, generated XML and static assets all carry
+   the same policy. Before this, the site sent none of them.
+
+   The policy is split deliberately:
+
+   `content-security-policy` (ENFORCING) holds only directives that cannot
+   break a page — they restrict framing, plugin embedding, <base> hijacking
+   and form targets. This is the part that actually defends readers today.
+
+   `content-security-policy-report-only` holds the rest, including
+   script-src/style-src. Those need real traffic through the admin panel
+   (uploads, Supabase auth, the editor) before they can be enforced: a
+   mistake there would take the CMS down for staff. Browse the admin with
+   DevTools open, confirm no CSP violation reports, then promote the
+   directives into the enforcing policy above and delete the report-only one.
+
+   The two sha256 hashes are the inline <script> blocks in index.html (the
+   story-text-size and theme bootstraps). If either inline script is edited,
+   recompute them:
+     node -e "const c=require('crypto');console.log('sha256-'+c.createHash('sha256').update(process.argv[1]).digest('base64'))" '<script body>'
+   scripts/smoke-check.js does not verify these; a mismatch only shows up as a
+   report-only violation, never a broken page. */
+const CSP_HASHES = [
+  "'sha256-x9r5k91+P90X/tWgCcGnwIQuMaVEn5+zH9QoifD1k+4='",
+  "'sha256-9Fg/G4fUH05y1mBrkKLzALOSNHL2Gbd+SlKIRo+/254='"
+];
+
+/* Note: the article page injects per-article NewsArticle JSON-LD inline.
+   application/ld+json is a data block and is never executed, so it is not
+   subject to script-src - it is listed in img/connect terms only by origin. */
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' " + CSP_HASHES.join(' ') + " https://cdn.jsdelivr.net https://cloud.umami.is",
+  /* 'unsafe-inline' is required: app.js writes style="..." attributes into
+     its own templates (e.g. the admin table rows), and style attributes are
+     governed by style-src. Omitting it would visibly break the admin. */
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: " + SUPABASE_URL,
+  "connect-src 'self' " + SUPABASE_URL + " https://cloud.umami.is",
+  "frame-src 'none'",
+  "worker-src 'self'"
+].join('; ');
+
+const SECURITY_HEADERS = {
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+  'x-frame-options': 'DENY',
+  'content-security-policy': "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+  'content-security-policy-report-only': CSP_REPORT_ONLY
+};
+
+function withSecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
+  /* 101/204/205/304 must not carry a body; Response(null, ...) is valid there. */
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+async function route(request, env, ctx) {
+  const url = new URL(request.url);
+  if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
+  if (url.pathname === '/feed.xml' && request.method === 'GET') return renderFeed(env, ctx);
+
+  if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
+  if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
+  if (url.pathname === '/api/articles') return handleArticlesProxy(request, ctx);
+
+  const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
+  if (match && (request.method === 'GET' || request.method === 'HEAD')) {
+    let id;
+    try { id = decodeURIComponent(match[1]); } catch { return new Response('Story not found.', { status: 404 }); }
+    return renderStory(request, env, ctx, id);
+  }
+
+  const response = await env.ASSETS.fetch(request);
+  const assetPath = url.pathname.toLowerCase();
+  const isStaticAsset = /\.(css|js|png|jpe?g|gif|svg|webp|ico|json|xml|txt|map|woff2?|ttf|otf|mjs)(?:\?.*)?$/.test(assetPath);
+
+  /* Only rewrite caching for responses that actually succeeded - a 404 for a
+     missing .js must not be handed a long cache lifetime. */
+  if (isStaticAsset && response.ok && request.method === 'GET') {
+    const headers = new Headers(response.headers);
+    /* Versioned assets (?v=N) are safe to cache forever: the URL changes
+       whenever the file does, which is the whole point of the manual
+       cache-buster. Everything else keeps the short revalidating lifetime.
+       Serving max-age=0 for ?v= URLs made every page view revalidate
+       app.js and styles.css for no benefit. */
+    headers.set('cache-control', url.searchParams.has('v')
+      ? 'public, max-age=31536000, immutable'
+      : 'public, max-age=0, must-revalidate, stale-while-revalidate=86400');
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  }
+
+  /* Unknown paths land here. wrangler.jsonc sets not_found_handling to
+     "404-page", so env.ASSETS answers with 404.html and a real 404 status.
+     It used to be "single-page-application", which returned the homepage with
+     HTTP 200 for every unknown URL - a soft 404 that search engines penalise. */
+  return response;
+}
+
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
-    if (url.pathname === '/feed.xml' && request.method === 'GET') return renderFeed(env, ctx);
-
-    if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
-    if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
-    if (url.pathname === '/api/articles') return handleArticlesProxy(request, ctx);
-
-    const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
-    if (match && (request.method === 'GET' || request.method === 'HEAD')) {
-      let id;
-      try { id = decodeURIComponent(match[1]); } catch { return new Response('Story not found.', { status: 404 }); }
-      return renderStory(request, env, ctx, id);
-    }
-
-    const response = await env.ASSETS.fetch(request);
-    const assetPath = url.pathname.toLowerCase();
-    const isStaticAsset = /\.(css|js|png|jpe?g|gif|svg|webp|ico|json|xml|txt|map|woff2?|ttf|otf|mjs)(?:\?.*)?$/.test(assetPath);
-    if (isStaticAsset && response && request.method === 'GET') {
-      const headers = new Headers(response.headers);
-      headers.set('cache-control', 'public, max-age=0, must-revalidate, stale-while-revalidate=86400');
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers
-      });
-    }
-
-    return response;
+    return withSecurityHeaders(await route(request, env, ctx));
   }
 };

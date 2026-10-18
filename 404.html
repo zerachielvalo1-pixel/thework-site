@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Page not found — The Work</title>
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#7C3AED">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%237C3AED'/><text y='72' x='50' text-anchor='middle' font-size='62' font-family='Georgia' fill='%23FAF8FF'>W</text></svg>">
+<style>
+  /* Self-contained on purpose: a 404 should not pull the 135 KB app stylesheet
+     or run any JavaScript. Tokens are copied from the main stylesheet so the
+     page still looks like The Work. */
+  :root{
+    --paper:#FAF8FF; --paper-2:#FFFFFF; --ink:#1A0E2E; --ink-2:#3D2E5C;
+    --ink-3:#6B5B8E; --line:#E5DDF5; --accent:#7C3AED; --action:#6D28D9;
+    --serif:"Merriweather",Georgia,serif;
+    --sans:"Merriweather Sans",system-ui,sans-serif;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0D0720; --paper-2:#150C2E; --ink:#F5F1FF; --ink-2:#CFC4E8;
+      --ink-3:#9A8EB8; --line:#2A1E4A; --accent:#A855F7;
+      color-scheme:dark;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:0;
+    background:var(--paper);color:var(--ink);
+    font-family:var(--serif);line-height:1.7;
+    padding:32px 20px;
+  }
+  .band{width:100%;max-width:660px}
+  .masthead{
+    display:flex;align-items:baseline;justify-content:space-between;
+    gap:16px;border-bottom:1px solid var(--line);padding-bottom:14px;
+    margin-bottom:34px;font-family:var(--sans);
+  }
+  .wordmark{font-size:1rem;font-weight:800;letter-spacing:.02em}
+  .wordmark b{color:var(--accent)}
+  .masthead span{font-size:.66rem;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-3)}
+  .code{
+    font-family:var(--sans);font-size:.68rem;font-weight:800;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--accent);
+    margin-bottom:12px;
+  }
+  h1{
+    font-size:clamp(1.9rem,6vw,3rem);line-height:1.12;margin:0 0 16px;
+    text-wrap:balance;hyphens:none
+  }
+  p{color:var(--ink-2);margin:0 0 14px;max-width:60ch}
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+  a.btn{
+    font-family:var(--sans);font-size:.85rem;font-weight:600;
+    padding:11px 20px;border-radius:6px;text-decoration:none;
+    /* --line is only ~1.9:1 against the dark paper, which fails WCAG 1.4.11
+       (3:1 for UI component boundaries) - the ghost buttons read as bare text.
+       --ink-3 measures 5.7:1 light / 6.5:1 dark. */
+    border:1.5px solid var(--ink-3);color:var(--ink);background:var(--paper-2);
+    transition:border-color .2s ease,transform .2s ease;
+  }
+  a.btn.primary{background:var(--action);border-color:var(--action);color:#fff}
+  a.btn:hover{transform:translateY(-1px);border-color:var(--accent)}
+  a:focus-visible{outline:2.5px solid var(--accent);outline-offset:3px}
+  footer{
+    margin-top:44px;padding-top:16px;border-top:1px solid var(--line);
+    font-family:var(--sans);font-size:.72rem;color:var(--ink-3);
+  }
+  @media (prefers-reduced-motion:reduce){
+    a.btn{transition:none}
+    a.btn:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+<div class="band">
+  <div class="masthead">
+    <div class="wordmark">the<b>WORK</b></div>
+    <span>Est. 1948 · Tarlac State University</span>
+  </div>
+
+  <div class="code">Error 404</div>
+  <h1>This page isn’t in the archive.</h1>
+  <p>
+    The link may be broken, or the story may have been moved or unpublished.
+    Every article we’ve published is still findable — start from the front page
+    or browse the archives.
+  </p>
+
+  <div class="actions">
+    <a class="btn primary" href="/">Go to the front page</a>
+    <a class="btn" href="/#/releases">Browse archives</a>
+    <a class="btn" href="/#/videos">Video library</a>
+  </div>
+
+  <footer>
+    The Work — the official student publication of Tarlac State University.
+  </footer>
+</div>
+</body>
+</html>

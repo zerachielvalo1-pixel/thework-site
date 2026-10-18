@@ -13,3 +13,14 @@ scripts
 AGENTS.md
 .vscode
 wrangler.jsonc
+
+# ---------------------------------------------------------------------------
+# Stray HTML must never be public. Only index.html (the SPA shell) and
+# 404.html belong in the asset root.
+#
+# adasda.html landed here by accident in commit fd0c979 and served a fake
+# "update your Zoom client" malware lure from this site's own domain until it
+# was removed. scripts/smoke-check.js now FAILS on any unexpected .html in the
+# asset root, so this cannot recur silently.
+# ---------------------------------------------------------------------------
+adasda.html

@@ -18,7 +18,21 @@ const checks = [
   ['article notes panel and handlers are present', /id="notesPanel"/.test(index) && /function twLoadNotes\(/.test(app) && /function twPostNote\(/.test(app) && /function twDeleteNote\(/.test(app) && /\.from\('article_notes'\)/.test(app) && /notes-list/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))]
   ,['reading progress is wired', /TW_READING_KEY/.test(app) && /twShowContinueBar/.test(app) && /twIsArticleFinished/.test(app) && /article-read-mark/.test(app) && /tw-continue-bar/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))]
   ,['story text controls are wired', /twStoryControls/.test(index) && /twSetStoryControlsVisible/.test(app) && /tw_story_text_size/.test(app) && /tw_story_width/.test(app) && /tw-story-controls/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8'))]
-];
+
+    /* Guards for the two failure modes that shipped silently before:
+       a stray page in the asset root (a fake "update your Zoom client" lure was
+       served from this domain), and the Worker's regex replacement of the shell
+       markup silently matching nothing. */
+    ,['asset root has no stray HTML', (() => {
+        const allowed = ['index.html', '404.html'];
+        const stray = fs.readdirSync(root)
+          .filter(f => /\.html?$/i.test(f) && !allowed.includes(f));
+        if (stray.length) console.error('  stray HTML would be publicly served:', stray.join(', '));
+        return stray.length === 0;
+      })()]
+    ,['Worker can still find the shell markup it replaces', /<main id="view-home" class="view active">/.test(index)]
+    ,['versioned assets carry a cache-buster', /(?:app\.js|styles\.css)\?v=\d+/.test(index)]
+  ];
 
 const failed = checks.filter(([, ok]) => !ok);
 if (failed.length) {

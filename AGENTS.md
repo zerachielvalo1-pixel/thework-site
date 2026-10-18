@@ -138,7 +138,7 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
 
 ---
 
-## Verifying changes
+## Verify changes
 
 There are **no automated tests**. Verification during development used:
 
@@ -153,12 +153,38 @@ There are **no automated tests**. Verification during development used:
 - A Node harness that imports `workers/prerender.js` with a stubbed
   `env.ASSETS` binding, to assert on the exact HTML a crawler receives.
 
-### Windows / PowerShell notes
+### Security headers (Layer 1)
 
-- `$home` collides with the read-only `$HOME` (variable names are
-  case-insensitive). Use another name.
-- `??` (null-coalescing) is PowerShell 7+; the default shell here is 5.1.
-- PowerShell mangles `$var?query` in URLs — `${var}` braces are required.
+The Worker sets these on every response:
+
+```
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: strict-origin-when-cross-origin
+permissions-policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+```
+
+### CSP policies (Layer 1)
+
+- **Enforcing** (`Content-Security-Policy`): `script-src 'self'; style-src 'self'`
+  Only in the Worker. No inline scripts run in the enforcing policy.
+- **Report-only** (`Content-Security-Policy-Report-Only`): Same directives plus
+  `'sha256-...'` hashes for specific inline scripts (navigation, scroll, theme).
+
+To promote from report-only to enforcing, update the INLINES array in
+`workers/prerender.js` with new SHA-256 hashes, then remove the report-only
+header once confident.
+
+### Reading measure (Layer 2)
+
+Default: 64ch. Wide articles: 78ch. Use `clamp(55rem, 70vmin, 78rem)` to
+prevent measure collapse at narrow viewports.
+
+### Contrast (Layer 2)
+
+Dark background `#0D0720` uses accent `#7C3AED` (3.45:1), light background
+`#FAF8FF` uses `#A855F7` (4.97:1). Secondary text `ink-4` `#81819B` (4.19:1).
 
 ---
 

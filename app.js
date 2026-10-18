@@ -2563,6 +2563,17 @@ function fmtViews(n) {
   return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M views';
 }
 
+function twWireCardKeyboard(el, activate) {
+  el.addEventListener('keydown', e => {
+    /* Nested links and save buttons own their keyboard interaction. */
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      activate();
+    }
+  });
+}
+
 function buildArticleCard(a) {
   const thumbHtml = a.thumbnail
     ? imgTag(a.thumbnail, [320, 640], SIZES.card, ' alt="" loading="lazy" decoding="async"')
@@ -2859,11 +2870,32 @@ async function renderHome() {
     return;
   }
 
-  /* Stories 0-4 rotate in the hero carousel; the sidebar shows the next six;
-     the grid shows the rest. */
+  /* Stories 0-4 rotate in the hero carousel; the sidebar shows the next six.
+     The section previews claim a small, fresh set of stories before the
+     remaining grid is built, so one story is not repeated across every
+     homepage treatment. */
   const carouselItems = list.slice(0, 5);
   const sidebar = list.slice(5, 11); // This gives exactly 6 items
-  const gridArticles = list.slice(11); 
+  const previewIds = new Set([...carouselItems, ...sidebar].map(a => String(a.id)));
+  const previewPlan = [];
+
+  if (!searchTerm && homeSort === 'recent' && published.length > 0) {
+    const previewCats = (activeFilter === 'all')
+      ? SECTION_ORDER.filter(cat => published.some(a => a.cat === cat)).slice(0, 3)
+      : [activeFilter];
+
+    previewCats.forEach(cat => {
+      const source = activeFilter === 'all'
+        ? published.filter(a => a.cat === cat)
+        : list;
+      const items = source.filter(a => !previewIds.has(String(a.id))).slice(0, 3);
+      if (!items.length) return;
+      items.forEach(a => previewIds.add(String(a.id)));
+      previewPlan.push({ cat, items });
+    });
+  }
+
+  const gridArticles = list.filter(a => !previewIds.has(String(a.id)));
 
   const sidebarHtml = sidebar.map(a => `
     <div class="sidebar-item" data-article-id="${esc(a.id)}">
@@ -2931,15 +2963,8 @@ async function renderHome() {
 
   const previewContainer = $('#sectionPreviews');
   previewContainer.innerHTML = '';
-  if (!searchTerm && homeSort === 'recent' && published.length > 0) {
-    const previewCats = (activeFilter === 'all')
-      ? SECTION_ORDER.filter(cat => published.some(a => a.cat === cat))
-      : [activeFilter];
-    previewCats.forEach(cat => {
-      const items = activeFilter === 'all'
-        ? published.filter(a => a.cat === cat).slice(0, 4)
-        : list.slice(0, 4);
-      if (!items.length) return;
+  if (previewPlan.length) {
+    previewPlan.forEach(({ cat, items }) => {
       const section = document.createElement('section');
       section.className = 'section-preview';
       const showAllLabel = activeFilter === 'all'
@@ -3078,6 +3103,7 @@ function releaseCardHtml(issue) {
 function wireReleaseCards(container) {
   container.querySelectorAll('[data-release-id]').forEach(el => {
     el.addEventListener('click', () => openReader(el.dataset.releaseId));
+    twWireCardKeyboard(el, () => openReader(el.dataset.releaseId));
   });
   twWirePrefetch(container);
 }
@@ -3407,6 +3433,7 @@ function renderBoard() {
           : '';
         el.innerHTML = `<div class="board-avatar">${avatarHtml}</div><h3>${esc(m.name)}${creditMark}</h3><div class="board-role">${esc(m.role)}</div><div class="board-program" style="font-family:var(--sans);font-size:.68rem;color:var(--ink-4);margin-top:6px;line-height:1.35">${esc(m.program||'')}</div>`;
         el.addEventListener('click', () => openBoardProfile(m.name));
+        twWireCardKeyboard(el, () => openBoardProfile(m.name));
         grid.appendChild(el);
       });
     });
@@ -5198,6 +5225,7 @@ async function renderSavedPage() {
       if (e.target.closest('.tw-save-btn')) return;
       openArticle(a.id);
     });
+    twWireCardKeyboard(el, () => openArticle(a.id));
     grid.appendChild(el);
   });
   twWireSaveButtons(grid);

@@ -64,7 +64,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=48">
+<link rel="stylesheet" href="styles.css?v=50">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -128,22 +128,24 @@
         <button class="section-tab" data-filter="sports" role="tab" aria-selected="false">Sports</button>
         <button class="section-tab" data-filter="entertainment" role="tab" aria-selected="false">Entertainment</button>
       </div>
-      <div class="search-wrap">
-        <input type="text" id="searchBar" class="search-input" placeholder="Search stories…" aria-label="Search stories">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <div class="home-toolbar">
+        <div class="search-wrap">
+          <input type="text" id="searchBar" class="search-input" placeholder="Search stories…" aria-label="Search stories">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        </div>
+        <div class="sort-strip">
+          <div class="sort-strip-inner" role="tablist" aria-label="Sort stories">
+            <span class="sort-label">Sort</span>
+            <button class="sort-tab active" data-sort="recent" role="tab" aria-selected="true">Most Recent</button>
+            <button class="sort-tab" data-sort="viewed" role="tab" aria-selected="false">Most Viewed</button>
+            <button class="sort-tab" data-sort="featured" role="tab" aria-selected="false">Editor's Pick</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-    <div class="subcat-strip" id="subcatStrip" style="display:none">
+  <div class="subcat-strip" id="subcatStrip" style="display:none">
     <div class="subcat-strip-inner" id="subcatStripInner" role="group" aria-label="Sub-categories"></div>
-  </div>
-  <div class="sort-strip">
-    <div class="sort-strip-inner" role="tablist" aria-label="Sort stories">
-      <span class="sort-label">Sort</span>
-      <button class="sort-tab active" data-sort="recent" role="tab" aria-selected="true">Most Recent</button>
-      <button class="sort-tab" data-sort="viewed" role="tab" aria-selected="false">Most Viewed</button>
-      <button class="sort-tab" data-sort="featured" role="tab" aria-selected="false">Editor's Pick</button>
-    </div>
   </div>
   <section class="frontpage"><div class="wrap"><h1 class="sr-only">Latest news and stories from The Work</h1><div class="frontpage-grid" id="frontpageGrid"></div></div></section>
   <section class="more-stories" id="moreStories" style="display:none">
@@ -1184,7 +1186,7 @@
   <span id="toastText">Done</span>
 </div>
 
-<script src="app.js?v=79" defer></script>
+<script src="app.js?v=80" defer></script>
 
 </body>
 </html>
