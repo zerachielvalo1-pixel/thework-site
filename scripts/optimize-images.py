@@ -5,16 +5,19 @@ header/footer, so serving the original wastes ~100 KB of bandwidth and ~15 MB
 of decoded bitmap memory on every mobile page load.
 
 Outputs:
-  logo-tw-64.webp / logo-tw-64.png    header + footer mark (30px @2x, 26px @2x)
-  logo-tw-128.webp / logo-tw-128.png  high-DPI / large-brand usage
-  logo-tw.png                          recompressed 1200px OG / schema.org asset
+  public/logo-tw-64.webp / public/logo-tw-64.png    header + footer mark
+                                                      (30px @2x, 26px @2x)
+  public/logo-tw-128.webp / public/logo-tw-128.png  high-DPI / large-brand usage
+  public/logo-tw.png                                recompressed 1200px OG /
+                                                      schema.org asset
 """
 import os
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-SRC = os.path.join(ROOT, "logo-tw.png")
+PUBLIC = os.path.join(ROOT, "public")
+SRC = os.path.join(PUBLIC, "logo-tw.png")
 
 # Keep a pristine copy the first time this runs so the script is re-runnable.
 MASTER = os.path.join(HERE, "logo-tw.master.png")
@@ -26,6 +29,9 @@ def report(path):
 
 
 def main():
+    if not os.path.isdir(PUBLIC):
+        raise SystemExit(f"Missing public asset directory: {PUBLIC}")
+
     if not os.path.exists(MASTER):
         Image.open(SRC).save(MASTER)
         print(f"Saved master -> {os.path.relpath(MASTER, ROOT)}")
@@ -44,12 +50,12 @@ def main():
         height = round(master.height * width / master.width)
         resized = master.resize((width, height), Image.LANCZOS)
 
-        png_path = os.path.join(ROOT, f"logo-tw-{width}.png")
+        png_path = os.path.join(PUBLIC, f"logo-tw-{width}.png")
         # optimize=True + max compression squeezes flat line art hard.
         resized.save(png_path, "PNG", optimize=True, compress_level=9)
         report(png_path)
 
-        webp_path = os.path.join(ROOT, f"logo-tw-{width}.webp")
+        webp_path = os.path.join(PUBLIC, f"logo-tw-{width}.webp")
         resized.save(webp_path, "WEBP", quality=88, method=6)
         report(webp_path)
 
@@ -90,7 +96,7 @@ def make_app_icons(master):
         glyph = white_mark.resize((glyph_w, glyph_h), Image.LANCZOS)
         canvas.alpha_composite(glyph, ((size - glyph_w) // 2, (size - glyph_h) // 2))
 
-        path = os.path.join(ROOT, f"icon-{size}.png")
+        path = os.path.join(PUBLIC, f"icon-{size}.png")
         canvas.save(path, "PNG", optimize=True, compress_level=9)
         report(path)
 

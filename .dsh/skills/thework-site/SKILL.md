@@ -7,23 +7,23 @@ description: Use when working on The Work (thework.tw78.workers.dev), the Tarlac
 
 Static SPA on Cloudflare Workers with Supabase content. No build step, no dependencies. Full reference lives in the repo's `AGENTS.md`; this skill is the task-oriented companion.
 
-Working directory: the repo root (contains `wrangler.jsonc`, `app.js`, `sw.js`).
+Working directory: the repo root (contains `wrangler.jsonc`, `workers/`, `scripts/`, and `public/`). Runtime browser assets live under `public/`.
 
 ---
 
 ## Deploy
 
-1. **Bump the cache-buster in `index.html` for any changed asset.**
+1. **Bump the cache-buster in `public/index.html` for any changed asset.**
    `styles.css?v=N` / `app.js?v=N`. Skipping this has already caused production
    and the repo to serve different CSS under the same URL.
-2. **Bump `CACHE_VERSION` in `sw.js`** — only when the `PRECACHE` list changed,
+2. **Bump `CACHE_VERSION` in `public/sw.js`** — only when the `PRECACHE` list changed,
    not for every deploy.
 3. `wrangler deploy`
 4. If any `<meta>` / OG tag changed, re-scrape the affected URLs in Facebook's
    Sharing Debugger. Messenger caches previews aggressively; the code fix alone
    will not clear them.
 5. **Verify.** Fetch the live page and confirm the `?v=` values match what's
-   in `index.html`.
+    in `public/index.html`.
 
 Confirm the result by fetching the live page and reading back the `?v=` values,
 rather than trusting the deploy output.
@@ -32,7 +32,7 @@ rather than trusting the deploy output.
 
 ## Changing how images are served
 
-`imgUrl()` / `imgTag()` in `app.js` produce display URLs;
+`imgUrl()` / `imgTag()` in `public/app.js` produce display URLs;
 `renderImage()` / `socialCardUrl()` in `workers/prerender.js` produce preview
 URLs. **They must stay in sync.**
 
@@ -58,8 +58,8 @@ The Worker's `not_found_handling` is set to `404-page`. This means:
   branded 404 page with a `Status: 404` header.
 - **Prerendered story pages** that return `null` from the database also 404 —
   never a `200` or a server error.
-- Never put arbitrary HTML at the repo root (e.g., `test.html`, `old.html`).
-  Anything not listed in `.assetsignore` is publicly served.
+- Never put arbitrary HTML under `public/` (e.g., `test.html`, `old.html`).
+  Everything under `public/` is potentially publicly served.
 
 **Ghost button contrast bug:** The 404 page uses `var(--line)` for button borders,
 which measures only ~1.9:1 against the dark paper — failing WCAG 1.4.11. Use
@@ -173,18 +173,19 @@ cross-origin `<img>` responses need a CORS re-fetch to be inspectable.
 
 ---
 
-## Before adding any new file to the repo root
+## Before adding any new file under `public/`
 
-Read `.assetsignore` first. Anything not listed there is **publicly served**.
-A full database dump once leaked this way.
+Read `public/.assetsignore` first. Everything under `public/` is potentially
+publicly served. A full database dump once leaked from the asset root this way.
 
 ---
 
 ## Known traps
 
-- `PUBLISHED_COLUMNS` in `app.js` must include `status`, or three features fail
+- `PUBLISHED_COLUMNS` in `public/app.js` must include `status`, or three features fail
   silently (view counter, related articles, share URL canonical).
-- Deploy config is `wrangler.jsonc` only. `main` is `workers/prerender.js`.
+- Deploy config is `wrangler.jsonc` only. `main` is `workers/prerender.js`, and
+  Workers Assets comes from `public/`.
 - There are no tests. For data-layer changes, at minimum confirm the fields the
   UI reads are actually present in the query result.
 - On Windows PowerShell 5.1: `$home` collides with `$HOME`, `??` is unsupported,

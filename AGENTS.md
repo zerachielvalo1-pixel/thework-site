@@ -1,8 +1,9 @@
 # The Work — agent & contributor context
 
 The official student publication of Tarlac State University. Static site on
-Cloudflare Workers, content in Supabase. **No build step, no dependencies, no
-package.json** — every file in the repo is served as-is.
+Cloudflare Workers, content in Supabase. **No build step.** Runtime assets live
+under `public/`; deployment tooling, packages, workers, scripts, docs, and local
+state stay outside the public asset directory.
 
 Live: https://thework.tw78.workers.dev
 
@@ -14,7 +15,7 @@ Live: https://thework.tw78.workers.dev
 Browser ──► Cloudflare Worker (workers/prerender.js)
               ├─ /stories/*   prerendered HTML + per-article OG tags (SEO)
               ├─ /sitemap.xml generated from Supabase
-              └─ everything else ──► Workers Assets (the repo itself)
+              └─ everything else ──► Workers Assets (`public/`)
                                         │
                                         └─► Supabase (Postgres + Storage)
 ```
@@ -28,25 +29,26 @@ real paths that the Worker can prerender.
 
 | File | Role |
 |---|---|
-| `index.html` | SPA shell: all views, modals, overlays. ~950 lines. |
-| `app.js` | **All** client logic in one IIFE. ~4,200 lines. |
-| `styles.css` | All styling. ~1,420 lines. |
-| `sw.js` | Service worker: offline shell + install prompt support. |
+| `public/` | Workers Assets directory. Root-relative public URLs are preserved (`/`, `/app.js`, `/styles.css`, `/sw.js`, `/manifest.webmanifest`, `/404.html`, `/logo-*`, `/icon-*`). |
+| `public/.assetsignore` | Wrangler asset exclusions for the configured `public/` directory. |
+| `public/index.html` | SPA shell: all views, modals, overlays. ~950 lines. |
+| `public/app.js` | **All** client logic in one IIFE. ~4,200 lines. |
+| `public/styles.css` | All styling. ~1,420 lines. |
+| `public/sw.js` | Service worker: offline shell + install prompt support. |
 | `workers/prerender.js` | **The deployed Worker.** Prerender, OG tags, sitemap. |
 | `wrangler.jsonc` | Deploy config. `main` points at the Worker above. |
-| `.assetsignore` | **Controls what is publicly served.** Read it before adding files. |
-| `manifest.webmanifest` | PWA manifest. |
-| `scripts/optimize-images.py` | Regenerates logos + app icons from `scripts/logo-tw.master.png`. |
+| `public/manifest.webmanifest` | PWA manifest. |
+| `scripts/optimize-images.py` | Regenerates public logos + app icons from `scripts/logo-tw.master.png`. |
 
 ---
 
 ## Deploy checklist
 
 ```
-# 1. Bump the cache-buster for any changed asset (index.html)
+# 1. Bump the cache-buster for any changed asset (`public/index.html`)
 styles.css?v=7      app.js?v=13
 
-# 2. Bump CACHE_VERSION in sw.js — ONLY if the PRECACHE list changed
+# 2. Bump CACHE_VERSION in `public/sw.js` — ONLY if the PRECACHE list changed
 
 # 3. Ship it
 wrangler deploy
@@ -85,13 +87,13 @@ resizes on the fly, but its API is quirky:
   then $5 per 1,000. A unique *image* counts once per month no matter how many
   sizes you request, so `srcset` widths are free.
 
-Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
+Helpers: `imgUrl()` and `imgTag()` in `public/app.js`, mirrored by `renderImage()` and
 `socialCardUrl()` in `workers/prerender.js`. **Keep the two in sync.**
 
 ### Link previews (Open Graph)
 
 - Crawlers **do not run JavaScript.** Only what `workers/prerender.js` emits
-  matters. `updateArticleMeta()` in `app.js` is for the browser only.
+  matters. `updateArticleMeta()` in `public/app.js` is for the browser only.
 - **Never point `og:image` at a `.webp`.** Facebook/Messenger/WhatsApp render it
   unreliably and fall back to a bare link. This was the original "shares show no
   thumbnail" bug.
@@ -99,7 +101,7 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
   renderer answers HTTP 400 on `format=jpeg` — verified live 2026-10 — and the
   crawlers fetch a JSON error instead of a picture, so shares show bare links.
   Omit `format` entirely: the renderer then transcodes matched webp/jpeg uploads
-  to JPEG itself (and leaves PNG as PNG). `socialCardUrl()` in `app.js` and
+  to JPEG itself (and leaves PNG as PNG). `socialCardUrl()` in `public/app.js` and
   `workers/prerender.js` **must stay byte-for-byte in sync**, including their
   `&amp;`-free query strings.
 - **Never declare `og:image:width`/`height` unless they are accurate.** They were
@@ -107,7 +109,7 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
 - Tags must **replace** the generic homepage defaults, not be appended — a
   crawler reads the *first* matching tag, so a leftover one silently wins.
 
-### Service worker (`sw.js`)
+### Service worker (`public/sw.js`)
 
 - `<img src>` issues a **no-cors** request, so the response is **opaque**
   (status 0, body unreadable). An `if (response.ok)` guard silently skips
@@ -121,7 +123,7 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
 
 ### Database
 
-- **`PUBLISHED_COLUMNS` in `app.js` must include `status`.** Omitting it makes
+- **`PUBLISHED_COLUMNS` in `public/app.js` must include `status`.** Omitting it makes
   `a.status === 'published'` always false, which silently broke three features
   at once: the view counter, the related-articles list, and the share URL /
   canonical tag. Nothing errored.
@@ -130,10 +132,15 @@ Helpers: `imgUrl()` and `imgTag()` in `app.js`, mirrored by `renderImage()` and
 
 ### Deploy hygiene
 
-- **`.assetsignore` decides what is public.** A full dump of the articles
-  table (including drafts and `deleted_by` metadata) was once served at
-  `/articles_rows.csv`. CSV dumps stay gitignored and never belong in the
-  public asset root.
+- **Only `public/` is uploaded as Workers Assets.** Packages, workers, scripts,
+  docs, and local state remain outside the asset directory and are not public.
+  A full dump of the articles table (including drafts and `deleted_by` metadata)
+  was once served at `/articles_rows.csv`; CSV dumps stay gitignored and never
+  belong in `public/`.
+- **`.assetsignore` placement matters.** Wrangler reads `.assetsignore` from
+  the configured assets directory, so any ignore rules for this deployment
+  belong at `public/.assetsignore`, not the repository root. The root-level
+  file is not consulted once `assets.directory` is `public`.
 - Deploy config is `wrangler.jsonc` only (`main` = `workers/prerender.js`).
 
 ---
@@ -190,7 +197,7 @@ Dark background `#0D0720` uses accent `#7C3AED` (3.45:1), light background
 
 ## Known debt
 
-1. **`app.js` is one ~4,200-line IIFE** with ~125 top-level functions. Splitting
+1. **`public/app.js` is one ~4,200-line IIFE** with ~125 top-level functions. Splitting
    into ES modules (`data`, `render`, `admin`, `share`) needs no build step.
 2. **No tests.** Two silent bugs shipped this year that a single smoke test
    asserting the Supabase column contract would have caught.
