@@ -30,7 +30,7 @@ const PUBLIC_DATA_RESOURCES = {
   },
   videos: {
     table: 'videos',
-    select: 'id,title,video_url,thumbnail_url,platform,published_at,description,broadcasters,broadcaster_2,videojournalist,videojournalist_2,videojournalist_3,video_courtesy,video_courtesy_2,director,director_2,writer,writer_2,writer_3,animator,animator_2,editor,technicians,subcategory,orientation,sort_order',
+    select: 'id,title,video_url,thumbnail_url,platform,published,description,broadcasters,broadcaster_2,videojournalist,videojournalist_2,videojournalist_3,video_courtesy,video_courtesy_2,director,director_2,writer,writer_2,writer_3,animator,animator_2,editor,technicians,subcategory,orientation,sort_order',
     status: 'eq.published',
     order: 'sort_order.asc'
   },
