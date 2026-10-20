@@ -547,6 +547,8 @@ let editingMemoriamId = null;
 let pendingMemoriamPhoto = null;
 let draftTimer = null;
 let selectedIds = new Set();
+let importParsedArticle = null;
+let importLastFocused = null;
 
 /* ---------- Editor identity (sub-profile attribution) ----------
    When several people share one eb@ or staff@ login, each session needs
@@ -813,7 +815,8 @@ const Data = {
     appCache.publishedArticles = Array.isArray(data) ? data : [];
     return appCache.publishedArticles.slice();
   },
-  async listAll() {
+  async listAll(options) {
+    const throwOnError = !!(options && options.throwOnError);
     if (appCache.allArticles) return appCache.allArticles.slice();
     if (!sb) {
       const result = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => !a.deleted_at);
@@ -837,7 +840,11 @@ const Data = {
            keeps its cache. */
         _: Date.now()
       });
-    } catch (err) { console.error(err); return []; }
+    } catch (err) {
+      console.error(err);
+      if (throwOnError) throw err;
+      return [];
+    }
     appCache.allArticles = Array.isArray(data) ? data : [];
     return appCache.allArticles.slice();
   },
@@ -873,6 +880,7 @@ const Data = {
     appCache.allArticles = null;
   },
   async restore(id) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_articles') || '[]');
       const idx = list.findIndex(x => x.id === id);
@@ -888,6 +896,7 @@ const Data = {
     appCache.allArticles = null;
   },
   async hardRemove(id) {
+    if (sb) twRequireRole('dev');
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(x => x.id !== id);
       localStorage.setItem('tw_articles', JSON.stringify(list));
@@ -923,6 +932,7 @@ const Data = {
     }));
   },
   async upsertBoardMember(m) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) throw new Error('Offline');
     /* Articles and board_photos key off the member's name as a plain string,
        so a rename must rewrite those references or it orphans their photo and
@@ -1012,6 +1022,7 @@ const Data = {
     } catch (e) { console.warn('[The Work] Cascade failed for ' + table + '.' + field, e); }
   },
   async removeBoardMember(id) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) throw new Error('Offline');
     /* board_photos is keyed by name, not by member id. Delete the member row
        first to fetch the name, then drop the photo so a future member with the
@@ -1127,6 +1138,7 @@ const Data = {
     return map;
   },
   async saveBoardPhoto(name, url) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const map = JSON.parse(localStorage.getItem('tw_board_photos') || '{}');
       map[name] = url;
@@ -1137,6 +1149,7 @@ const Data = {
     if (error) throw error;
   },
   async deleteBoardPhoto(name) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const map = JSON.parse(localStorage.getItem('tw_board_photos') || '{}');
       delete map[name];
@@ -1147,6 +1160,7 @@ const Data = {
     if (error) throw error;
   },
   async uploadBoardPhoto(blob) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       return await new Promise(resolve => {
         const r = new FileReader();
@@ -1154,11 +1168,12 @@ const Data = {
         r.readAsDataURL(blob);
       });
     }
-    const path = 'board-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.jpg';
-    const { error } = await sb.storage.from('thumbnails').upload(path, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' });
-    if (error) throw error;
-    const { data } = sb.storage.from('thumbnails').getPublicUrl(path);
-    return data.publicUrl;
+    /* Keep every browser upload on the same-origin Worker path. Direct
+       Supabase Storage uploads are vulnerable to privacy extensions stripping
+       the Authorization header and violate the site's upload boundary. */
+    const url = await Data.uploadThumb(blob);
+    if (!url) throw new Error('Board photo upload failed.');
+    return url;
   },
   async listPublishedReleases() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_releases') || '[]').filter(i => i.status === 'published');
@@ -1173,6 +1188,7 @@ const Data = {
     return data || [];
   },
   async upsertRelease(release) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_releases') || '[]');
       const idx = list.findIndex(x => x.id === release.id);
@@ -1185,6 +1201,7 @@ const Data = {
     return data;
   },
   async removeRelease(id) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_releases') || '[]').filter(x => x.id !== id);
       localStorage.setItem('tw_releases', JSON.stringify(list));
@@ -1233,6 +1250,7 @@ const Data = {
     return data || [];
   },
   async upsertMemoriam(item) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_memoriam') || '[]');
       const idx = list.findIndex(x => x.id === item.id);
@@ -1245,6 +1263,7 @@ const Data = {
     return data;
   },
   async removeMemoriam(id) {
+    if (sb) twRequireRole('eb', 'dev');
     if (!sb) {
       const list = JSON.parse(localStorage.getItem('tw_memoriam') || '[]').filter(x => x.id !== id);
       localStorage.setItem('tw_memoriam', JSON.stringify(list));
@@ -1449,8 +1468,16 @@ const ROLE_PERMISSIONS = {
   trash:       { dev: 'Full',      eb: 'Restore',   member: 'Hidden' },
   purge:       { dev: 'Yes',       eb: 'No',        member: 'No' },
   settings:    { dev: 'Full',      eb: 'Full',      member: 'Full' },
-  users:       { dev: 'Full',      eb: '—',         member: '—' }
+  users:       { dev: 'Full',      eb: 'Full',      member: '—' }
 };
+
+function twRoleAllowed(...roles) {
+  return !sb || roles.includes(currentRole);
+}
+
+function twRequireRole(...roles) {
+  if (!twRoleAllowed(...roles)) throw new Error('This action requires ' + roles.join(' or ') + ' access.');
+}
 
 async function loadRole() {
   if (!sb) { currentRole = null; currentBylineNames = []; return; }
@@ -1518,11 +1545,184 @@ function safeErrorText(err) {
 
 function toast(msg, isError) {
   $('#toastText').textContent = msg;
+  const live = $('#adminLiveStatus');
+  if (live && document.getElementById('view-admin')?.classList.contains('active')) live.textContent = msg;
   $('#toast').classList.toggle('error', !!isError);
   $('#toast').classList.add('show');
   clearTimeout(toast._t);
   toast._t = setTimeout(() => $('#toast').classList.remove('show'), 3200);
 }
+
+/* ---------- Safe article import ----------
+   Imported files and pasted text stay as plain text/markdown. The preview uses
+   renderArticleBody(), which escapes content before applying the editor's small
+   markdown subset, so pasted HTML is displayed as text rather than executed. */
+function parseImportedArticle(source) {
+  const normalized = String(source || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n');
+  while (lines.length && !lines[0].trim()) lines.shift();
+  if (!lines.length) return null;
+
+  const first = lines.shift().trim();
+  const heading = first.match(/^#\s+(.+)$/);
+  const title = (heading ? heading[1] : first).trim();
+  while (lines.length && !lines[0].trim()) lines.shift();
+
+  let excerpt = '';
+  const excerptMatch = lines.length ? lines[0].trim().match(/^Excerpt:\s*(.*)$/i) : null;
+  if (excerptMatch) {
+    excerpt = excerptMatch[1].trim();
+    lines.shift();
+    while (lines.length && !lines[0].trim()) lines.shift();
+  }
+
+  return {
+    title: title.slice(0, 160),
+    excerpt: excerpt.slice(0, 280),
+    body: lines.join('\n').trim()
+  };
+}
+
+function setImportStatus(message, state) {
+  const el = document.getElementById('importStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'import-status' + (state ? ' is-' + state : '');
+}
+
+function renderImportPreview(parsed) {
+  const preview = document.getElementById('importPreview');
+  const apply = document.getElementById('importApplyBtn');
+  if (!preview || !apply) return;
+  importParsedArticle = parsed;
+  if (!parsed) {
+    preview.hidden = true;
+    apply.disabled = true;
+    setImportStatus('Paste text or choose a supported file to see a preview.');
+    return;
+  }
+  document.getElementById('importPreviewTitle').textContent = parsed.title || 'Untitled story';
+  document.getElementById('importPreviewExcerpt').textContent = parsed.excerpt || '';
+  document.getElementById('importPreviewBody').innerHTML = parsed.body ? renderArticleBody(parsed.body) : '';
+  preview.hidden = false;
+  apply.disabled = !parsed.title;
+  setImportStatus(parsed.body ? 'Preview ready. Check the imported text before applying it.' : 'Title found, but the body is empty. You can add the body after applying the import.', 'ready');
+}
+
+function resetImportDialog() {
+  const text = document.getElementById('importArticleText');
+  const file = document.getElementById('importArticleFile');
+  const name = document.getElementById('importFileName');
+  if (text) text.value = '';
+  if (file) file.value = '';
+  if (name) name.textContent = 'No file selected';
+  renderImportPreview(null);
+}
+
+function openImportArticle() {
+  const overlay = document.getElementById('importOverlay');
+  if (!overlay) return;
+  importLastFocused = document.activeElement;
+  resetImportDialog();
+  overlay.classList.add('open');
+  lockScroll();
+  setTimeout(() => document.getElementById('importArticleText')?.focus(), 60);
+}
+
+function closeImportArticle(restoreFocus = true) {
+  const overlay = document.getElementById('importOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  unlockScroll();
+  if (restoreFocus && importLastFocused && typeof importLastFocused.focus === 'function') importLastFocused.focus();
+  importLastFocused = null;
+}
+
+function importHasActiveDraft() {
+  const panel = document.getElementById('panel-new');
+  const formHasContent = panel && panel.classList.contains('active') &&
+    ['fTitle', 'fExcerpt', 'fBody'].some(id => (document.getElementById(id)?.value || '').trim());
+  if (formHasContent) return true;
+  const draft = twLoadDraft(editingId || 'new');
+  return !!(draft && [draft.title, draft.excerpt, draft.body].some(value => String(value || '').trim()));
+}
+
+function applyImportedArticle() {
+  const parsed = importParsedArticle;
+  if (!parsed) return;
+  const apply = () => {
+    if (!document.getElementById('panel-new')?.classList.contains('active')) setPanel('new');
+    document.getElementById('fTitle').value = parsed.title;
+    document.getElementById('fExcerpt').value = parsed.excerpt;
+    document.getElementById('fBody').value = parsed.body;
+    document.getElementById('fBody').dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('fTitle').dispatchEvent(new Event('input', { bubbles: true }));
+    twSaveDraft();
+    closeImportArticle(false);
+    toast('Import applied to the article form');
+    setTimeout(() => document.getElementById('fTitle')?.focus(), 60);
+  };
+  if (importHasActiveDraft()) {
+    openConfirm('Replace current draft?', 'Applying this import will replace the current title, excerpt, and body in the article form. Other fields will stay as they are.', apply, {
+      okLabel: 'Replace draft',
+      cancelLabel: 'Keep draft',
+      okClass: 'btn-danger'
+    });
+    return;
+  }
+  apply();
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-import-article]')) { openImportArticle(); return; }
+  if (e.target.closest('#importClose, #importCancelBtn')) { closeImportArticle(); return; }
+  if (e.target.closest('#importApplyBtn')) { applyImportedArticle(); return; }
+});
+
+document.getElementById('importArticleText')?.addEventListener('input', e => {
+  const raw = e.target.value;
+  const file = document.getElementById('importArticleFile');
+  const name = document.getElementById('importFileName');
+  if (file && file.value) file.value = '';
+  if (name) name.textContent = raw.trim() ? 'Pasted text' : 'No file selected';
+  if (!raw.trim()) { renderImportPreview(null); return; }
+  renderImportPreview(parseImportedArticle(raw));
+});
+
+document.getElementById('importArticleFile')?.addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!/\.(?:md|markdown|txt)$/i.test(file.name || '')) {
+    renderImportPreview(null);
+    document.getElementById('importFileName').textContent = 'No file selected';
+    setImportStatus('That file type is not supported. Choose a .md, .markdown, or .txt file.', 'error');
+    e.target.value = '';
+    return;
+  }
+  renderImportPreview(null);
+  setImportStatus('Reading ' + file.name + '…', 'loading');
+  const reader = new FileReader();
+  reader.onload = event => {
+    const text = String(event.target.result || '');
+    document.getElementById('importArticleText').value = text;
+    document.getElementById('importFileName').textContent = file.name;
+    if (!text.trim()) {
+      renderImportPreview(null);
+      setImportStatus('The selected file is empty. Choose another file or paste article text.', 'error');
+      return;
+    }
+    renderImportPreview(parseImportedArticle(text));
+  };
+  reader.onerror = () => {
+    renderImportPreview(null);
+    setImportStatus('Could not read that file. Try choosing it again or paste the text instead.', 'error');
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('importOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('importOverlay')) closeImportArticle();
+});
 function resizeImageToBlob(file, maxW, quality) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1590,6 +1790,7 @@ function openConfirm(title, msg, cb, opts) {
   }
   if (cancelBtn) cancelBtn.textContent = opts.cancelLabel || 'Cancel';
   $('#confirmOverlay').classList.add('open');
+  setTimeout(() => $('#confirmCancel')?.focus(), 0);
 }
 function closeConfirm() { $('#confirmOverlay').classList.remove('open'); confirmCb = null; }
 $('#confirmCancel').addEventListener('click', closeConfirm);
@@ -1795,6 +1996,12 @@ function twRenderIdentityChip() {
   if (btn) btn.title = currentRole === 'dev' ? 'Signed in as developer' : 'Switch user';
 }
 
+function twRefreshMemberDashboard() {
+  if (currentRole === 'member' && document.getElementById('panel-dashboard')?.classList.contains('active')) {
+    renderAdmin();
+  }
+}
+
 /* Shown proactively when the admin panel opens. Suppressed by a
    localStorage flag so a second tab does not nag — save-time enforcement
    in the article form is the actual gate. */
@@ -1809,6 +2016,7 @@ function twMaybePromptEditorIdentity() {
     if (name) {
       twSetEditorInStorage(name);
       twRenderIdentityChip();
+      twRefreshMemberDashboard();
       toast('Signed as ' + name);
     }
   });
@@ -1871,6 +2079,7 @@ document.getElementById('adminIdentityBtn')?.addEventListener('click', () => {
     if (name) {
       twSetEditorInStorage(name);
       twRenderIdentityChip();
+      twRefreshMemberDashboard();
       toast('Switched to ' + name);
     }
   });
@@ -3956,7 +4165,8 @@ if (modalGoArticleBtn) {
 $('#modalOverlay').addEventListener('click', e => { if (e.target === $('#modalOverlay')) closeArticle(); });
 
 document.addEventListener('keydown', e => {
-  const dialog = $('.modal-overlay.open, .reader-overlay.open');
+  const openDialogs = Array.from(document.querySelectorAll('.modal-overlay.open, .reader-overlay.open'));
+  const dialog = openDialogs[openDialogs.length - 1];
   if (e.key === 'Tab' && dialog) {
     const focusable = Array.from(dialog.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'))
       .filter(el => el.getClientRects().length > 0);
@@ -3977,6 +4187,7 @@ document.addEventListener('keydown', e => {
     unlockScroll();
     return;
   }
+  if ($('#importOverlay').classList.contains('open')) { closeImportArticle(); return; }
   if ($('#readerOverlay').classList.contains('open')) { closeReader(); return; }
   if ($('#cropOverlay').classList.contains('open')) { closeCropModal(); return; }
   if ($('#memoriamOverlay').classList.contains('open')) { closeMemoriam(); return; }
@@ -4916,36 +5127,107 @@ document.getElementById('resetColorsBtn')?.addEventListener('click', () => {
   toast('Colors reset to defaults');
 });
 
-async function renderAdmin() {
-  const all = await Data.listAll();
-  window.__allArticles = Array.isArray(all) ? all : [];
-  const total = window.__allArticles.length;
-  const published = window.__allArticles.filter(a => a.status === 'published').length;
-  const drafts = total - published;
-  const sections = new Set(window.__allArticles.map(a => a.cat)).size;
-  $('#statTotal').textContent = total;
-  $('#statPublished').textContent = published;
-  $('#statDrafts').textContent = drafts;
-  $('#statSections').textContent = sections;
-  const email = session?.user?.email || session?.email || 'admin';
-  $('#dashName').textContent = email.split('@')[0];
-
-  const recent = all.slice(0,5);
-  const rl = $('#recentList');
-  if (!recent.length) {
-    rl.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)"><p style="font-family:var(--sans)">No articles yet.</p></div>';
-  } else {
-    rl.innerHTML = recent.map(a =>
-      `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-2)">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:650;font-size:.9rem;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
-          <div style="font-family:var(--sans);font-size:.74rem;color:var(--ink-3)">${esc(a.author||'—')} · ${esc(fmtDate(a.date))} · <span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span> ${scheduleBadgeHtml(a)}</div>
-        </div>
-        <button class="icon-action" data-edit="${a.id}">✎</button>
-      </div>`
-    ).join('');
+function renderAdminLoading() {
+  const recent = $('#recentList');
+  const table = $('#tableContainer');
+  if (recent) {
+    recent.innerHTML = `<div class="admin-loading-list" aria-label="Loading recent articles">
+      ${[1,2,3].map(() => `<div class="admin-loading-row"><span class="tw-skel"></span><span class="tw-skel"></span><span class="tw-skel"></span></div>`).join('')}
+    </div>`;
   }
-  renderTable();
+  if (table) table.innerHTML = '<div class="admin-state" aria-label="Loading articles"><strong>Loading your workspace</strong><p>Getting the latest articles and status counts.</p></div>';
+  ['#statTotal','#statPublished','#statDrafts','#statSections'].forEach(sel => { const el = $(sel); if (el) el.textContent = '…'; });
+}
+
+function renderAdminError(err) {
+  const message = safeErrorText(err) || 'The article list could not be loaded.';
+  const html = `<div class="admin-state admin-state-error" role="alert">
+    <strong>Could not load the dashboard</strong>
+    <p>${esc(message)} Check your connection or sign in again, then try once more.</p>
+    <div class="admin-state-actions"><button type="button" class="btn btn-primary btn-sm" data-admin-retry>Retry</button></div>
+  </div>`;
+  const recent = $('#recentList');
+  const table = $('#tableContainer');
+  if (recent) recent.innerHTML = html;
+  if (table) table.innerHTML = html;
+  const context = $('#dashboardContext');
+  if (context) context.hidden = true;
+}
+
+function dashboardArticles(all) {
+  if (currentRole !== 'member') return all;
+  return all.filter(articleMatchesMe);
+}
+
+function renderDashboardContext(all, mine) {
+  const context = $('#dashboardContext');
+  if (!context) return;
+  if (currentRole !== 'member') {
+    context.hidden = true;
+    return;
+  }
+  context.hidden = false;
+  const selectedIdentity = typeof twGetEditorFromStorage === 'function' ? twGetEditorFromStorage() : '';
+  if (!currentBylineNames.length && !selectedIdentity) {
+    context.innerHTML = `<span class="context-icon" aria-hidden="true">i</span><div><strong>Your dashboard is ready, but your byline identity is not set up.</strong>Choose your name so your submissions can be matched correctly. <button type="button" class="btn btn-ghost btn-sm" data-switch-identity>Choose identity</button></div>`;
+    return;
+  }
+  if (!mine.length) {
+    context.innerHTML = `<span class="context-icon" aria-hidden="true">+</span><div><strong>No submissions matched your identity yet.</strong>Start with a blank article or import a Markdown/plain-text draft. <button type="button" class="btn btn-ghost btn-sm" data-goto="new">Start an article</button></div>`;
+    return;
+  }
+  const identityCount = currentBylineNames.length || 1;
+  context.innerHTML = `<span class="context-icon" aria-hidden="true">✓</span><div><strong>Showing your newsroom activity.</strong>Matched ${mine.length} article${mine.length === 1 ? '' : 's'} against ${identityCount} configured ${identityCount === 1 ? 'identity' : 'identities'}.</div>`;
+}
+
+async function renderAdmin() {
+  renderAdminLoading();
+  try {
+    const all = await Data.listAll({ throwOnError: true });
+    window.__allArticles = Array.isArray(all) ? all : [];
+    const mine = dashboardArticles(window.__allArticles);
+    const total = mine.length;
+    const published = mine.filter(a => a.status === 'published').length;
+    const drafts = total - published;
+    const sections = new Set(mine.map(a => a.cat).filter(Boolean)).size;
+    $('#statTotal').textContent = total;
+    $('#statPublished').textContent = published;
+    $('#statDrafts').textContent = drafts;
+    $('#statSections').textContent = sections;
+    const email = session?.user?.email || session?.email || 'admin';
+    $('#dashName').textContent = email.split('@')[0];
+    $('#statTotalLabel').textContent = currentRole === 'member' ? 'Your articles' : 'Total articles';
+    $('#statPublishedLabel').textContent = currentRole === 'member' ? 'Your published' : 'Published';
+    $('#statDraftsLabel').textContent = currentRole === 'member' ? 'Your drafts' : 'Drafts';
+    $('#statSectionsLabel').textContent = currentRole === 'member' ? 'Your sections' : 'Sections';
+    const guide = $('#memberGuide');
+    if (guide) guide.hidden = currentRole !== 'member';
+    renderDashboardContext(window.__allArticles, mine);
+
+    const recent = mine.slice(0,5);
+    const rl = $('#recentList');
+    if (!recent.length) {
+      const text = currentRole === 'member' && !currentBylineNames.length
+        ? 'Add your byline names in Settings to see your submissions here.'
+        : currentRole === 'member'
+          ? 'No submissions yet. Start an article or import a draft.'
+          : 'No articles yet. Create the first story.';
+      rl.innerHTML = `<div class="admin-state"><strong>${currentRole === 'member' ? 'Your recent articles' : 'No recent articles'}</strong><p>${esc(text)}</p><div class="admin-state-actions"><button type="button" class="btn btn-primary btn-sm" data-goto="new">New article</button></div></div>`;
+    } else {
+      rl.innerHTML = recent.map(a =>
+        `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-2)">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:650;font-size:.9rem;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
+            <div style="font-family:var(--sans);font-size:.74rem;color:var(--ink-3)">${esc(a.author||'—')} · ${esc(fmtDate(a.date))} · <span class="badge ${a.status==='published'?'published':'draft'}">${a.status}</span> ${scheduleBadgeHtml(a)}</div>
+          </div>
+          <button class="icon-action" data-edit="${a.id}" aria-label="Edit ${esc(a.title)}" title="Edit article">✎</button>
+        </div>`
+      ).join('');
+    }
+    renderTable();
+  } catch (err) {
+    renderAdminError(err);
+  }
 }
 
 function updateBulkBar() {
@@ -4983,7 +5265,12 @@ function renderTable() {
   if (catFilter) list = list.filter(a => a.cat === catFilter);
 
   if (!list.length) {
-    wrap.innerHTML = '<div style="text-align:center;padding:56px 24px;color:var(--ink-3)"><h3 style="font-family:var(--serif);color:var(--ink-2)">No articles</h3></div>';
+    const hasFilters = !!(searchQuery || statusFilter || catFilter);
+    wrap.innerHTML = `<div class="admin-state">
+      <strong>${hasFilters ? 'No articles match these filters' : 'No articles yet'}</strong>
+      <p>${hasFilters ? 'Try a different search or clear the filters to see the full list.' : 'Create a new article or import a Markdown/plain-text draft to get started.'}</p>
+      ${hasFilters ? '<div class="admin-state-actions"><button type="button" class="btn btn-ghost btn-sm" data-clear-article-filters>Clear filters</button></div>' : ''}
+    </div>`;
     updateBulkBar();
     return;
   }
@@ -5096,6 +5383,12 @@ $('#thumbUploader').addEventListener('click', e => {
   if (e.target.closest('#removeThumbBtn') || e.target.closest('#changeThumbBtn')) return;
   if ($('#thumbUploader').classList.contains('has-image')) return;
   $('#fThumb').click();
+});
+document.addEventListener('keydown', e => {
+  const uploader = e.target.closest?.('.thumb-uploader');
+  if (!uploader || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  uploader.click();
 });
 $('#changeThumbBtn').addEventListener('click', e => { e.stopPropagation(); $('#fThumb').click(); });
 $('#removeThumbBtn').addEventListener('click', e => { e.stopPropagation(); $('#fThumb').value=''; setThumbnail(null); window.__pendingThumbFile = null; });
@@ -5786,6 +6079,55 @@ document.addEventListener('input', e => {
   }
 });
 
+function updateEditorProgress() {
+  const title = ($('#fTitle')?.value || '').trim();
+  const section = $('#fCat')?.value || '';
+  const body = ($('#fBody')?.value || '').trim();
+  const done = [title, section, body].filter(Boolean).length;
+  const bar = $('#editorProgressBar');
+  const text = $('#editorProgressText');
+  const titleEl = $('#editorProgressTitle');
+  const hint = $('#editorProgressHint');
+  const card = $('#editorProgress');
+  if (!bar || !text || !titleEl || !hint || !card) return;
+  bar.style.width = `${Math.round((done / 3) * 100)}%`;
+  text.textContent = `${done} of 3 required fields`;
+  card.classList.toggle('is-ready', done === 3);
+  if (done === 3) {
+    titleEl.textContent = 'Ready to save';
+    hint.textContent = 'The required fields are complete. Add credits, an excerpt, and an image to strengthen the story before publishing.';
+  } else {
+    titleEl.textContent = 'Article setup';
+    hint.textContent = 'Add a title, choose a section, and write the body to make this article ready to save.';
+  }
+}
+
+function updatePublishingSummary() {
+  const el = $('#publishingSummary');
+  if (!el) return;
+  const status = $('#fStatus')?.value || 'published';
+  const raw = $('#fPublishAt')?.value || '';
+  const when = raw ? new Date(raw) : null;
+  const validWhen = when && !Number.isNaN(when.getTime());
+  const future = validWhen && when.getTime() > Date.now();
+  const past = validWhen && !future;
+  el.classList.remove('is-warning');
+  if (status === 'draft') {
+    el.innerHTML = '<strong>Draft</strong><br>Not visible on the public site. Editors can review it from the Articles panel.';
+    if (validWhen) el.innerHTML += '<br>The publish time will be ignored while this stays a draft.';
+    return;
+  }
+  if (future) {
+    el.innerHTML = `<strong>Scheduled</strong><br>Hidden until ${esc(when.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))}.`;
+    return;
+  }
+  if (past) {
+    el.innerHTML = '<strong>Published</strong><br>Visible on the public site after it is saved.';
+    return;
+  }
+  el.innerHTML = '<strong>Published</strong><br>Visible on the public site as soon as it is saved.';
+}
+
 function resetForm() {
   editingId = null;
   window.__pendingThumbFile = null;
@@ -5811,6 +6153,8 @@ function resetForm() {
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
   if (typeof updateSharePreview === 'function') updateSharePreview();
+  updateEditorProgress();
+  updatePublishingSummary();
   if (typeof renderNotesPanel === 'function') renderNotesPanel();
 }
 
@@ -5854,6 +6198,8 @@ function loadIntoForm(id) {
   if (typeof updateBodyMeter === 'function') updateBodyMeter();
   if (typeof updateWordMeter === 'function') updateWordMeter();
   if (typeof updateSharePreview === 'function') updateSharePreview();
+  updateEditorProgress();
+  updatePublishingSummary();
   if (typeof renderNotesPanel === 'function') renderNotesPanel();
 }
 
@@ -6307,6 +6653,10 @@ $('#boardMemberForm').addEventListener('submit', async e => {
 async function renderUsersAdmin() {
   const el = $('#usersList');
   if (!el) return;
+  if (!twRoleAllowed('eb', 'dev')) {
+    el.innerHTML = '<div class="tw-error"><strong>Staff management is restricted</strong>Only Editorial Board and Developer accounts can assign byline names.</div>';
+    return;
+  }
   if (!sb) {
     el.innerHTML = '<div class="tw-error"><strong>Not connected</strong>Sign in with a real account to manage staff.</div>';
     return;
@@ -6363,6 +6713,7 @@ async function renderUsersAdmin() {
 async function saveUserBylineNames(id) {
   const input = document.querySelector(`[data-user-input="${id}"]`);
   if (!input || !sb) return;
+  try { twRequireRole('eb', 'dev'); } catch (err) { toast(safeErrorText(err), true); return; }
   const names = input.value.split('\n').map(s => s.trim()).filter(Boolean);
   const btn = document.querySelector(`[data-user-save="${id}"]`);
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
@@ -6437,6 +6788,20 @@ function renderPermissions() {
 document.addEventListener('click', e => {
   const gotoBtn = e.target.closest('[data-goto]');
   if (gotoBtn) { setPanel(gotoBtn.dataset.goto); return; }
+  const identityBtn = e.target.closest('[data-switch-identity]');
+  if (identityBtn) {
+    twShowEditorIdentityModal((name) => {
+      if (name) {
+        twSetEditorInStorage(name);
+        twRenderIdentityChip();
+        twRefreshMemberDashboard();
+        toast('Signed as ' + name);
+      }
+    });
+    return;
+  }
+  const retryBtn = e.target.closest('[data-admin-retry]');
+  if (retryBtn) { renderAdmin(); return; }
   const navBtn = e.target.closest('.admin-nav button');
   if (navBtn) { setPanel(navBtn.dataset.panel); return; }
 });
@@ -6468,6 +6833,17 @@ $('#boardPhotoInput').addEventListener('change', e => {
 });
 
 $('#tableContainer').addEventListener('click', async e => {
+  const clearFilters = e.target.closest('[data-clear-article-filters]');
+  if (clearFilters) {
+    searchQuery = '';
+    statusFilter = '';
+    catFilter = '';
+    $('#searchInput').value = '';
+    $('#statusFilter').value = '';
+    $('#catFilter').value = '';
+    renderTable();
+    return;
+  }
   const v = e.target.closest('[data-view]');
   if (v) {
     const a = (window.__allArticles || []).find(x => x.id === v.dataset.view);
@@ -6501,11 +6877,15 @@ $('#catFilter').addEventListener('change', e => { catFilter = e.target.value; re
 document.addEventListener('input', e => {
   if (!e.target || !e.target.closest || !e.target.closest('#articleForm')) return;
   twSaveDraft();
+  updateEditorProgress();
+  updatePublishingSummary();
 });
 
 document.addEventListener('change', e => {
   if (!e.target || !e.target.closest || !e.target.closest('#articleForm')) return;
   twSaveDraft();
+  updateEditorProgress();
+  updatePublishingSummary();
 });
 
 document.addEventListener('change', e => {

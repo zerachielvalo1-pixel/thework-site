@@ -64,7 +64,7 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="styles.css?v=50">
+<link rel="stylesheet" href="styles.css?v=53">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="f218a4de-6a40-4d2c-a6cf-e3f70055c36d"></script>
 </head>
@@ -391,8 +391,9 @@
       <section class="admin-section active" id="panel-dashboard">
         <div class="admin-head">
           <div><h1>Welcome back, <span id="dashName">Admin</span>.</h1><p>Here's what's happening with The Work's content.</p></div>
-          <button class="btn btn-primary" data-goto="new">New article</button>
+          <div class="admin-head-actions"><button class="btn btn-ghost" type="button" data-import-article>Import Article</button><button class="btn btn-primary" data-goto="new">New article</button></div>
         </div>
+        <div class="admin-context" id="dashboardContext" hidden></div>
         <div class="stat-grid">
           <div class="stat-card"><b id="statTotal">0</b><span id="statTotalLabel">Total articles</span></div>
           <div class="stat-card"><b id="statPublished">0</b><span id="statPublishedLabel">Published</span></div>
@@ -420,7 +421,7 @@
       <section class="admin-section" id="panel-articles">
         <div class="admin-head">
           <div><h1>Articles</h1><p>Manage all stories, drafts, and published pieces.</p></div>
-          <button class="btn btn-primary" data-goto="new">New article</button>
+          <div class="admin-head-actions"><button class="btn btn-ghost" type="button" data-import-article>Import Article</button><button class="btn btn-primary" data-goto="new">New article</button></div>
         </div>
         <div class="table-wrap">
           <div class="table-toolbar">
@@ -486,7 +487,7 @@
             <div class="field">
               <label>Cover image <span class="hint">optional — shown on the release card</span></label>
               <input type="file" id="releaseCoverFile" accept="image/*" style="display:none">
-              <div class="thumb-uploader" id="releaseCoverUploader">
+              <div class="thumb-uploader" id="releaseCoverUploader" role="button" tabindex="0" aria-label="Upload release cover image">
                 <div id="releaseCoverEmpty" class="thumb-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-4.5-4.5L9 18"/></svg>
                   <b>Click to upload a cover image</b>
@@ -557,7 +558,7 @@
                 </button>
               </div>
               <input type="file" id="videoThumbFile" accept="image/*" style="display:none">
-              <div class="thumb-uploader" id="videoThumbUploader">
+               <div class="thumb-uploader" id="videoThumbUploader" role="button" tabindex="0" aria-label="Upload custom video thumbnail">
                 <div id="videoThumbEmpty" class="thumb-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-4.5-4.5L9 18"/></svg>
                   <b id="videoThumbEmptyText">Paste a video URL — thumbnail auto-fills</b>
@@ -655,7 +656,7 @@
             <div class="field">
               <label>Board photo <span class="hint">required</span></label>
               <input type="file" id="memoriamPhotoFile" accept="image/*" style="display:none">
-              <div class="thumb-uploader" id="memoriamPhotoUploader">
+               <div class="thumb-uploader" id="memoriamPhotoUploader" role="button" tabindex="0" aria-label="Upload board photo">
                 <div id="memoriamPhotoEmpty" class="thumb-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-4.5-4.5L9 18"/></svg>
                   <b>Click to upload the board photo</b>
@@ -720,9 +721,16 @@
         <div class="panel">
           <form id="articleForm" novalidate>
             <input type="hidden" id="fId">
+            <div class="editor-progress" id="editorProgress" aria-live="polite">
+              <div class="editor-progress-top"><strong id="editorProgressTitle">Article setup</strong><span id="editorProgressText">0 of 3 required fields</span></div>
+              <div class="editor-progress-track"><span id="editorProgressBar"></span></div>
+              <p id="editorProgressHint">Add a title, choose a section, and write the body to make this article ready to save.</p>
+            </div>
+            <fieldset class="editor-group">
+              <legend>Basics</legend>
             <div class="field">
               <label>Article thumbnail <span class="hint">optional</span></label>
-              <div class="thumb-uploader" id="thumbUploader">
+              <div class="thumb-uploader" id="thumbUploader" role="button" tabindex="0" aria-label="Upload article thumbnail">
                 <input type="file" id="fThumb" accept="image/*" style="display:none">
                 <div id="thumbEmpty" class="thumb-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-4.5-4.5L9 18"/></svg>
@@ -747,7 +755,10 @@
                 <select id="fSubcat"><option value="">—</option></select>
               </div>
             </div>
+            </fieldset>
 
+            <fieldset class="editor-group">
+              <legend>Credits</legend>
             <div class="credit-picker" data-role="authors" data-label="Author" data-placeholder="Start typing a name…">
               <div class="credit-picker-head">
                 <label class="credit-picker-label">Authors <span class="hint" id="fAuthorHint">*</span></label>
@@ -802,6 +813,10 @@
               </div>
               <div class="credit-picker-fields"></div>
             </div>
+            </fieldset>
+
+            <fieldset class="editor-group">
+              <legend>Story and schedule</legend>
             <div class="row-2">
               <div class="field"><label for="fDate">Date</label><input type="date" id="fDate"></div>
               <div class="field"><label for="fRead">Read time <span class="hint">auto</span></label><input type="text" id="fRead" maxlength="20" readonly style="opacity:.7;cursor:not-allowed"></div>
@@ -837,6 +852,10 @@
                 </div>
               </div>
             </div>
+            </fieldset>
+
+            <fieldset class="editor-group">
+              <legend>Publishing</legend>
             <div class="field">
               <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;background:var(--paper-3);border-radius:var(--radius);border:1.5px solid var(--line);cursor:pointer;margin:0">
                 <input type="checkbox" id="fFeatured" style="width:auto;flex:none;margin-top:3px;accent-color:var(--accent);cursor:pointer">
@@ -847,6 +866,8 @@
               </label>
             </div>
             <div class="field"><label for="fStatus">Status</label><select id="fStatus"><option value="published">Published</option><option value="draft">Draft</option></select></div>
+            <div class="publishing-summary" id="publishingSummary" aria-live="polite"></div>
+            </fieldset>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" id="saveBtn">Save article</button>
               <button type="button" class="btn btn-ghost" data-goto="articles">Cancel</button>
@@ -1141,6 +1162,42 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="importOverlay" role="dialog" aria-modal="true" aria-labelledby="importTitle" aria-describedby="importDescription">
+  <div class="modal import-modal">
+    <button class="modal-close" id="importClose" type="button" aria-label="Close import article dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="modal-body">
+      <div class="panel-head">
+        <h2 id="importTitle">Import Article</h2>
+        <p id="importDescription">Choose a Markdown or plain-text file, or paste text below. The first non-empty line becomes the title.</p>
+      </div>
+      <div class="import-source">
+        <div class="import-file-source">
+          <input class="import-file-input" type="file" id="importArticleFile" accept=".md,.markdown,.txt,text/markdown,text/plain" aria-describedby="importFileHint">
+          <label class="btn btn-ghost" for="importArticleFile">Choose .md, .markdown, or .txt</label>
+          <span id="importFileName" class="import-file-name">No file selected</span>
+          <small id="importFileHint">Files are read in this browser and are not uploaded.</small>
+        </div>
+        <div class="import-or" aria-hidden="true">or paste plain text</div>
+        <div class="field import-paste-field">
+          <label for="importArticleText">Article text</label>
+          <textarea id="importArticleText" rows="8" placeholder="# Story title&#10;&#10;Excerpt: One or two sentences.&#10;&#10;Paste the article body here..." spellcheck="true"></textarea>
+        </div>
+      </div>
+      <div id="importStatus" class="import-status" role="status" aria-live="polite">Paste text or choose a supported file to see a preview.</div>
+      <section id="importPreview" class="import-preview" aria-labelledby="importPreviewTitle" hidden>
+        <div class="import-preview-label">Preview</div>
+        <h3 id="importPreviewTitle">Untitled story</h3>
+        <p id="importPreviewExcerpt" class="import-preview-excerpt"></p>
+        <div id="importPreviewBody" class="import-preview-body"></div>
+      </section>
+      <div class="form-actions import-actions">
+        <button type="button" class="btn btn-primary" id="importApplyBtn" disabled>Apply to article form</button>
+        <button type="button" class="btn btn-ghost" id="importCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
   <div class="modal modal-sm">
     <div class="modal-body">
@@ -1185,8 +1242,9 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
   <span id="toastText">Done</span>
 </div>
+<div id="adminLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=80" defer></script>
+<script src="app.js?v=83" defer></script>
 
 </body>
 </html>

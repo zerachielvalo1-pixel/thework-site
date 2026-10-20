@@ -129,6 +129,12 @@ Helpers: `imgUrl()` and `imgTag()` in `public/app.js`, mirrored by `renderImage(
   canonical tag. Nothing errored.
 - Row Level Security is correctly configured — verify with the anon key that
   drafts and `profiles` return **0 rows**. Don't weaken it.
+- Browser uploads, including board photos, must use `/api/upload-thumb`; do not
+  call `supabase.storage.from(...).upload()` directly from the client. The
+  Worker proxy keeps the auth header same-origin and lets Supabase RLS enforce
+  the write.
+- The app never carries a Service Role Key. A Dev UI role is not a substitute
+  for backend RLS, and any privileged operation must remain server-side.
 
 ### Deploy hygiene
 

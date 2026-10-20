@@ -20,6 +20,12 @@ const checks = [
   ['article notes panel and handlers are present', /id="notesPanel"/.test(index) && /function twLoadNotes\(/.test(app) && /function twPostNote\(/.test(app) && /function twDeleteNote\(/.test(app) && /\.from\('article_notes'\)/.test(app) && /notes-list/.test(styles)]
   ,['reading progress is wired', /TW_READING_KEY/.test(app) && /twShowContinueBar/.test(app) && /twIsArticleFinished/.test(app) && /article-read-mark/.test(app) && /tw-continue-bar/.test(styles)]
   ,['story text controls are wired', /twStoryControls/.test(index) && /twSetStoryControlsVisible/.test(app) && /tw_story_text_size/.test(app) && /tw_story_width/.test(app) && /tw-story-controls/.test(styles)]
+    ,['admin dashboard context and editor progress are wired', /id="dashboardContext"/.test(index) && /function dashboardArticles\(/.test(app) && /id="editorProgress"/.test(index) && /function updateEditorProgress\(/.test(app) && /editor-group/.test(styles)]
+    ,['admin loading, error, and filtered-empty states are wired', /function renderAdminLoading\(/.test(app) && /function renderAdminError\(/.test(app) && /data-admin-retry/.test(app) && /data-clear-article-filters/.test(app) && /admin-state/.test(styles)]
+    ,['article import flow is present and safe', /id="importOverlay"/.test(index) && /parseImportedArticle\(/.test(app) && /renderArticleBody\(parsed\.body\)/.test(app) && /data-import-article/.test(index)]
+    ,['admin upload surfaces are keyboard-accessible', /id="thumbUploader"[^>]*role="button"/.test(index) && /closest\?\.\('\.thumb-uploader'\)/.test(app) && /thumb-uploader:focus-visible/.test(styles)]
+    ,['role matrix and shared identity matching are aligned', /users:\s*\{\s*dev:\s*'Full',\s*eb:\s*'Full',\s*member:\s*'—'/.test(app) && /twGetEditorFromStorage\(\)/.test(app) && /function twRefreshMemberDashboard\(/.test(app)]
+    ,['restricted admin writes have defense-in-depth guards', /twRequireRole\('dev'\)/.test(app) && /twRequireRole\('eb', 'dev'\)/.test(app) && /Data\.uploadThumb\(blob\)/.test(app) && !/storage\.from\('thumbnails'\)\.upload\(/.test(app)]
 
     /* Guards for the two failure modes that shipped silently before:
        a stray page in the public asset root (a fake "update your Zoom client"
