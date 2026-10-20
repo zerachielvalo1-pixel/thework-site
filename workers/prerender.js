@@ -1,9 +1,45 @@
 const SITE_ORIGIN = 'https://thework.tw78.workers.dev';
 const SUPABASE_URL = 'https://fgojhhgqpvnwtcqkornz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_UiH_F3V2tFE1doecIb337w__hYVQIQf';
+const SITE_ORIGIN_URL = new URL(SITE_ORIGIN);
+const SUPABASE_ORIGIN = new URL(SUPABASE_URL).origin;
 const CACHE_TTL = 600; // 10 minutes
 const STALE_WHILE_REVALIDATE_SECONDS = 172800; // revalidate up to 2 days stale
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif'
+]);
 const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,subcat,author,author2,photojournalist,photojournalist_2,photo_courtesy,graphics_by,layout_by,layout_by_2,read,credits';
+const FEED_COLUMNS = 'id,title,excerpt,date,updated,cat,author,author2,credits';
+const PUBLIC_DATA_RESOURCES = {
+  'board-members': {
+    table: 'board_members',
+    select: 'id,name,role,program,member_group,subgroup,initials,sort_order',
+    order: 'sort_order.asc'
+  },
+  'board-photos': {
+    table: 'board_photos',
+    select: 'name,photo_url',
+    order: 'name.asc'
+  },
+  releases: {
+    table: 'issues',
+    select: 'id,title,volume,issue_date,category,heyzine_url,cover_url',
+    status: 'eq.published',
+    order: 'issue_date.desc.nullslast'
+  },
+  videos: {
+    table: 'videos',
+    select: 'id,title,video_url,thumbnail_url,platform,published_at,description,broadcasters,broadcaster_2,videojournalist,videojournalist_2,videojournalist_3,video_courtesy,video_courtesy_2,director,director_2,writer,writer_2,writer_3,animator,animator_2,editor,technicians,subcategory,orientation,sort_order',
+    status: 'eq.published',
+    order: 'sort_order.asc'
+  },
+  memoriam: {
+    table: 'memoriam',
+    select: 'id,school_year,term_label,caption,photo_url,sort_order',
+    order: 'sort_order.asc'
+  }
+};
 const CATEGORY_LABELS = {
   news: 'News', editorial: 'Editorial', opinion: 'Opinion',
   features: 'Features', literary: 'Literary', sports: 'Sports',
@@ -24,6 +60,10 @@ function slugify(title) {
 
 function storyPath(article) {
   return `/stories/${slugify(article.title)}/${encodeURIComponent(article.id)}`;
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
 
 function storyDescription(article) {
@@ -59,7 +99,7 @@ const IMG_RENDER_PATH = '/storage/v1/render/image/public/';
 const IMG_QUALITY = 55;
 
 function imgUrl(url, width) {
-  const src = String(url == null ? '' : url);
+  const src = isOwnedImageUrl(url) ? new URL(url).href : '';
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
   const supabaseUrl = src.replace(IMG_OBJECT_PATH, IMG_RENDER_PATH) + sep +
@@ -68,7 +108,7 @@ function imgUrl(url, width) {
 }
 
 function imgTag(url, widths, sizes, attrs) {
-  const src = String(url == null ? '' : url);
+  const src = isOwnedImageUrl(url) ? new URL(url).href : '';
   const extra = attrs || '';
   if (!src) return '';
   if (src.indexOf(IMG_OBJECT_PATH) === -1) {
@@ -80,13 +120,25 @@ function imgTag(url, widths, sizes, attrs) {
   return `<img src="${escapeHtml(imgUrl(src, largest))}" srcset="${escapeHtml(set)}"${sizeAttr}${extra}>`;
 }
 
-/* Only used as a fallback for social cards / non-Supabase URLs. */
+/* Normalize thumbnail URLs before they reach page markup or social metadata. */
 function safeImageUrl(value) {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : `${SITE_ORIGIN}/logo-tw.png`;
+    if (url.protocol === 'https:' && (url.origin === SITE_ORIGIN_URL.origin || url.origin === SUPABASE_ORIGIN)) {
+      return url.href;
+    }
   } catch {
-    return `${SITE_ORIGIN}/logo-tw.png`;
+    /* Invalid thumbnail URLs use the site's own logo below. */
+  }
+  return `${SITE_ORIGIN}/logo-tw.png`;
+}
+
+function isOwnedImageUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.origin === SITE_ORIGIN_URL.origin || url.origin === SUPABASE_ORIGIN);
+  } catch {
+    return false;
   }
 }
 
@@ -99,7 +151,7 @@ const OG_CARD = { width: 1200, height: 630, quality: 80 };
    untouched, since there is nothing to transform it with. */
 function renderImage(url, params) {
   const src = String(url || '');
-  if (src.indexOf(OBJECT_PATH) === -1) return src;
+  if (!isOwnedImageUrl(src) || src.indexOf(OBJECT_PATH) === -1) return isOwnedImageUrl(src) ? src : '';
   const sep = src.indexOf('?') === -1 ? '?' : '&';
   return src.replace(OBJECT_PATH, RENDER_PATH) + sep + params;
 }
@@ -121,7 +173,7 @@ function renderImage(url, params) {
    size the file does not have is a documented reason for crawlers to drop the
    preview entirely. Omitting them lets the crawler measure the real file. */
 function socialCardUrl(url) {
-  const src = String(url == null ? '' : url);
+  const src = isOwnedImageUrl(url) ? new URL(url).href : '';
   if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
   const sep = src.indexOf('?') === -1 ? '?' : '&';
   /* Must stay byte-for-byte in sync with socialCardUrl() in app.js: no format
@@ -175,9 +227,17 @@ function storyCreditsMarkup(article) {
 function isoDateTime(value) {
   const raw = String(value == null ? '' : value).trim();
   if (!raw) return '';
-  if (raw.indexOf('T') !== -1) return raw;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
-  return `${raw}T00:00:00+08:00`;
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = Number(dateOnly[2]);
+    const day = Number(dateOnly[3]);
+    const check = new Date(Date.UTC(year, month - 1, day));
+    if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return '';
+    return `${raw}T00:00:00+08:00`;
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
 }
 
 /* Long date for display: "Sunday, October 11, 2026".
@@ -362,11 +422,29 @@ async function fetchArticles(query) {
   });
 }
 
+async function fetchPublicData(resource) {
+  const config = PUBLIC_DATA_RESOURCES[resource];
+  if (!config) return null;
+  const url = new URL(`/rest/v1/${config.table}`, SUPABASE_URL);
+  for (const [key, value] of Object.entries(config)) {
+    if (key === 'table' || value == null) continue;
+    url.searchParams.set(key, value);
+  }
+  return fetch(url, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Accept: 'application/json'
+    }
+  });
+}
+
 async function serveFreshOrStale(request, ctx, key, render) {
   const cache = caches.default;
   const cacheKey = new Request(key);
   const cached = await cache.match(cacheKey);
-  const ageMs = cached ? (Date.now() - Number(cached.headers.get('tw-swr-at') || 0)) : Infinity;
+  const cachedAt = cached ? Number(cached.headers.get('tw-swr-at') || 0) : 0;
+  const ageMs = cached && Number.isFinite(cachedAt) ? Date.now() - cachedAt : Infinity;
   if (cached && ageMs < CACHE_TTL * 1000) return cached;
   if (cached) {
     // Serve stale instantly, refresh the cache in the background
@@ -374,6 +452,57 @@ async function serveFreshOrStale(request, ctx, key, render) {
     return cached;
   }
   return render(false);
+}
+
+async function renderPublicData(request, ctx, resource) {
+  const config = PUBLIC_DATA_RESOURCES[resource];
+  if (!config) return new Response('Unknown public resource.', { status: 404 });
+
+  const key = `${SITE_ORIGIN}/api/public-data?resource=${encodeURIComponent(resource)}`;
+  const refresh = request.url && new URL(request.url).searchParams.has('refresh')
+    && (request.headers.get('authorization') || '').startsWith('Bearer ');
+  if (refresh) {
+    const response = await fetchPublicData(resource);
+    if (!response || !response.ok) return new Response('Public data is temporarily unavailable.', { status: 503 });
+    const rows = await response.text();
+    const fresh = stampCacheResponse(new Response(rows, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
+      }
+    }));
+    try { await caches.default.put(new Request(key), fresh.clone()); } catch (_) {}
+    return fresh;
+  }
+
+  return serveFreshOrStale(request, ctx, key, async () => {
+    let response;
+    try { response = await fetchPublicData(resource); } catch (_) {
+      return new Response('Public data is temporarily unavailable.', { status: 503 });
+    }
+    if (!response || !response.ok) return new Response('Public data is temporarily unavailable.', { status: 503 });
+    const rows = await response.text();
+    const fresh = stampCacheResponse(new Response(rows, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
+      }
+    }));
+    try { await caches.default.put(new Request(key), fresh.clone()); } catch (_) {}
+    return fresh;
+  });
+}
+
+function stampCacheResponse(response) {
+  const headers = new Headers(response.headers);
+  headers.set('tw-swr-at', String(Date.now()));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
 }
 
 async function renderStory(request, env, ctx, id) {
@@ -416,7 +545,15 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
     });
   }
 
-  const rows = await response.json();
+  let rows;
+  try {
+    rows = await response.json();
+  } catch {
+    return new Response('Story is temporarily unavailable.', {
+      status: 503,
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }
+    });
+  }
   const article = Array.isArray(rows) ? rows[0] : null;
   if (!article) {
     return new Response('Story not found.', {
@@ -490,10 +627,17 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
     '@type': 'NewsArticle',
     headline: article.title,
     description,
-    datePublished: article.date || undefined,
-    dateModified: article.updated || article.date || undefined,
+    datePublished: published || undefined,
+    dateModified: modified || undefined,
     articleSection: CATEGORY_LABELS[article.cat] || article.cat,
-    author: { '@type': 'Person', name: [article.author, article.author2].filter(Boolean).join(' & ') || 'The Work Staff' },
+    author: (() => {
+      const creds = (article.credits && typeof article.credits === 'object') ? article.credits : {};
+      const authors = Array.isArray(creds.authors) && creds.authors.length
+        ? creds.authors.map(String).filter(Boolean)
+        : [article.author, article.author2].filter(Boolean);
+      return (authors.length ? authors : ['The Work Staff'])
+        .map(name => ({ '@type': 'Person', name }));
+    })(),
     publisher: { '@type': 'Organization', name: 'The Work', logo: { '@type': 'ImageObject', url: `${SITE_ORIGIN}/logo-tw.png` } },
     /* The same normalised card as og:image, so Google News picks up an image it
        can actually fetch rather than a multi-megabyte bucket upload. */
@@ -514,7 +658,9 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
   const storyResponse = new Response(request.method === 'HEAD' ? null : html, { status: 200, headers });
   if (request.method === 'GET') {
     const cache = caches.default;
-    try { await cache.put(new Request(storyUrlKey), storyResponse.clone()); } catch (e) { /* cache failure is non-fatal */ }
+    const cacheable = stampCacheResponse(storyResponse);
+    try { await cache.put(new Request(storyUrlKey), cacheable.clone()); } catch (e) { /* cache failure is non-fatal */ }
+    return cacheable;
   }
   return storyResponse;
 }
@@ -548,9 +694,10 @@ async function renderSitemap(env, ctx) {
         'cache-control': `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
       }
     });
+    const cacheable = stampCacheResponse(response);
     const cache = caches.default;
-    try { await cache.put(new Request(key), response.clone()); } catch (e) { /* non-fatal */ }
-    return response;
+    try { await cache.put(new Request(key), cacheable.clone()); } catch (e) { /* non-fatal */ }
+    return cacheable;
   });
 }
 
@@ -566,7 +713,7 @@ async function renderFeed(env, ctx) {
     let rows;
     try {
       const response = await fetchArticles({
-        select: ARTICLE_COLUMNS,
+        select: FEED_COLUMNS,
         status: 'eq.published',
         order: 'date.desc',
         limit: '20'
@@ -637,9 +784,10 @@ async function renderFeed(env, ctx) {
         'cache-control': `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
       }
     });
+    const cacheable = stampCacheResponse(response);
     const cache = caches.default;
-    try { await cache.put(new Request(key), response.clone()); } catch (e) { /* non-fatal */ }
-    return response;
+    try { await cache.put(new Request(key), cacheable.clone()); } catch (e) { /* non-fatal */ }
+    return cacheable;
   });
 }
 
@@ -651,9 +799,37 @@ async function renderFeed(env, ctx) {
    through this Worker makes it same-origin as far as the browser is
    concerned, so the auth header rides along normally.
 
-   Only POST is accepted, the body is streamed straight through, and the
-   response is returned unmodified. Auth is enforced by Supabase on the
+   Only POST is accepted, the body is read into a bounded buffer, and the
+   response status is returned unmodified. Auth is enforced by Supabase on the
    other side, so this is not an open proxy. */
+async function readBoundedBody(request, maxBytes) {
+  if (!request.body) return { body: new Uint8Array(0), tooLarge: false };
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        try { await reader.cancel(); } catch { /* the request is already over the limit */ }
+        return { body: null, tooLarge: true };
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { body, tooLarge: false };
+}
+
 async function handleThumbUpload(request) {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -663,28 +839,67 @@ async function handleThumbUpload(request) {
     return new Response('Bad path', { status: 400 });
   }
   const auth = request.headers.get('authorization') || '';
-  const contentType = request.headers.get('content-type') || 'application/octet-stream';
+  const rawContentType = request.headers.get('content-type');
+  if (!rawContentType) {
+    return new Response('Content-Type is required.', { status: 400 });
+  }
+  const contentType = rawContentType.split(';', 1)[0].trim().toLowerCase();
+  if (!ALLOWED_UPLOAD_CONTENT_TYPES.has(contentType)) {
+    return new Response('Unsupported image content type.', { status: 415 });
+  }
 
-  const upstream = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/thumbnails/${encodeURIComponent(path)}`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': auth,
-        'apikey': SUPABASE_KEY,
-        'Content-Type': contentType,
-        'x-upsert': 'false',
-        /* Supabase prefixes `max-age=` a second time if you send it, producing
-           a malformed header. Send the value only, with immutable appended. */
-        'cache-control': '31536000, immutable'
-      },
-      body: request.body
+  const rawLength = request.headers.get('content-length');
+  if (rawLength !== null) {
+    const declaredLength = rawLength.trim();
+    if (!/^\d+$/.test(declaredLength) || !Number.isSafeInteger(Number(declaredLength))) {
+      return new Response('Invalid Content-Length.', { status: 400 });
     }
-  );
+    if (Number(declaredLength) > MAX_UPLOAD_BYTES) {
+      return new Response('Image upload is too large. Maximum size is 8 MiB.', { status: 413 });
+    }
+  }
+
+  let bounded;
+  try {
+    bounded = await readBoundedBody(request, MAX_UPLOAD_BYTES);
+  } catch {
+    return new Response('Could not read image upload.', { status: 400 });
+  }
+  if (bounded.tooLarge) {
+    return new Response('Image upload is too large. Maximum size is 8 MiB.', { status: 413 });
+  }
+  if (!bounded.body.byteLength) {
+    return new Response('Image upload body is required.', { status: 400 });
+  }
+
+  let upstream;
+  try {
+    upstream = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/thumbnails/${encodeURIComponent(path)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': auth,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': contentType,
+          'x-upsert': 'false',
+          /* Supabase prefixes `max-age=` a second time if you send it, producing
+             a malformed header. Send the value only, with immutable appended. */
+          'cache-control': '31536000, immutable'
+        },
+        body: bounded.body
+      },
+    );
+  } catch {
+    return new Response('Upload service is temporarily unavailable.', { status: 503 });
+  }
   const text = await upstream.text();
   return new Response(text, {
     status: upstream.status,
-    headers: { 'content-type': upstream.headers.get('content-type') || 'application/json' }
+    headers: {
+      'content-type': upstream.headers.get('content-type') || 'application/json',
+      'cache-control': 'no-store'
+    }
   });
 }
 
@@ -775,7 +990,7 @@ async function handleArticlesProxy(request, ctx) {
   }
 
   headers.set('cache-control', 'public, max-age=300, s-maxage=300');
-  const cached = new Response(upstream.body, { status: 200, headers });
+  const cached = stampCacheResponse(new Response(upstream.body, { status: 200, headers }));
   if (ctx && ctx.waitUntil) {
     ctx.waitUntil(cache.put(cacheKey, cached.clone()));
   } else {
@@ -787,9 +1002,10 @@ async function handleArticlesProxy(request, ctx) {
 async function handleImageProxy(request, ctx) {
   const url = new URL(request.url);
   const target = url.searchParams.get('url');
-  const PREFIX = SUPABASE_URL + '/storage/v1/render/';
 
-  if (!target || !target.startsWith(PREFIX)) {
+  let targetUrl;
+  try { targetUrl = new URL(target); } catch { targetUrl = null; }
+  if (!targetUrl || targetUrl.protocol !== 'https:' || targetUrl.origin !== SUPABASE_ORIGIN || !targetUrl.pathname.startsWith('/storage/v1/render/')) {
     return new Response('Bad target', { status: 400 });
   }
 
@@ -800,12 +1016,22 @@ async function handleImageProxy(request, ctx) {
   if (response) return response;
 
   response = await fetch(target, { cf: { cacheEverything: true } });
+  if (!response.ok && [400, 404, 501].includes(response.status)) {
+    /* Image transformations are not available on every Supabase plan. Fall
+       back to the owned raw object so the free-tier deployment still renders
+       the story, while the Worker continues to cache the result at the edge. */
+    const rawPath = targetUrl.pathname.replace('/storage/v1/render/image/public/', '/storage/v1/object/public/');
+    const rawUrl = new URL(SUPABASE_URL);
+    rawUrl.pathname = rawPath;
+    rawUrl.search = '';
+    response = await fetch(rawUrl.toString(), { cf: { cacheEverything: true } });
+  }
   if (!response.ok) return response;
 
   const headers = new Headers(response.headers);
   headers.set('cache-control', 'public, max-age=2592000, immutable');
 
-  const cached = new Response(response.body, { status: response.status, headers });
+  const cached = stampCacheResponse(new Response(response.body, { status: response.status, headers }));
   /* Without this, cache.match() above always misses and every image still hits
      Supabase. This is the line that actually saves the egress. */
   if (ctx && ctx.waitUntil) {
@@ -819,52 +1045,37 @@ async function handleImageProxy(request, ctx) {
 /* ---------- Response hardening ----------
    Every response the Worker returns leaves through withSecurityHeaders(), so
    the shell, prerendered stories, generated XML and static assets all carry
-   the same policy. Before this, the site sent none of them.
+   the same policy.
 
-   The policy is split deliberately:
-
-   `content-security-policy` (ENFORCING) holds only directives that cannot
-   break a page — they restrict framing, plugin embedding, <base> hijacking
-   and form targets. This is the part that actually defends readers today.
-
-   `content-security-policy-report-only` holds the rest, including
-   script-src/style-src. Those need real traffic through the admin panel
-   (uploads, Supabase auth, the editor) before they can be enforced: a
-   mistake there would take the CMS down for staff. Browse the admin with
-   DevTools open, confirm no CSP violation reports, then promote the
-   directives into the enforcing policy above and delete the report-only one.
-
-   The two sha256 hashes are the inline <script> blocks in index.html (the
-   story-text-size and theme bootstraps). If either inline script is edited,
-   recompute them:
+    The two hashes below are the inline story-text-size and theme bootstrap
+    scripts in index.html. Recompute the hashes if either inline block changes:
      node -e "const c=require('crypto');console.log('sha256-'+c.createHash('sha256').update(process.argv[1]).digest('base64'))" '<script body>'
-   scripts/smoke-check.js does not verify these; a mismatch only shows up as a
-   report-only violation, never a broken page. */
-const CSP_HASHES = [
-  "'sha256-x9r5k91+P90X/tWgCcGnwIQuMaVEn5+zH9QoifD1k+4='",
-  "'sha256-9Fg/G4fUH05y1mBrkKLzALOSNHL2Gbd+SlKIRo+/254='"
-];
 
-/* Note: the article page injects per-article NewsArticle JSON-LD inline.
-   application/ld+json is a data block and is never executed, so it is not
-   subject to script-src - it is listed in img/connect terms only by origin. */
-const CSP_REPORT_ONLY = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-  "script-src 'self' " + CSP_HASHES.join(' ') + " https://cdn.jsdelivr.net https://cloud.umami.is",
-  /* 'unsafe-inline' is required: app.js writes style="..." attributes into
-     its own templates (e.g. the admin table rows), and style attributes are
-     governed by style-src. Omitting it would visibly break the admin. */
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: " + SUPABASE_URL,
-  "connect-src 'self' " + SUPABASE_URL + " https://cloud.umami.is",
-  "frame-src 'none'",
-  "worker-src 'self'"
-].join('; ');
+   `style-src` retains `unsafe-inline` because the existing shell and app
+   generate many style attributes. Moving those declarations to classes would
+   allow that exception to be removed without changing the public markup. */
+ const CSP_HASHES = [
+    "'sha256-x9r5k91+P90X/tWgCcGnwIQuMaVEn5+zH9QoifD1k+4='",
+    "'sha256-9Fg/G4fUH05y1mBrkKLzALOSNHL2Gbd+SlKIRo+/254='"
+ ];
+ const CSP_POLICY = [
+   "default-src 'self'",
+   "base-uri 'self'",
+   "object-src 'none'",
+   "frame-ancestors 'none'",
+   "form-action 'self'",
+   "script-src 'self' " + CSP_HASHES.join(' ') + " https://cdn.jsdelivr.net https://cloud.umami.is",
+   "script-src-attr 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc='",
+   /* Existing templates use style attributes throughout the shell and admin;
+      keep this narrow exception until those declarations move to CSS classes. */
+   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+   "font-src 'self' https://fonts.gstatic.com",
+   "img-src 'self' data: blob: " + SUPABASE_ORIGIN + " https://i.ytimg.com",
+   "connect-src 'self' " + SUPABASE_ORIGIN + " https://cloud.umami.is https://fonts.googleapis.com https://fonts.gstatic.com",
+   "frame-src 'self' https://heyzine.com https://*.heyzine.com https://issuu.com https://e.issuu.com https://youtube.com https://www.youtube.com https://player.vimeo.com https://vimeo.com https://facebook.com https://www.facebook.com",
+   "worker-src 'self'",
+   "manifest-src 'self'"
+ ].join('; ');
 
 const SECURITY_HEADERS = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
@@ -872,8 +1083,7 @@ const SECURITY_HEADERS = {
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
   'x-frame-options': 'DENY',
-  'content-security-policy': "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
-  'content-security-policy-report-only': CSP_REPORT_ONLY
+  'content-security-policy': CSP_POLICY
 };
 
 function withSecurityHeaders(response) {
@@ -895,11 +1105,15 @@ async function route(request, env, ctx) {
   if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
   if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
   if (url.pathname === '/api/articles') return handleArticlesProxy(request, ctx);
+  if (url.pathname === '/api/public-data' && request.method === 'GET') {
+    return renderPublicData(request, ctx, url.searchParams.get('resource') || '');
+  }
 
   const match = url.pathname.match(/^\/stories\/[^/]+\/([^/]+)\/?$/);
   if (match && (request.method === 'GET' || request.method === 'HEAD')) {
     let id;
     try { id = decodeURIComponent(match[1]); } catch { return new Response('Story not found.', { status: 404 }); }
+    if (!isUuid(id)) return new Response('Story not found.', { status: 404 });
     return renderStory(request, env, ctx, id);
   }
 

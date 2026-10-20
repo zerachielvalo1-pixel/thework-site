@@ -272,7 +272,14 @@ function imgTag(url, widths, sizes, attrs) {
    output is not reliably 1200x630. */
 function socialCardUrl(url) {
   const src = String(url == null ? '' : url);
-  if (!src || src.indexOf(IMG_OBJECT_PATH) === -1) return src;
+  let owned = false;
+  try {
+    const parsed = new URL(src, location.origin);
+    owned = parsed.protocol === 'https:' && (
+      parsed.origin === new URL(SUPABASE_URL).origin || parsed.origin === location.origin
+    );
+  } catch (_) {}
+  if (!owned || src.indexOf(IMG_OBJECT_PATH) === -1) return location.origin + '/logo-tw.png';
   const sep = src.indexOf('?') === -1 ? '?' : '&';
   /* Route through the same-origin Worker proxy so Facebook, Messenger,
      X, Google, LinkedIn, Discord, Slack and WhatsApp all fetch the card
@@ -528,6 +535,7 @@ let articleReturnUrl = '';
 let articleModalSeo = false;
 let boardPhotos = {};
 let boardPhotosPromise = null;
+let boardMembersPromise = null;
 let releasesPreviewPromise = null;
 let sessionReady = Promise.resolve();
 let pendingBoardUpload = null;
@@ -560,6 +568,11 @@ let importLastFocused = null;
 const TW_EDITOR_KEY = 'tw_editor_name';
 const TW_EDITOR_PROMPT_KEY = 'tw_editor_prompted';
 let editorIdentityCallback = null;
+
+/* The admin list only needs article metadata. Bodies are fetched when an
+   editor opens a row, which keeps the dashboard query small without changing
+   the public article list or modal behavior. */
+const ADMIN_ARTICLE_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by,credits,created_by,last_edited_by';
 
 /* ---------- Revision history ----------
    Every successful article save inserts a JSONB snapshot into
@@ -620,8 +633,17 @@ function safePendingThumbFile() {
 window.__allArticles = safeAllArticles();
 window.__pendingThumbFile = safePendingThumbFile();
 
+function twDraftScope() {
+  const userId = session && session.user && session.user.id;
+  if (!userId) return '';
+  const identity = typeof twGetEditorFromStorage === 'function' ? twGetEditorFromStorage() : '';
+  const scope = identity || (typeof twNeedsEditorPicker === 'function' && twNeedsEditorPicker() ? 'unassigned' : 'account');
+  return `${String(userId).replace(/[^a-zA-Z0-9_-]/g, '_')}_${String(scope).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
 function twDraftKey(id = 'new') {
-  return `tw_article_draft_${String(id || 'new')}`;
+  const scope = twDraftScope();
+  return scope ? `tw_article_draft_${scope}_${String(id || 'new')}` : '';
 }
 
 function twCollectDraft() {
@@ -667,15 +689,19 @@ function twStopAutosaveTicker() {
 
 function twSaveDraft() {
   const draft = twCollectDraft();
-  if (!draft) return;
-  localStorage.setItem(twDraftKey(draft.id), JSON.stringify(draft));
+  if (typeof twNeedsEditorPicker === 'function' && twNeedsEditorPicker() && !twGetEditorFromStorage()) return;
+  const key = twDraftKey(draft && draft.id);
+  if (!draft || !key) return;
+  localStorage.setItem(key, JSON.stringify(draft));
   twAutosaveLastAt = Date.now();
   twUpdateAutosaveIndicator();
 }
 
 function twLoadDraft(id = editingId || 'new') {
   try {
-    const raw = localStorage.getItem(twDraftKey(id));
+    const key = twDraftKey(id);
+    if (!key) return null;
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch (err) {
     console.warn('[The Work] Draft parse failed', err);
@@ -684,7 +710,8 @@ function twLoadDraft(id = editingId || 'new') {
 }
 
 function twClearDraft(id = editingId || 'new') {
-  localStorage.removeItem(twDraftKey(id));
+  const key = twDraftKey(id);
+  if (key) localStorage.removeItem(key);
 }
 
 function twApplyDraft(draft) {
@@ -784,6 +811,23 @@ async function rest(query) {
 }
 
 const Data = {
+  async publicResource(resource, options) {
+    const fresh = !!(options && options.fresh);
+    const headers = { Accept: 'application/json' };
+    if (fresh && sb) {
+      try {
+        const { data } = await sb.auth.getSession();
+        const token = data && data.session && data.session.access_token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+      } catch (_) {}
+    }
+    const query = new URLSearchParams({ resource });
+    if (fresh) query.set('refresh', '1');
+    const response = await fetch('/api/public-data?' + query.toString(), { headers });
+    if (!response.ok) throw new Error('Public data ' + response.status);
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
   async listPublished() {
     if (appCache.publishedArticles) return appCache.publishedArticles.slice();
     if (!sb) {
@@ -819,14 +863,20 @@ const Data = {
     const throwOnError = !!(options && options.throwOnError);
     if (appCache.allArticles) return appCache.allArticles.slice();
     if (!sb) {
-      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]').filter(a => !a.deleted_at);
+      const result = JSON.parse(localStorage.getItem('tw_articles') || '[]')
+        .filter(a => !a.deleted_at)
+        .map(a => {
+          const metadata = { ...a };
+          delete metadata.body;
+          return metadata;
+        });
       appCache.allArticles = result;
       return result.slice();
     }
     let data;
     try {
       data = await rest({
-        select: '*',
+        select: ADMIN_ARTICLE_COLUMNS,
         deleted_at: 'is.null',
         order: 'updated.desc',
         /* Cache-buster. The /api/articles proxy caches responses for 5
@@ -911,8 +961,19 @@ const Data = {
   },
   async listBoardMembers() {
     if (!sb) return BOARD.slice();
-    const { data, error } = await sb.from('board_members').select('*').order('sort_order',{ascending:true});
-    if (error) {
+    try {
+      const data = await Data.publicResource('board-members', { fresh: location.hash.startsWith('#/admin') });
+      return (data || []).map(r => ({
+        id: r.id,
+        name: r.name,
+        role: r.role,
+        program: r.program,
+        group: r.member_group,
+        subgroup: r.subgroup,
+        initials: r.initials,
+        sort_order: r.sort_order
+      }));
+    } catch (error) {
       /* Falling back silently to the hardcoded BOARD array loses the row ids,
          which turns every subsequent edit into an INSERT and duplicates the
          member. Say so out loud. */
@@ -920,16 +981,6 @@ const Data = {
       toast('Could not load the EB roster — edits may duplicate members.', true);
       return BOARD.slice();
     }
-    return (data || []).map(r => ({
-      id: r.id,
-      name: r.name,
-      role: r.role,
-      program: r.program,
-      group: r.member_group,
-      subgroup: r.subgroup,
-      initials: r.initials,
-      sort_order: r.sort_order
-    }));
   },
   async upsertBoardMember(m) {
     if (sb) twRequireRole('eb', 'dev');
@@ -1131,10 +1182,11 @@ const Data = {
   },
   async loadBoardPhotos() {
     if (!sb) { try { return JSON.parse(localStorage.getItem('tw_board_photos') || '{}'); } catch(e) { return {}; } }
-    const { data, error } = await sb.from('board_photos').select('*');
-    if (error) return {};
     const map = {};
-    (data || []).forEach(r => { map[r.name] = r.photo_url; });
+    try {
+      const data = await Data.publicResource('board-photos', { fresh: location.hash.startsWith('#/admin') });
+      (data || []).forEach(r => { map[r.name] = r.photo_url; });
+    } catch (_) {}
     return map;
   },
   async saveBoardPhoto(name, url) {
@@ -1177,9 +1229,8 @@ const Data = {
   },
   async listPublishedReleases() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_releases') || '[]').filter(i => i.status === 'published');
-    const { data, error } = await sb.from('issues').select('*').eq('status','published').order('issue_date',{ascending:false, nullsFirst:false});
-    if (error) return [];
-    return data || [];
+    try { return await Data.publicResource('releases', { fresh: location.hash.startsWith('#/admin') }); }
+    catch (_) { return []; }
   },
   async listAllReleases() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_releases') || '[]');
@@ -1218,9 +1269,8 @@ const Data = {
   },
   async listVideos() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_videos') || '[]').filter(v => v.status === 'published');
-    const { data, error } = await sb.from('videos').select('*').eq('status','published').order('sort_order',{ascending:true});
-    if (error) return [];
-    return data || [];
+    try { return await Data.publicResource('videos', { fresh: location.hash.startsWith('#/admin') }); }
+    catch (_) { return []; }
   },
   async upsertVideo(video) {
     if (!sb) {
@@ -1245,9 +1295,8 @@ const Data = {
   },
   async listMemoriam() {
     if (!sb) return JSON.parse(localStorage.getItem('tw_memoriam') || '[]');
-    const { data, error } = await sb.from('memoriam').select('*').order('sort_order',{ascending:true});
-    if (error) return [];
-    return data || [];
+    try { return await Data.publicResource('memoriam', { fresh: location.hash.startsWith('#/admin') }); }
+    catch (_) { return []; }
   },
   async upsertMemoriam(item) {
     if (sb) twRequireRole('eb', 'dev');
@@ -1273,6 +1322,24 @@ const Data = {
     if (error) throw error;
   }
 };
+
+function ensureBoardMembers() {
+  if (!boardMembersPromise) {
+    boardMembersPromise = Data.listBoardMembers().then(loaded => {
+      if (Array.isArray(loaded) && loaded.length) boardMembers = loaded;
+      populateBoardNames();
+      if ($('#view-board')?.classList.contains('active')) renderBoard();
+      if ($('#panel-board')?.classList.contains('active')) renderBoardAdmin();
+      if ($('#panel-roster')?.classList.contains('active')) renderRosterAdmin();
+      return boardMembers;
+    }).catch(err => {
+      boardMembersPromise = null;
+      console.warn('[The Work] Could not load board members', err);
+      return boardMembers;
+    });
+  }
+  return boardMembersPromise;
+}
 
 function ensureBoardPhotos() {
   if (!boardPhotosPromise) {
@@ -1418,10 +1485,10 @@ async function twCheckSession() {
   twHideSessionWarning();
 }
 
-/* Debug-only escape hatch for testing the session watcher from DevTools.
-   Exposes narrow hooks that only affect the session state, nothing else.
-   Remove this block before production if you don't want it shipped. */
-if (typeof window !== 'undefined') {
+/* Local-only escape hatch for testing the session watcher from DevTools.
+   Normal visitors never receive this global. */
+if (typeof window !== 'undefined' &&
+    (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   window.__twSession = {
     get: () => session,
     expireIn: (seconds) => {
@@ -1442,8 +1509,9 @@ function twStartSessionWatcher() {
   twCheckSession();
 }
 
-/* Clear every draft saved to this device. Called on sign-out so a shared
-   machine does not hand the next writer the previous one's unsaved work. */
+/* Clear every scoped or legacy draft saved to this device. Called on sign-out
+   and auth expiry so a shared machine does not hand the next writer the
+   previous one's unsaved work. */
 function twClearAllDrafts() {
   try {
     const keys = [];
@@ -1453,6 +1521,12 @@ function twClearAllDrafts() {
     }
     keys.forEach(k => localStorage.removeItem(k));
   } catch (e) { /* private mode / quota — non-fatal */ }
+}
+
+function twClearPrivateArticleState() {
+  appCache.allArticles = null;
+  window.__allArticles = [];
+  selectedIds.clear();
 }
 
 // ---------- Role-based access ----------
@@ -1960,7 +2034,8 @@ function twCloseEditorIdentityModal() {
   unlockScroll();
 }
 
-function twShowEditorIdentityModal(callback) {
+async function twShowEditorIdentityModal(callback) {
+  await ensureBoardMembers();
   const overlay = document.getElementById('editorIdentityOverlay');
   const select = document.getElementById('editorIdentitySelect');
   if (!overlay || !select) return;
@@ -2328,6 +2403,7 @@ async function twDoSignOut() {
   /* Shared-machine hygiene: don't leave the previous writer's unsaved
      article behind for the next login. */
   twClearAllDrafts();
+  twClearPrivateArticleState();
   /* Same reasoning for the identity chip — next login should prompt
      fresh. Clears both sessionStorage name and the proactive-prompt
      suppression flag. */
@@ -2826,9 +2902,48 @@ const TW_CAROUSEL = {
   ringCircumference: 2 * Math.PI * 30
 };
 let twCarousel = { index: 0, timer: null, ringAnim: null, items: [], paused: false };
+let twCarouselMotionQuery = null;
+let twCarouselMotionListenerReady = false;
 
 function twCarouselPrefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!twCarouselMotionQuery) twCarouselMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  return twCarouselMotionQuery.matches;
+}
+
+function twCarouselApplyMotionPreference() {
+  const root = document.getElementById('twCarousel');
+  const reduced = twCarouselPrefersReducedMotion();
+  if (root) {
+    root.dataset.reducedMotion = reduced ? 'true' : 'false';
+    root.querySelectorAll('.tw-slide-bg').forEach(img => {
+      if (reduced) {
+        img.style.transition = 'none';
+        img.style.transform = 'none';
+      } else {
+        img.style.removeProperty('transition');
+        img.style.removeProperty('transform');
+      }
+    });
+    root.querySelectorAll('.tw-slide-content > *').forEach(el => {
+      el.style.animation = reduced ? 'none' : '';
+    });
+  }
+  if (reduced) {
+    twCarouselClearTimer();
+    if (root) twCarouselSetActive(twCarousel.index, { animate: false });
+  } else if (root && twCarousel.items.length > 1 && !twCarousel.paused && !document.hidden) {
+    twCarouselSetActive(twCarousel.index, { animate: false });
+    twCarouselScheduleNext();
+  }
+}
+
+function twInitCarouselMotionListener() {
+  if (twCarouselMotionListenerReady) return;
+  twCarouselMotionListenerReady = true;
+  const query = twCarouselMotionQuery || (twCarouselMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)'));
+  const onChange = () => twCarouselApplyMotionPreference();
+  if (typeof query.addEventListener === 'function') query.addEventListener('change', onChange);
+  else if (typeof query.addListener === 'function') query.addListener(onChange);
 }
 
 function twBuildCarousel(items) {
@@ -2860,6 +2975,8 @@ function twBuildCarousel(items) {
         </div>
       </div>`;
   }).join('');
+
+  twInitCarouselMotionListener();
 
   /* pathLength="100" turns the rect's perimeter into a 0-100 scale, so
      stroke-dasharray/dashoffset are plain percentages and don't need to
@@ -2922,9 +3039,10 @@ function twBuildCarousel(items) {
     twCarouselGo(twCarousel.index + (dx < 0 ? 1 : -1));
   }, { passive: true });
 
-  /* Autoplay runs regardless of hover. Reduced-motion only disables the
-     transition animations, not the advance itself. */
-  twCarouselSetActive(0, { animate: false });
+  /* Reduced-motion readers get a static carousel: no autoplay, progress
+     animation, or Ken Burns transform. */
+  twCarouselApplyMotionPreference();
+  twCarouselSetActive(0, { animate: !twCarouselPrefersReducedMotion() });
   twCarouselScheduleNext();
 }
 
@@ -2936,6 +3054,7 @@ function twCarouselClearTimer() {
 function twCarouselScheduleNext() {
   twCarouselClearTimer();
   if (twCarousel.paused || document.hidden) return;
+  if (twCarouselPrefersReducedMotion()) return;
   if (twCarousel.items.length < 2) return;
   twCarousel.timer = setTimeout(() => {
     twCarouselGo(twCarousel.index + 1);
@@ -2980,8 +3099,9 @@ function twCarouselSetActive(index, opts) {
     activeRing.style.strokeDashoffset = '0';
     return;
   }
-  activeRing.style.strokeDashoffset = '0';
-  if (typeof activeRing.animate === 'function') {
+  const shouldAnimate = opts.animate !== false && !twCarouselPrefersReducedMotion();
+  activeRing.style.strokeDashoffset = shouldAnimate ? '100' : '0';
+  if (shouldAnimate && typeof activeRing.animate === 'function') {
     try {
       twCarousel.ringAnim = activeRing.animate(
         [{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }],
@@ -6158,10 +6278,32 @@ function resetForm() {
   if (typeof renderNotesPanel === 'function') renderNotesPanel();
 }
 
-function loadIntoForm(id) {
+let articleEditorLoadToken = 0;
+async function loadIntoForm(id) {
+  const loadToken = ++articleEditorLoadToken;
   const allArticles = safeAllArticles();
   const a = allArticles.find(x => x.id === id);
   if (!a) return;
+
+  /* Data.listAll() is metadata-only. Fetch the body only for the article the
+     editor is opening, and ignore a late response if another row was opened. */
+  if (sb) {
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.disabled = true;
+    if ($('#editorTitle')) $('#editorTitle').textContent = 'Loading article…';
+    try {
+      a.body = await Data.fetchBody(id);
+    } catch (err) {
+      if (loadToken === articleEditorLoadToken) {
+        if (saveBtn) saveBtn.disabled = false;
+        toast('Could not load the article body: ' + safeErrorText(err), true);
+      }
+      return;
+    }
+    if (loadToken !== articleEditorLoadToken) return;
+    if (saveBtn) saveBtn.disabled = false;
+  }
+
   editingId = id;
   window.__pendingThumbFile = null;
   $('#fId').value = id;
@@ -6506,15 +6648,17 @@ function setPanel(name, skipReset) {
   const url = '#/admin' + (name !== 'dashboard' ? '/' + name : '');
   if (location.hash !== url) history.replaceState(null, '', url);
   if (name === 'settings') renderColorGrid();
-  if (name === 'board') renderBoardAdmin();
+  if (name === 'board') { renderBoardAdmin(); ensureBoardMembers(); }
   if (name === 'releases') renderReleasesAdmin();
   if (name === 'videos') renderVideosAdmin();
   if (name === 'memoriam') renderMemoriamAdmin();
   if (name === 'trash') renderTrashAdmin();
   if (name === 'permissions') renderPermissions();
-  if (name === 'roster') renderRosterAdmin();
+  if (name === 'roster') { renderRosterAdmin(); ensureBoardMembers(); }
   if (name === 'users') renderUsersAdmin();
-  if (name === 'new') renderNotesPanel();
+  /* The article editor owns the credit autocomplete, so load the roster only
+     when that panel is actually opened. */
+  if (name === 'new') { renderNotesPanel(); ensureBoardMembers(); }
 }
 
 function showBoardMemberForm(m) {
@@ -6851,7 +6995,7 @@ $('#tableContainer').addEventListener('click', async e => {
     return;
   }
   const ed = e.target.closest('[data-edit]');
-  if (ed) { setPanel('new', true); loadIntoForm(ed.dataset.edit); window.scrollTo(0,0); return; }
+  if (ed) { setPanel('new', true); await loadIntoForm(ed.dataset.edit); window.scrollTo(0,0); return; }
   const dl = e.target.closest('[data-del]');
   if (dl) {
     const a = (window.__allArticles || []).find(x => x.id === dl.dataset.del);
@@ -6865,9 +7009,9 @@ $('#tableContainer').addEventListener('click', async e => {
   }
 });
 
-$('#recentList').addEventListener('click', e => {
+$('#recentList').addEventListener('click', async e => {
   const ed = e.target.closest('[data-edit]');
-  if (ed) { setPanel('new', true); loadIntoForm(ed.dataset.edit); window.scrollTo(0,0); }
+  if (ed) { setPanel('new', true); await loadIntoForm(ed.dataset.edit); window.scrollTo(0,0); }
 });
 
 $('#searchInput').addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
@@ -7060,7 +7204,7 @@ async function route() {
     const sub = parts[2] || 'dashboard';
     setPanel(['dashboard','articles','releases','videos','memoriam','board','roster','new','settings','trash','permissions','users'].includes(sub) ? sub : 'dashboard');
     await renderAdmin();
-    if (sub === 'board') ensureBoardPhotos();
+    if (sub === 'board') { ensureBoardMembers(); ensureBoardPhotos(); }
     updateAuthUI();
     /* Show the identity chip and (once per device) prompt for a name. The
        actual gate is at save time — this is just early so the user is not
@@ -7083,6 +7227,7 @@ async function route() {
   else if (routeName === 'memoriam') await renderMemoriamPage();
   else if (routeName === 'board') {
     renderBoard();
+    ensureBoardMembers();
     ensureBoardPhotos();
   }
   updateAuthUI();
@@ -7095,12 +7240,6 @@ async function init() {
   twRegisterServiceWorker();
   twInitInstall();
   applyBrandColors();
-  try {
-    const loaded = await Data.listBoardMembers();
-    if (Array.isArray(loaded) && loaded.length) boardMembers = loaded;
-  } catch (e) { /* keep hardcoded fallback */ }
-  populateBoardNames();
-
   $('#year').textContent = new Date().getFullYear();
   (function startLiveClock(){
     const el = $('#pubbarDate');
@@ -7156,6 +7295,8 @@ async function init() {
         currentRole = null;
         applyRoleUI();
         twHideSessionWarning();
+        twClearAllDrafts();
+        twClearPrivateArticleState();
         twClearEditorIdentity();
         twRenderIdentityChip();
       }

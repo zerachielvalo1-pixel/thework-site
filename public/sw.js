@@ -26,6 +26,11 @@
  *                          rows, or replay one user's data to the next. The app
  *                          already renders its own offline state without help.
  *
+ *   same-origin /api/image-proxy  cache-first.
+ *                          Story thumbnails already route through this Worker;
+ *                          caching the same-origin response makes visited
+ *                          stories' images available offline too.
+ *
  * Bump CACHE_VERSION on a deploy that changes the precache list.
  */
 
@@ -81,6 +86,10 @@ function isApi(url) {
 
 function isStaticAsset(url) {
   return /\.(?:css|js|mjs|png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|webmanifest)$/i.test(url.pathname);
+}
+
+function isImageProxy(url) {
+  return url.origin === self.location.origin && url.pathname === '/api/image-proxy';
 }
 
 /* Cache-first: answer from cache, otherwise fetch and store a copy.
@@ -151,6 +160,13 @@ self.addEventListener('fetch', (event) => {
   // Storage images are immutable.
   if (isStorageImage(url)) {
     event.respondWith(cacheFirst(request, IMAGE_CACHE, { cors: true }));
+    return;
+  }
+
+  // The Worker proxy is same-origin, so its transformed story images can use
+  // the same verified cache path as direct Storage images.
+  if (isImageProxy(url)) {
+    event.respondWith(cacheFirst(request, IMAGE_CACHE));
     return;
   }
 

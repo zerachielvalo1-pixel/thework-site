@@ -133,6 +133,12 @@ Helpers: `imgUrl()` and `imgTag()` in `public/app.js`, mirrored by `renderImage(
   call `supabase.storage.from(...).upload()` directly from the client. The
   Worker proxy keeps the auth header same-origin and lets Supabase RLS enforce
   the write.
+- Public board, board-photo, release, video, and Look Back reads use the
+  allowlisted `/api/public-data` Worker route so Cloudflare can cache them.
+  Do not replace these with uncached browser reads on public pages.
+- The project stays on Supabase free-tier assumptions. Do not add a Service
+  Role Key, paid Supabase-only feature, or unbounded public query. Keep public
+  projections narrow and cacheable.
 - The app never carries a Service Role Key. A Dev UI role is not a substitute
   for backend RLS, and any privileged operation must remain server-side.
 
