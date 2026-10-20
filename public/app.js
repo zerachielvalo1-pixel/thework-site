@@ -3120,13 +3120,29 @@ document.addEventListener('visibilitychange', () => {
   else twCarouselScheduleNext();
 });
 
-async function renderHome() {
+function readServerHomeData() {
+  const grid = document.getElementById('frontpageGrid');
+  const dataEl = document.getElementById('tw-home-data');
+  if (!grid || !dataEl || grid.dataset.serverHome !== 'true') return null;
+  try {
+    const parsed = JSON.parse(dataEl.textContent || 'null');
+    dataEl.remove();
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    dataEl.remove();
+    console.warn('[The Work] Server homepage data was invalid', err);
+    return null;
+  }
+}
+
+async function renderHome(options) {
+  const initial = options && Array.isArray(options.initial) ? options.initial : null;
   const fpGrid = $('#frontpageGrid');
-  fpGrid.innerHTML = twSkelHome();
+  if (!initial) fpGrid.innerHTML = twSkelHome();
 
   let published = [];
   try {
-    published = await Data.listPublished();
+    published = initial || await Data.listPublished();
   } catch (err) {
     twShowError(fpGrid, 'Could not load stories.', () => renderHome());
     return;
@@ -7219,7 +7235,8 @@ async function route() {
   if (routeName === 'saved') { await renderSavedPage(); updateAuthUI(); return; }
   if (routeName === '404') { updateAuthUI(); return; }
   if (routeName === 'home') {
-    await renderHome();
+    const serverHome = readServerHomeData();
+    await renderHome(serverHome ? { initial: serverHome } : null);
     ensureReleasesPreview();
   }
   else if (routeName === 'releases') await renderReleasesPage();

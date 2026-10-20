@@ -16,6 +16,10 @@ const checks = [
   ['public columns include article status', /PUBLISHED_COLUMNS[^\n]*status/.test(app)],
   ['app hardens global article state', /function safeAllArticles\(/.test(app) && /function safePendingThumbFile\(/.test(app)],
   ['worker revalidates static assets', /must-revalidate/.test(worker)],
+  ['homepage projection is narrow and body-free', /const HOME_COLUMNS\s*=\s*'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,credits'/.test(worker) && /select: HOME_COLUMNS/.test(worker) && /status: 'eq\.published'/.test(worker) && /order: 'date\.desc'/.test(worker) && /limit: '20'/.test(worker)],
+  ['root path uses cached homepage prerender', /async function renderHome\(request, env, ctx\)/.test(worker) && /return serveFreshOrStale\(request, ctx, homeUrlKey/.test(worker) && /url\.pathname === '\/' && request\.method === 'GET'\) return renderHome\(request, env, ctx\)/.test(worker)],
+  ['server homepage region is marked for hydration', /id="frontpageGrid" data-server-home="true"/.test(worker) && /data-server-home-story="true"/.test(worker)],
+  ['homepage JSON bootstrap is escaped and identified', /function safeJsonForHtml\(/.test(worker) && /id="tw-home-data" type="application\/json" data-server-home="true"/.test(worker) && /JSON\.stringify\(value\)/.test(worker)],
   ['feed query avoids article bodies and thumbnails', /const FEED_COLUMNS\s*=\s*'id,title,excerpt,date,updated,cat,author,author2,credits'/.test(worker) && /select: FEED_COLUMNS/.test(worker)],
   ['public auxiliary data is allowlisted and edge-cached', /PUBLIC_DATA_RESOURCES\s*=\s*\{/.test(worker) && /'board-members'/.test(worker) && /'board-photos'/.test(worker) && /releases:/.test(worker) && /videos:/.test(worker) && /memoriam:/.test(worker) && /url\.pathname === '\/api\/public-data'/.test(worker) && /function renderPublicData\(/.test(worker)],
   ['Worker cache writes carry SWR timestamps', /function stampCacheResponse\(/.test(worker) && /headers\.set\('tw-swr-at'/.test(worker) && (worker.match(/cache\.put\(/g) || []).length >= 5],
@@ -49,6 +53,7 @@ const checks = [
      ,['service worker caches same-origin image proxy but not Supabase REST', /function isImageProxy\(/.test(sw) && /if \(isImageProxy\(url\)\)/.test(sw) && /cacheFirst\(request, IMAGE_CACHE\)/.test(sw) && /if \(isApi\(url\)\) return;/.test(sw)]
      ,['public auxiliary reads use the Worker cache', /async publicResource\(resource, options\)/.test(app) && /publicResource\('board-members'/.test(app) && /publicResource\('board-photos'/.test(app) && /publicResource\('releases'/.test(app) && /publicResource\('videos'/.test(app) && /publicResource\('memoriam'/.test(app)]
      ,['analytics loads independently of app boot', /<script async src="https:\/\/cloud\.umami\.is\/script\.js"/.test(index) && /app\.js\?v=\d+/.test(index)]
+     ,['client hydrates the server-rendered homepage without a duplicate public read', /function readServerHomeData\(/.test(app) && /async function renderHome\(options\)/.test(app) && /published = initial \|\| await Data\.listPublished\(\)/.test(app) && /const serverHome = readServerHomeData\(\)/.test(app)]
 
     /* Guards for the two failure modes that shipped silently before:
        a stray page in the public asset root (a fake "update your Zoom client"

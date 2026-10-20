@@ -10,6 +10,7 @@ const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/webp', 'image/gif'
 ]);
 const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,subcat,author,author2,photojournalist,photojournalist_2,photo_courtesy,graphics_by,layout_by,layout_by_2,read,credits';
+const HOME_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,credits';
 const FEED_COLUMNS = 'id,title,excerpt,date,updated,cat,author,author2,credits';
 const PUBLIC_DATA_RESOURCES = {
   'board-members': {
@@ -268,6 +269,106 @@ function formatDateLong(value) {
   if (month < 1 || month > 12 || day < 1 || day > 31) return raw;
   const weekday = DAYS_LONG[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
   return `${weekday}, ${MONTHS_LONG[month - 1]} ${day}, ${year}`;
+}
+
+function formatDateShort(value) {
+  const raw = String(value == null ? '' : value).trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return raw;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return raw;
+  return `${MONTHS_LONG[month - 1].slice(0, 3)} ${day}, ${year}`;
+}
+
+function formatHomeViews(value) {
+  const views = Number(value) || 0;
+  if (views === 0) return '';
+  if (views < 1000) return `${views} ${views === 1 ? 'view' : 'views'}`;
+  if (views < 1000000) return `${(views / 1000).toFixed(views < 10000 ? 1 : 0).replace(/\.0$/, '')}k views`;
+  return `${(views / 1000000).toFixed(1).replace(/\.0$/, '')}M views`;
+}
+
+function projectHomeArticle(article) {
+  const source = article || {};
+  return {
+    id: source.id ?? null,
+    title: source.title ?? null,
+    excerpt: source.excerpt ?? null,
+    thumbnail: source.thumbnail ?? null,
+    date: source.date ?? null,
+    cat: source.cat ?? null,
+    subcat: source.subcat ?? null,
+    status: source.status ?? 'published',
+    author: source.author ?? null,
+    author2: source.author2 ?? null,
+    read: source.read ?? null,
+    views: source.views ?? null,
+    featured: source.featured ?? false,
+    credits: source.credits ?? null
+  };
+}
+
+function safeJsonForHtml(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function homeAuthors(article) {
+  const creds = (article.credits && typeof article.credits === 'object') ? article.credits : {};
+  const authors = Array.isArray(creds.authors) && creds.authors.length
+    ? creds.authors.map(String).filter(Boolean)
+    : [article.author, article.author2].filter(Boolean);
+  return authors.join(', ') || 'The Work Staff';
+}
+
+function homeCategory(article) {
+  return CATEGORY_LABELS[article.cat] || article.cat || 'Story';
+}
+
+function renderHomeMarkup(articles) {
+  if (!articles.length) {
+    return '<div class="frontpage-empty" style="grid-column:1/-1"><h3>No stories yet</h3><p>Check back soon.</p></div>';
+  }
+
+  const lead = articles.find(article => article.featured) || articles[0];
+  const sidebar = articles.filter(article => String(article.id) !== String(lead.id)).slice(0, 6);
+  const leadPath = storyPath(lead);
+  const leadMeta = [formatDateShort(lead.date), lead.read, formatHomeViews(lead.views)].filter(Boolean).join(' · ');
+  const leadImage = lead.thumbnail
+    ? imgTag(lead.thumbnail, [640, 1200], '(max-width: 900px) 100vw, 66vw', ' alt="" fetchpriority="high" decoding="async"')
+    : '';
+  const leadThumb = leadImage || `<div class="lead-story-thumb-text">${escapeHtml(homeCategory(lead).charAt(0))}</div>`;
+
+  const sidebarHtml = sidebar.map(article => {
+    const image = article.thumbnail
+      ? imgTag(article.thumbnail, [240], '', ' alt="" loading="lazy" decoding="async"')
+      : '';
+    const thumb = image || escapeHtml(homeCategory(article).charAt(0));
+    const meta = [homeAuthors(article), formatDateShort(article.date), formatHomeViews(article.views)].filter(Boolean).join(' · ');
+    return `<div class="sidebar-item" data-server-home-story="true">
+      <div class="sidebar-item-thumb">${thumb}</div>
+      <div class="sidebar-item-content">
+        <span class="sidebar-item-cat">${escapeHtml(homeCategory(article))}</span>
+        <a class="sidebar-item-title" href="${escapeHtml(storyPath(article))}">${escapeHtml(article.title)}</a>
+        <div class="sidebar-item-meta">${escapeHtml(meta)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<article class="lead-story" data-server-home-story="true">
+    <div class="lead-story-thumb">${leadThumb}<span class="lead-story-cat">${escapeHtml(homeCategory(lead))}</span></div>
+    <h2 class="lead-story-title"><a href="${escapeHtml(leadPath)}">${escapeHtml(lead.title)}</a></h2>
+    ${lead.excerpt ? `<p class="lead-story-excerpt">${escapeHtml(lead.excerpt)}</p>` : ''}
+    <div class="lead-story-meta"><span class="lead-story-byline">By ${escapeHtml(homeAuthors(lead))}</span>${leadMeta ? `<span>${escapeHtml(leadMeta)}</span>` : ''}</div>
+  </article>
+  <aside data-server-home-sidebar="true">
+    <div class="sidebar-section-title">Latest <span>· ${articles.length} total</span></div>
+    <div class="sidebar-list">${sidebarHtml || '<p style="color:var(--ink-3);font-family:var(--sans);font-size:.85rem">No other stories yet.</p>'}</div>
+  </aside>`;
 }
 
 /* ---------- Article body renderer (mirror of app.js) ----------
@@ -663,6 +764,47 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
     return cacheable;
   }
   return storyResponse;
+}
+
+async function renderHome(request, env, ctx) {
+  const homeUrlKey = `${SITE_ORIGIN}/`;
+  return serveFreshOrStale(request, ctx, homeUrlKey, async () => {
+    let articles;
+    try {
+      const response = await fetchArticles({
+        select: HOME_COLUMNS,
+        status: 'eq.published',
+        order: 'date.desc',
+        limit: '20'
+      });
+      if (!response.ok) throw new Error('Homepage query failed');
+      const rows = await response.json();
+      articles = Array.isArray(rows) ? rows.map(projectHomeArticle) : [];
+    } catch {
+      /* Keep the static shell usable when Supabase is unavailable. Do not cache
+         this fallback, so the next request can try the homepage query again. */
+      return env.ASSETS.fetch(new URL('/', SITE_ORIGIN));
+    }
+
+    const assetResponse = await env.ASSETS.fetch(new URL('/', SITE_ORIGIN));
+    if (!assetResponse.ok) return assetResponse;
+    let html = await assetResponse.text();
+    const json = safeJsonForHtml(articles);
+    const replacement = `<div class="frontpage-grid" id="frontpageGrid" data-server-home="true">${renderHomeMarkup(articles)}</div>` +
+      `<script id="tw-home-data" type="application/json" data-server-home="true">${json}</script>`;
+    const homeGridPattern = /<div class="frontpage-grid" id="frontpageGrid"><\/div>/i;
+    if (!homeGridPattern.test(html)) return assetResponse;
+    html = html.replace(homeGridPattern, () => replacement);
+
+    const headers = new Headers(assetResponse.headers);
+    for (const header of ['content-length', 'content-encoding', 'etag', 'last-modified']) headers.delete(header);
+    headers.set('content-type', 'text/html; charset=utf-8');
+    headers.set('cache-control', `public, max-age=${CACHE_TTL}, s-maxage=${CACHE_TTL * 2}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`);
+    const homepage = new Response(request.method === 'HEAD' ? null : html, { status: 200, headers });
+    const cacheable = stampCacheResponse(homepage);
+    try { await caches.default.put(new Request(homeUrlKey), cacheable.clone()); } catch (e) { /* cache failure is non-fatal */ }
+    return cacheable;
+  });
 }
 
 async function renderSitemap(env, ctx) {
@@ -1101,6 +1243,7 @@ async function route(request, env, ctx) {
   const url = new URL(request.url);
   if (url.pathname === '/sitemap.xml' && request.method === 'GET') return renderSitemap(env, ctx);
   if (url.pathname === '/feed.xml' && request.method === 'GET') return renderFeed(env, ctx);
+  if (url.pathname === '/' && request.method === 'GET') return renderHome(request, env, ctx);
 
   if (url.pathname === '/api/upload-thumb') return handleThumbUpload(request);
   if (url.pathname === '/api/image-proxy') return handleImageProxy(request, ctx);
