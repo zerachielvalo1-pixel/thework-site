@@ -68,10 +68,13 @@ async function main() {
   const publicQuery = `/api/articles?select=${encodeURIComponent(PUBLIC_ARTICLE_COLUMNS)}&status=eq.published&deleted_at=is.null&or=${encodeURIComponent('(publish_at.is.null,publish_at.lte.2099-01-01T00:00:00.000Z)')}&limit=1`;
   const publicArticles = await get(publicQuery);
   assert('public article projection status', publicArticles.response.status === 200);
+  assert('article proxy does not forward Supabase cookies', !header(publicArticles.response, 'set-cookie'));
   let publicRows = null;
   try { publicRows = JSON.parse(publicArticles.text); } catch (_) {}
   assert('public article projection is JSON', Array.isArray(publicRows));
   assert('public article projection omits bodies', !((publicRows || []).some(row => Object.prototype.hasOwnProperty.call(row, 'body'))));
+  const publicArticlesAgain = await get(publicQuery.replace('2099-01-01T00:00:00.000Z', '2099-01-01T00:00:01.000Z'));
+  assert('public article cache ignores rolling publish-time values', header(publicArticlesAgain.response, 'x-cache') === 'HIT');
 
   for (const resource of ['board-members', 'board-photos', 'releases', 'videos', 'memoriam']) {
     const result = await get(`/api/public-data?resource=${resource}`);

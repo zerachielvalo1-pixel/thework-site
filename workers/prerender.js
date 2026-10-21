@@ -1188,9 +1188,15 @@ async function handleArticlesProxy(request, ctx) {
 
   if (!upstream.ok) return upstream;
 
-  const headers = new Headers(upstream.headers);
+  /* Do not forward Supabase gateway cookies or representation headers. The
+     cookie is not useful to this same-origin proxy, and Set-Cookie also makes
+     Cache API writes non-cacheable on some edge isolates. The Worker owns the
+     response metadata, so recreate only the public JSON headers we need. */
+  const headers = new Headers();
   headers.set('content-type', 'application/json; charset=utf-8');
   headers.set('x-cache', bypassCache ? 'BYPASS' : 'MISS');
+  const contentRange = upstream.headers.get('content-range');
+  if (contentRange) headers.set('content-range', contentRange);
   if (bypassCache) {
     /* Do not let anything cache this response — not the browser, not the
        Cloudflare edge, not the Worker's own Cache API. */
@@ -1238,6 +1244,7 @@ async function handleImageProxy(request, ctx) {
   if (!response.ok) return response;
 
   const headers = new Headers(response.headers);
+  for (const header of ['content-length', 'content-encoding', 'content-location', 'set-cookie']) headers.delete(header);
   headers.set('cache-control', 'public, max-age=2592000, immutable');
 
   const cached = stampCacheResponse(new Response(response.body, { status: response.status, headers }));
