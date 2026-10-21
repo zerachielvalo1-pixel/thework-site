@@ -1148,12 +1148,11 @@ async function handleArticlesProxy(request, ctx) {
   const bypassCache = url.searchParams.has('_') || isAuthenticated;
 
   const cache = caches.default;
-  /* The cache key includes a fragment that distinguishes authed from
-     anon reads. Fragments are stripped before the fetch is made, so
-     Supabase never sees them; only the local Cache API is affected.
-     This prevents an authed read from poisoning the anon cache entry
-     (and vice versa) now that the two paths produce different
-     result sets under RLS. */
+  /* Keep authenticated and anonymous reads in separate Cache API entries.
+     Use a private query parameter rather than a URL fragment: Request/Cache
+     implementations are allowed to discard fragments when normalizing keys,
+     which would make the two result sets collide under RLS. The marker never
+     reaches Supabase because it is added only to the local cache key below. */
   /* The public client includes a fresh `publish_at.lte.<now>` value on every
      request. Keep that value in the upstream query, but remove it from the
      Worker cache key so the five-minute cache can actually absorb repeat page
@@ -1165,7 +1164,8 @@ async function handleArticlesProxy(request, ctx) {
     cacheKeyUrl.searchParams.delete('or');
     if (select === ARTICLE_BODY_COLUMNS) cacheKeyUrl.searchParams.set('limit', '1');
   }
-  const cacheKey = new Request(cacheKeyUrl.toString() + (isAuthenticated ? '#auth' : '#anon'), { method: 'GET' });
+  cacheKeyUrl.searchParams.set('__tw_cache_role', isAuthenticated ? 'auth' : 'anon');
+  const cacheKey = new Request(cacheKeyUrl.toString(), { method: 'GET' });
 
   let response = bypassCache ? null : await cache.match(cacheKey);
   if (response) {
