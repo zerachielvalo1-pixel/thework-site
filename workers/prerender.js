@@ -5,11 +5,18 @@ const SITE_ORIGIN_URL = new URL(SITE_ORIGIN);
 const SUPABASE_ORIGIN = new URL(SUPABASE_URL).origin;
 const CACHE_TTL = 600; // 10 minutes
 const STALE_WHILE_REVALIDATE_SECONDS = 172800; // revalidate up to 2 days stale
+const HOME_CACHE_VERSION = '2';
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/webp', 'image/gif'
 ]);
 const ARTICLE_COLUMNS = 'id,title,excerpt,body,thumbnail,date,updated,cat,subcat,author,author2,photojournalist,photojournalist_2,photo_courtesy,graphics_by,layout_by,layout_by_2,read,credits';
+const ARTICLE_PUBLIC_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by,credits';
+const ARTICLE_ADMIN_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,updated,publish_at,photojournalist,photojournalist_2,photo_courtesy,layout_by,layout_by_2,graphics_by,credits,created_by,last_edited_by';
+const ARTICLE_BODY_COLUMNS = 'body';
+const ARTICLE_ALLOWED_SELECTS = new Set([ARTICLE_PUBLIC_COLUMNS, ARTICLE_ADMIN_COLUMNS, ARTICLE_BODY_COLUMNS]);
+const ARTICLE_ALLOWED_QUERY_KEYS = new Set(['select', 'status', 'deleted_at', 'or', 'order', 'limit', 'id', '_']);
+const ARTICLE_ALLOWED_ORDERS = new Set(['date.desc.nullslast', 'updated.desc']);
 const HOME_COLUMNS = 'id,title,excerpt,thumbnail,date,cat,subcat,status,author,author2,read,views,featured,credits';
 const FEED_COLUMNS = 'id,title,excerpt,date,updated,cat,author,author2,credits';
 const PUBLIC_DATA_RESOURCES = {
@@ -366,7 +373,7 @@ function renderHomeMarkup(articles) {
     <div class="lead-story-meta"><span class="lead-story-byline">By ${escapeHtml(homeAuthors(lead))}</span>${leadMeta ? `<span>${escapeHtml(leadMeta)}</span>` : ''}</div>
   </article>
   <aside data-server-home-sidebar="true">
-    <div class="sidebar-section-title">Latest <span>· ${articles.length} total</span></div>
+    <div class="sidebar-section-title">Latest</div>
     <div class="sidebar-list">${sidebarHtml || '<p style="color:var(--ink-3);font-family:var(--sans);font-size:.85rem">No other stories yet.</p>'}</div>
   </aside>`;
 }
@@ -767,7 +774,10 @@ async function renderAndCacheStory(request, env, id, storyUrlKey, ctx) {
 }
 
 async function renderHome(request, env, ctx) {
-  const homeUrlKey = `${SITE_ORIGIN}/`;
+  /* Bump this when the server-rendered homepage markup changes. The Cache API
+     survives Worker deployments, so a versioned internal key prevents an old
+     HTML shape from being served for the normal ten-minute TTL after release. */
+  const homeUrlKey = `${SITE_ORIGIN}/?__tw_home=${HOME_CACHE_VERSION}`;
   return serveFreshOrStale(request, ctx, homeUrlKey, async () => {
     let articles;
     try {
@@ -1064,6 +1074,31 @@ async function handleArticlesProxy(request, ctx) {
   }
 
   const url = new URL(request.url);
+  const select = url.searchParams.get('select') || '';
+  if (!ARTICLE_ALLOWED_SELECTS.has(select) || url.searchParams.getAll('select').length !== 1) {
+    return new Response('Unsupported article projection.', { status: 400 });
+  }
+  for (const key of url.searchParams.keys()) {
+    if (!ARTICLE_ALLOWED_QUERY_KEYS.has(key)) {
+      return new Response('Unsupported article query.', { status: 400 });
+    }
+  }
+  const order = url.searchParams.get('order');
+  if (order && !ARTICLE_ALLOWED_ORDERS.has(order)) {
+    return new Response('Unsupported article order.', { status: 400 });
+  }
+  const limit = url.searchParams.get('limit');
+  if (limit !== null && (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 500)) {
+    return new Response('Invalid article limit.', { status: 400 });
+  }
+  const idFilter = url.searchParams.get('id');
+  if (idFilter && !/^eq\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idFilter)) {
+    return new Response('Invalid article id filter.', { status: 400 });
+  }
+  if (select === ARTICLE_BODY_COLUMNS && !idFilter) {
+    return new Response('Article body requests require an id.', { status: 400 });
+  }
+
   const target = new URL(SUPABASE_URL + '/rest/v1/articles');
   /* Copy every query param the browser sent, EXCEPT the `_` cache-buster.
      PostgREST treats unknown params as column filters and would error on
@@ -1082,7 +1117,28 @@ async function handleArticlesProxy(request, ctx) {
      visible — the `articles_public_read` policy that anon requests
      hit filters them out (`publish_at <= now()`). */
   const clientAuth = request.headers.get('authorization') || '';
-  const isAuthenticated = clientAuth.startsWith('Bearer ');
+  const clientToken = clientAuth.startsWith('Bearer ') ? clientAuth.slice(7).trim() : '';
+  /* A publishable `sb_...` key is not a user session. Treat only a JWT-shaped
+     bearer token as authenticated so a caller cannot unlock the admin
+     projection by echoing the public key back in Authorization. Supabase still
+     remains the authority and rejects forged JWTs upstream. */
+  const isAuthenticated = clientToken.split('.').length === 3 && clientToken !== SUPABASE_KEY;
+
+  if (select === ARTICLE_ADMIN_COLUMNS && !isAuthenticated) {
+    return new Response('Article projection requires authentication.', { status: 403 });
+  }
+
+  /* Public projections are deliberately fixed to the published view. This
+     keeps a future RLS mistake from turning the browser-facing proxy into a
+     draft/body dump, and makes body reads finite even when a caller omits the
+     filters the normal client sends. */
+  const isPublicProjection = select === ARTICLE_PUBLIC_COLUMNS || select === ARTICLE_BODY_COLUMNS;
+  if (isPublicProjection) {
+    target.searchParams.set('status', 'eq.published');
+    target.searchParams.set('deleted_at', 'is.null');
+    target.searchParams.set('or', `(publish_at.is.null,publish_at.lte.${new Date().toISOString()})`);
+    if (select === ARTICLE_BODY_COLUMNS) target.searchParams.set('limit', '1');
+  }
 
   /* Admin sends a `_` cache-buster (see listAll() in app.js) so an edit
      shows up immediately instead of waiting for the 5-minute edge cache
@@ -1098,7 +1154,18 @@ async function handleArticlesProxy(request, ctx) {
      This prevents an authed read from poisoning the anon cache entry
      (and vice versa) now that the two paths produce different
      result sets under RLS. */
-  const cacheKey = new Request(url.toString() + (isAuthenticated ? '#auth' : '#anon'), { method: 'GET' });
+  /* The public client includes a fresh `publish_at.lte.<now>` value on every
+     request. Keep that value in the upstream query, but remove it from the
+     Worker cache key so the five-minute cache can actually absorb repeat page
+     loads instead of treating every timestamp as a new URL. */
+  const cacheKeyUrl = new URL(url.toString());
+  if (isPublicProjection) {
+    cacheKeyUrl.searchParams.set('status', 'eq.published');
+    cacheKeyUrl.searchParams.set('deleted_at', 'is.null');
+    cacheKeyUrl.searchParams.delete('or');
+    if (select === ARTICLE_BODY_COLUMNS) cacheKeyUrl.searchParams.set('limit', '1');
+  }
+  const cacheKey = new Request(cacheKeyUrl.toString() + (isAuthenticated ? '#auth' : '#anon'), { method: 'GET' });
 
   let response = bypassCache ? null : await cache.match(cacheKey);
   if (response) {

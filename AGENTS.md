@@ -171,6 +171,8 @@ There are **no automated tests**. Verification during development used:
   own `--window-size`, so a 390px window is not a 390px viewport.
 - A Node harness that imports `workers/prerender.js` with a stubbed
   `env.ASSETS` binding, to assert on the exact HTML a crawler receives.
+- `node scripts/live-check.js` for read-only production regression checks;
+  set `THEWORK_ORIGIN` to point it at a local Wrangler server.
 
 ### Security headers (Layer 1)
 
