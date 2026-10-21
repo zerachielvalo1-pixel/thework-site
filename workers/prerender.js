@@ -1200,11 +1200,11 @@ async function handleArticlesProxy(request, ctx) {
 
   headers.set('cache-control', 'public, max-age=300, s-maxage=300');
   const cached = stampCacheResponse(new Response(upstream.body, { status: 200, headers }));
-  if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(cache.put(cacheKey, cached.clone()));
-  } else {
-    await cache.put(cacheKey, cached.clone());
-  }
+  /* Await the write. The response body is already cloned, and returning before
+     the Cache API write settles made rapid repeat requests miss again on some
+     edge isolates despite using waitUntil. One tiny write is cheaper than
+     sending the same metadata query to Supabase on every page load. */
+  try { await cache.put(cacheKey, cached.clone()); } catch (_) {}
   return cached;
 }
 
@@ -1243,11 +1243,7 @@ async function handleImageProxy(request, ctx) {
   const cached = stampCacheResponse(new Response(response.body, { status: response.status, headers }));
   /* Without this, cache.match() above always misses and every image still hits
      Supabase. This is the line that actually saves the egress. */
-  if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(cache.put(cacheKey, cached.clone()));
-  } else {
-    await cache.put(cacheKey, cached.clone());
-  }
+  try { await cache.put(cacheKey, cached.clone()); } catch (_) {}
   return cached;
 }
 
