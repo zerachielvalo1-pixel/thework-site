@@ -18,9 +18,18 @@ function assert(name, condition, detail) {
 }
 
 async function get(path, options) {
-  const response = await fetch(origin + path, options);
-  const text = await response.text();
-  return { response, text };
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(origin + path, options);
+      const text = await response.text();
+      return { response, text };
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+  throw new Error(`${path}: ${lastError ? lastError.message : 'fetch failed'}`);
 }
 
 function header(response, name) {
